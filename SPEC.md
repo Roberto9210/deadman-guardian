@@ -1,4 +1,4 @@
-# deadman-guardian — SPEC v0.2
+# deadman-guardian — SPEC v0.3
 
 **Status: written before a single line of C#.** Nothing in this document was derived from code that already
 exists, because none does. Where it names a NinjaTrader 8 API, that API was verified by reflection against
@@ -10,6 +10,11 @@ Anything unverified is marked as such.
 forward direction, which is the direction that actually breaks the seal (§6.4, §7.5, G13); and the time-zone
 rule no longer specifies something that cannot work inside NT8 (§5.1). New §17 states what this does not
 protect against.*
+
+*Changes in v0.3: `SEAL_EXPIRED` no longer claims a wall-clock trigger it stopped having in v0.2 — the
+catalogue (§12) and the transition table (§8) now agree with §7.5, and the event records which basis decided
+it. P&L cadence is pinned in §5.6 as two Core constants with their reasons, replacing an undefined "every N
+seconds", and states explicitly that a breach is never decided on the ledger's rhythm.*
 
 **What this is:** an add-on that stops a prop-firm trader from breaking their own daily loss limit, by
 closing everything and refusing to let them re-enter until the session rolls.
@@ -211,6 +216,22 @@ trader ends the day past a limit that was "being watched".
 An open position with no current market data has no computable unrealized P&L. That is an unknown ⇒
 `FAIL_CLOSED`. It is never treated as zero.
 
+### 5.6 Cadence: deciding is not the same as recording
+
+Two different rhythms, two Core constants, neither of them config — these are engineering limits, not risk
+preferences the trader gets to tune.
+
+| Constant | Value | Why that value |
+|---|---|---|
+| `PnlEvaluationIntervalMs` | `1_000` | How stale the guard's view may get when nothing is happening. Evaluation is normally driven by NT8 events (`ExecutionUpdate`, `PositionUpdate`, `AccountItemUpdate`), which arrive far faster than this; the timer is a **floor**, so that a silent feed still produces a re-evaluation instead of an indefinitely stale "all fine". One second bounds the blind window without turning the guard into a busy loop. |
+| `PnlCheckpointIntervalMs` | `300_000` (5 min) | How often the routine P&L heartbeat is **written to the ledger**. §11.4 keeps one ledger file forever with no rotation, so the file has to stay something a human can still read: 5 minutes is ~78 lines per session and ~20k lines per year. At the evaluation cadence it would be 4,700 lines *per day*, and an audit trail nobody can read is not an audit trail. |
+
+Evaluation happens on every NT8 event and at least every `PnlEvaluationIntervalMs`. **Every breach decision
+is taken on an evaluation, never on a checkpoint** — the ledger cadence must never be able to delay a
+lockout. A checkpoint is additionally written on every state transition, so the P&L that accompanied a
+transition is always on the record even if it fell between two heartbeats. `LIMIT_BREACHED` carries its own
+P&L payload and does not depend on a checkpoint existing.
+
 ## 6. Persistence
 
 Three files, all local, all under paths given in the config:
@@ -352,7 +373,7 @@ The rule above is correct either way; only the size of the logged divergence cha
 | `ARMED` | `LOCKED` | tamper detected (§7.4) | `SEAL_MISMATCH` / `CONFIG_TAMPERED` |
 | `FAIL_CLOSED` | `ARMED` | unknown resolved **and** re-computed P&L within limit | `FAIL_CLOSED_CLEARED` logged |
 | `FAIL_CLOSED` | `LOCKED` | unknown resolved **and** P&L already past limit | §9 sequence |
-| `LOCKED` | `DISARMED` | `now >= expiresAtUtc` | `SEAL_EXPIRED`, `LOCKOUT_CLEARED` |
+| `LOCKED` | `DISARMED` | seal duration elapsed per §7.5 (monotonic in session, wall clock after a restart) | `SEAL_EXPIRED`, `LOCKOUT_CLEARED` |
 | any | `FAIL_CLOSED` | ledger unwritable / chain broken / clock anomaly | §11.5, §6.4 |
 
 `LOCKED` has no manual exit. Not a button, not a config key, not a hotkey. The only exit is time.
@@ -444,7 +465,7 @@ Versioned with `schemaVersion`. Adding an event is a minor version; changing a p
 | `CONFIG_TAMPERED` | config file differs from sealed snapshot | sealedHash, onDiskHash, changedKeys[] |
 | `CONFIG_CHANGE_REJECTED` | change attempted while sealed | offeredHash, changedKeys[], minutesToExpiry |
 | `DAY_OPENED` / `DAY_CLOSED` | session boundary crossed | dayKey |
-| `PNL_CHECKPOINT` | every N seconds and on every execution | dayPnL, dayLoss, perAccount{} |
+| `PNL_CHECKPOINT` | every `PnlCheckpointIntervalMs`, and on every state transition (§5.6) | dayPnL, dayLoss, perAccount{}, trigger (`interval` \| `transition`) |
 | `PNL_DISAGREEMENT` | sources differ > tolerance | coreValue, platformValue, delta |
 | `PNL_UNCOMPUTABLE` | missing price for an open position | account, instrument |
 | `ACCOUNT_UNKNOWN` | guarded account missing / disconnected | account, connectionStatus |
@@ -457,7 +478,7 @@ Versioned with `schemaVersion`. Adding an event is a minor version; changing a p
 | `FLATTEN_VERIFIED` | positions confirmed flat | account, attempts |
 | `LOCKOUT_INCOMPLETE` | not flat after N attempts | account, remainingPositions[], attempts |
 | `ORDER_REJECTED_LOCKED` | order seen while `LOCKED` | account, orderId, instrument, action |
-| `SEAL_EXPIRED` | `now >= expiresAtUtc` | dayKey |
+| `SEAL_EXPIRED` | seal duration elapsed (§7.5): `MonotonicMs − monoAtArm >= sealDuration` in session, `UtcNow >= expiresAtUtc` after a restart | dayKey, basis (`monotonic` \| `wallclock`), sealDurationMs, elapsedMs |
 | `LOCKOUT_CLEARED` | lockout released at expiry | dayKey, lockedDurationMinutes |
 | `DISARMED` | back to idle | dayKey |
 | `LEDGER_VERIFY_FAILED` | chain broken | brokenSeq |
@@ -584,6 +605,6 @@ between sessions — detected on the next start as a missing state, which fails 
 
 ---
 
-*v0.2 — 19 August 2026. Written before the code. v0.1 approved with two corrections, both defects rather
+*v0.3 — 19 August 2026. Written before the code. v0.1 approved with two corrections, both defects rather
 than style: the clock defence covered only the harmless direction, and the time-zone rule specified
 something that cannot work inside the target runtime.*
