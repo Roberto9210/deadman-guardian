@@ -79,6 +79,9 @@ namespace GuardianCore.Tests
             new Dictionary<string, List<OrderSnapshot>>(StringComparer.Ordinal);
 
         public List<string> Calls { get; } = new List<string>();
+        /// <summary>Invoked on every broker call, so G6 can look at what was already on disk at the
+        /// moment the first order left the building.</summary>
+        public Action<string> Observer { get; set; }
         /// <summary>Number of Flatten calls that will throw before one succeeds (models a crash or a
         /// rejected flatten mid-sequence).</summary>
         public int FlattenFailures { get; set; }
@@ -101,12 +104,14 @@ namespace GuardianCore.Tests
         public void CancelAllOrders(string account)
         {
             Calls.Add("cancel:" + account);
+            Observer?.Invoke("cancel:" + account);
             if (_orders.TryGetValue(account, out var list)) list.Clear();
         }
 
         public void Flatten(string account)
         {
             Calls.Add("flatten:" + account);
+            Observer?.Invoke("flatten:" + account);
             if (FlattenFailures > 0) { FlattenFailures--; throw new InvalidOperationException("flatten failed (simulated)"); }
             if (FlattenSilentlyDoesNothing) return;
             if (_positions.TryGetValue(account, out var list)) list.Clear();
