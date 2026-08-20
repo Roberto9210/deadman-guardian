@@ -77,6 +77,11 @@ namespace GuardianCore
         private SessionCalendar _calendar;
         private readonly PnlBook _book = new PnlBook();
         private long _lastCheckpointMono;
+        /// <summary>True when THIS observation of the clock was incoherent. A clock unknown cannot be
+        /// cleared by the same tick that detected it: SPEC 10 clears an unknown through a
+        /// re-computation, and for the clock the re-computation is the next coherent observation.
+        /// Amendment A6.</summary>
+        private bool _clockIncoherent;
         private bool _ledgerUsable = true;
 
         public Guardian(GuardianOptions options)
@@ -401,7 +406,7 @@ namespace GuardianCore
             }
 
             // SPEC 10: an unknown clears by re-computation, never by assumption.
-            if (_state.Kind == StateKind.FailClosed)
+            if (_state.Kind == StateKind.FailClosed && !_clockIncoherent)
             {
                 Log(Ev.FailClosedCleared, JsonValue.Obj().Set("previousReason", _state.Reason ?? ""));
                 _state.Kind = StateKind.Armed;
@@ -444,6 +449,7 @@ namespace GuardianCore
 
             var wallDelta = (long)(now - _state.LastSeenUtc).TotalMilliseconds;
             var monoDelta = mono - _state.LastMonotonicMs;
+            _clockIncoherent = false;
 
             if (wallDelta < -Constants.ClockDivergenceToleranceMs)
             {
@@ -455,6 +461,7 @@ namespace GuardianCore
                     .Set("sealMaintained", true);
                 if (continuity) Log(Ev.ClockAnomaly, payload.Set("direction", "backward").Set("deltaMonoMs", monoDelta));
                 else Log(Ev.ClockSuspect, payload);
+                _clockIncoherent = true;
                 EnterFailClosed("clock moved backwards by " + (-wallDelta / 1000).ToString(CultureInfo.InvariantCulture) + "s");
             }
             else if (continuity && wallDelta - monoDelta > Constants.ClockDivergenceToleranceMs)
@@ -467,6 +474,7 @@ namespace GuardianCore
                     .Set("deltaWallMs", wallDelta)
                     .Set("deltaMonoMs", monoDelta)
                     .Set("sealMaintained", true));
+                _clockIncoherent = true;
                 EnterFailClosed("wall clock advanced " + ((wallDelta - monoDelta) / 1000).ToString(CultureInfo.InvariantCulture) +
                                 "s more than real time");
             }

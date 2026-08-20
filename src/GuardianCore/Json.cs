@@ -160,6 +160,13 @@ namespace GuardianCore
                 error = ex.Message;
                 return false;
             }
+            catch (Exception ex)
+            {
+                // Malformed input must never escape as an exception: a file we cannot parse is an
+                // unknown, and unknowns fail closed (SPEC 10). Found by G19 with a truncated state file.
+                error = ex.GetType().Name + ": " + ex.Message;
+                return false;
+            }
         }
 
         private static void SkipWs(string s, ref int i)
@@ -212,6 +219,7 @@ namespace GuardianCore
 
         private static string ParseString(string s, ref int i)
         {
+            if (i >= s.Length) throw new FormatException("unexpected end of input where a string was expected");
             if (s[i] != '"') throw new FormatException("expected string at offset " + i.ToString(CultureInfo.InvariantCulture));
             i++;
             var sb = new StringBuilder();
