@@ -1,0 +1,95 @@
+# Pending SPEC amendments
+
+Details Step 2 had to decide because SPEC v0.3 did not fix them. Every one of them was resolved
+**fail-closed**, is implemented that way, and is listed here so the spec can absorb it in v0.4 rather than
+having the code quietly become the specification.
+
+The rule this file exists to enforce: when the code knows something the spec does not, the spec is behind,
+and the gap is written down instead of forgotten.
+
+---
+
+## A1 — `IFileStore` needs `ReadLines`
+
+**Spec**: §14 lists `Exists`, `ReadAllText`, `WriteAtomic`, `AppendLine`.
+**Problem**: §11.3 requires `Ledger.Verify()`, which has to read the chain back line by line. Reading a
+growing ledger through `ReadAllText` would mean holding the whole file in memory to check a hash chain.
+**Decision**: added `IEnumerable<string> ReadLines(string path)` to the port.
+**Fail-closed**: unchanged — a store that cannot read is a store that throws, and §11.5 turns that into
+`FAIL_CLOSED`.
+
+## A2 — `PlatformPnl` is gross-realized, and says so
+
+**Spec**: §5.3 says the cross-check compares against "the platform's realized figure". NT8 exposes both
+`AccountItem.RealizedProfitLoss` and `AccountItem.GrossRealizedProfitLoss` (both verified present), and
+they differ by commissions.
+**Problem**: Core tracks commissions separately, so comparing its gross number against a net platform
+number would produce a permanent false disagreement — that is, a permanent `FAIL_CLOSED`.
+**Decision**: `PlatformPnl.GrossRealized` is defined as realized **excluding** commissions; the adapter maps
+it from `GrossRealizedProfitLoss`.
+**Fail-closed**: unchanged — a null value is still an unknown, never a zero.
+
+## A3 — `ExecutionRecord.PointValue`
+
+**Spec**: §5.3 lists the execution fields Core consumes, and none of them turns a price difference into
+money.
+**Problem**: without the instrument's point value ($5 for MES), Core can compute "3.25 points" and nothing
+else. NT8 has it on `Instrument.MasterInstrument.PointValue`, which is adapter territory.
+**Decision**: the adapter supplies `PointValue` on every `ExecutionRecord`.
+**Fail-closed**: a missing or non-positive point value marks the account `PnlStatus.InvalidPointValue`,
+which is an unknown, which blocks entries. It is never defaulted to 1.
+
+## A4 — the state and ledger paths are host-level, not config-level
+
+**Spec**: §4 puts `ledgerPath` and `statePath` in the configuration; §6 requires the state to be read at
+startup, before the configuration is trusted.
+**Problem**: a circular dependency with a hole in it. If the paths came from the config, then deleting or
+corrupting `config.json` would leave the guardian unable to find an in-force lockout — turning
+"break the config" into a working bypass.
+**Decision**: `Guardian` is constructed with both paths; the configuration must **declare the same paths**
+or it is rejected with a reason.
+**Fail-closed**: the lockout stays readable no matter what happens to the config file.
+
+## A5 — `configSnapshot` is stored as canonical text
+
+**Spec**: §7.1 shows `configSnapshot` as a nested JSON object.
+**Problem**: the seal hash must be reproducible byte-for-byte. Storing a parsed object and re-serialising it
+to check the hash makes the hash depend on the serialiser's behaviour rather than on the configuration.
+**Decision**: the snapshot is the **canonical text** that was hashed. Re-checking is a string comparison
+against a fresh SHA-256.
+**Fail-closed**: any difference is `SEAL_MISMATCH`, which is a lockout (§7.4).
+
+## A6 — a clock unknown cannot be cleared by the tick that detected it
+
+**Spec**: §10 says `FAIL_CLOSED` "clears by itself the moment the unknown resolves — but it clears *through*
+a re-computation".
+**Problem**: found by G13a. A clock anomaly set `FAIL_CLOSED`, and the same evaluation then cleared it,
+because the P&L happened to be computable — the P&L is not what was in doubt. The guard would have logged
+the attack and then carried on as if nothing had happened.
+**Decision**: for a clock unknown, the re-computation is the **next coherent observation of the clock**. The
+tick that detects an anomaly cannot clear it.
+**Fail-closed**: strictly more closed than before.
+
+## A7 — `MaxFlattenAttempts = 3`, and the retry cadence is the tick
+
+**Spec**: §9.4 says "not flat after *N* attempts with backoff", without fixing N or the backoff.
+**Decision**: `Constants.MaxFlattenAttempts = 3`, and the retry happens on the next tick rather than in a
+spin loop — the tick already is the cadence at which the guardian is allowed to act, and a busy retry loop
+inside NT8's thread is a worse failure than a slow one. The attempt count is persisted, so it survives a
+restart.
+**Fail-closed**: exhausting the attempts does **not** release anything. It logs `LOCKOUT_INCOMPLETE`,
+stays `LOCKED`, and keeps retrying.
+
+## A8 — `LOCKED` outranks `FAIL_CLOSED`
+
+**Spec**: §8's transition table has "any → `FAIL_CLOSED`" for ledger, clock and state unknowns, and also has
+`LOCKED` as the state a breach produces. It does not say what happens when both are true.
+**Problem**: read literally, an unknown arriving after a breach would move the guardian out of `LOCKED`, and
+`FAIL_CLOSED` is the *weaker* state — it clears on its own.
+**Decision**: `LOCKED` is never downgraded. An unknown that arrives while locked is recorded and the
+lockout stands; the only exit remains seal expiry.
+**Fail-closed**: yes, and it removes a bypass that the literal reading would have allowed.
+
+---
+
+*Written during Step 2, 19 August 2026, against SPEC v0.3.*
