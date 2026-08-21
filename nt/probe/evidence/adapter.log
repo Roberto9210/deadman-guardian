@@ -1,0 +1,31 @@
+2026-08-21T05:15:05.1261439Z  boot; home=C:\Users\<user>\Documents\NinjaTrader 8\deadman-guardian
+2026-08-21T05:15:05.1271414Z  subscribed to Sim101
+2026-08-21T05:15:05.1281394Z  Tick: Object reference not set to an instance of an object.
+2026-08-21T05:15:05.1281394Z  subscribed to Sim101
+2026-08-21T05:15:05.1291365Z  Tick: Object reference not set to an instance of an object.
+2026-08-21T05:15:05.1670394Z  Core started; state=Disarmed
+2026-08-21T05:15:05.1670394Z  subscribed to Sim101
+2026-08-21T05:17:31.9567501Z  shutdown complete
+2026-08-21T05:17:31.9806872Z  boot; home=C:\Users\<user>\Documents\NinjaTrader 8\deadman-guardian
+2026-08-21T05:17:32.0340597Z  Core started; state=Disarmed
+2026-08-21T05:17:32.0360543Z  subscribed to Sim101
+2026-08-21T05:17:32.0570020Z  subscribed to Sim101
+2026-08-21T05:17:32.0864408Z  subscribed to Sim101
+2026-08-21T05:19:43.2674818Z  shutdown complete
+2026-08-21T05:19:43.2904186Z  boot; home=C:\Users\<user>\Documents\NinjaTrader 8\deadman-guardian
+2026-08-21T05:19:43.3203398Z  Core started; state=Disarmed
+2026-08-21T05:19:43.3213365Z  subscribed to Sim101
+2026-08-21T05:19:43.3490894Z  subscribed to Sim101
+2026-08-21T05:19:43.3791818Z  subscribed to Sim101
+2026-08-21T05:20:24.0466225Z  shutdown complete
+2026-08-21T05:20:24.0695608Z  boot; home=C:\Users\<user>\Documents\NinjaTrader 8\deadman-guardian
+2026-08-21T05:20:24.0875136Z  Core started; state=Disarmed
+2026-08-21T05:20:24.0885112Z  subscribed to Sim101
+2026-08-21T05:20:24.1034701Z  subscribed to Sim101
+2026-08-21T05:20:24.1164355Z  subscribed to Sim101
+2026-08-21T05:21:02.9723265Z  shutdown complete
+2026-08-21T05:21:36.3517017Z  boot; home=C:\Users\<user>\Documents\NinjaTrader 8\deadman-guardian
+2026-08-21T05:21:36.4276472Z  Core started; state=Disarmed
+2026-08-21T05:21:36.4346248Z  subscribed to Sim101
+2026-08-21T05:21:41.6082913Z  subscribed to Sim101
+2026-08-21T05:21:44.0667630Z  subscribed to Sim101

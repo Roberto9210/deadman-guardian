@@ -65,9 +65,6 @@ namespace NinjaTrader.NinjaScript.AddOns
             Directory.CreateDirectory(HomeDir);
             AdapterLog("boot; home=" + HomeDir);
 
-            // Account.AccountStatusUpdate is a STATIC event on Account, not an instance one -
-            // found by compiling against the real assemblies rather than by assuming.
-            Account.AccountStatusUpdate += OnAccountStatusUpdate;
             _feed = new NtAccountFeed();
             _guardian = new Guardian(new GuardianOptions
             {
@@ -84,6 +81,10 @@ namespace NinjaTrader.NinjaScript.AddOns
             lock (_gate) _guardian.Start();
             AdapterLog("Core started; state=" + _guardian.Status.Kind);
 
+            // Only now. Account.AccountStatusUpdate is a STATIC event (found by compiling against the
+            // real assemblies) and NinjaTrader fires it immediately: registering it before Core exists
+            // made the handler run twice against a null guardian on the very first real startup.
+            Account.AccountStatusUpdate += OnAccountStatusUpdate;
             SubscribeToAccount();
             ShowWindow();
 
@@ -170,6 +171,7 @@ namespace NinjaTrader.NinjaScript.AddOns
 
         private void OnAccountStatusUpdate(object sender, AccountStatusEventArgs e)
         {
+            if (_guardian == null) return;
             // The connection arrives after Configure (verified). Re-resolve so a replaced instance
             // cannot leave us subscribed to a dead object.
             try { SubscribeToAccount(); Tick(); }
@@ -178,6 +180,7 @@ namespace NinjaTrader.NinjaScript.AddOns
 
         private void Tick()
         {
+            if (_guardian == null) return;   // not yet built; see Boot()
             try
             {
                 lock (_gate)
@@ -344,7 +347,11 @@ namespace NinjaTrader.NinjaScript.AddOns
 
             Title = "deadman-guardian";
             Width = 330;
-            Height = 190;
+            // Size to content, never a fixed height: the detail line wraps to a variable number of
+            // lines because the config path differs per machine, and the first real run clipped the
+            // Arm button to about 8 visible pixels - the one control the trader has to press.
+            SizeToContent = SizeToContent.Height;
+            MinHeight = 190;
             WindowStyle = WindowStyle.ToolWindow;
             Topmost = true;
             ShowInTaskbar = false;
@@ -377,7 +384,7 @@ namespace NinjaTrader.NinjaScript.AddOns
                 if (error != null) _detail.Text = "Not armed: " + error;
             };
 
-            var panel = new StackPanel { Margin = new Thickness(14) };
+            var panel = new StackPanel { Margin = new Thickness(14, 14, 14, 18) };
             panel.Children.Add(_headline);
             panel.Children.Add(_detail);
             panel.Children.Add(_countdown);

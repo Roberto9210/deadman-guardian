@@ -329,6 +329,76 @@ Byte-identical to the `.preinstall` backup. The failed compile never replaced th
 the one genuinely reassuring thing about how NinjaTrader handles this: a broken NinjaScript build leaves the
 previous one running rather than taking the platform down.
 
+## 9. Install attempt #2 — INSTALLED AND RUNNING
+
+**2026-08-21 00:15. The adapter compiles, loads, and behaves as specified.**
+
+### What made it work
+
+Attempt #1 died on `CS0246`. Two separate causes, found in order:
+
+1. **`netstandard2.0` cannot be compiled against inside NinjaTrader** (§8). Fixed by multi-targeting
+   `GuardianCore` to `netstandard2.0;net48` and shipping the `net48` build, whose whole reference list is
+   `mscorlib` and `System.Core`.
+2. **NinjaTrader ignores a `<Reference>` you add to its csproj by hand.** The installer's entry was
+   well-formed XML in its own `<ItemGroup>` with a *relative* `HintPath`, and the compiler never saw it.
+   The entry NinjaTrader's own **References dialog** writes is different in two ways:
+
+   | | hand-added (ignored) | written by the dialog (works) |
+   |---|---|---|
+   | `<ItemGroup>` | a new one appended at the end | the existing one that already holds `NinjaTrader.Vendor`, `WindowsBase`, … |
+   | `HintPath` | `GuardianCore.dll` | `C:\Users\…\NinjaTrader 8\bin\Custom\GuardianCore.dll` — **absolute** |
+
+   That is now the documented install step, and `install.ps1` writes the reference in exactly that shape so
+   the dialog is no longer required.
+
+### Verified, with evidence
+
+| check | result |
+|---|---|
+| compile | `NinjaTrader.Custom.dll` 1,312,768 → **1,317,888 bytes**, 00:15:04 |
+| AddOn loads | `adapter.log`: `boot` → `Core started; state=Disarmed` → `subscribed to Sim101` |
+| ledger | `GUARDIAN_STARTED`, `seq 1`, `prev: genesis`, payload `{"fresh":true,"state":"DISARMED"}` |
+| chain | **verified by an independent Python re-implementation** of the canonical hashing of §11.2 — not by the C# that wrote it. The format is reproducible by a third party, which is the entire point |
+| state | `state.json` `DISARMED`, `runId` set, `lastSeenUtc` advancing — the evaluation loop is alive |
+| window | **NOT PROTECTED**, and the reason is the right one: *"Disarmed. Nothing is being watched. Config: …\deadman-guardian\config.json"*. No config was installed on purpose (§4 forbids defaults), so refusing to arm is correct behaviour, not a fault. Screenshot: [`probe/evidence/status_window_not_protected.png`](probe/evidence/status_window_not_protected.png) |
+
+### Two defects the first real run exposed, both fixed
+
+**A boot race.** `adapter.log` opened with:
+
+```
+boot; home=...
+subscribed to Sim101
+Tick: Object reference not set to an instance of an object.
+subscribed to Sim101
+Tick: Object reference not set to an instance of an object.
+Core started; state=Disarmed
+```
+
+`Account.AccountStatusUpdate` is a **static** event and NinjaTrader fires it immediately, so the handler ran
+twice against a still-null guardian while `Boot()` was constructing. Caught and harmless in effect, but it
+must not ship: an exception on every startup, and a window in which account events arrive and are dropped.
+The registration moved to after `Start()`, and both the handler and the tick are inert until Core exists.
+**Verified fixed in the platform** — every boot from 05:17:31Z onward is clean:
+
+```
+boot; home=...
+Core started; state=Disarmed
+subscribed to Sim101
+```
+
+**A clipped button.** Measured from the screenshot rather than eyeballed: the window is 190 px tall and the
+Arm button's top edge is at y=182, leaving about 8 visible pixels of the one control the trader has to
+press. The detail line wraps to a variable number of lines because the config path differs per machine, so
+no fixed height is right everywhere. The window now sizes to content. *(Deployed as source; it needs one
+compile to take effect, and until a config exists there is nothing to arm anyway.)*
+
+While measuring that I nearly reported a second defect that does not exist: the text looked orange-on-grey
+in the capture. Sampling the pixels gave background `#424242` and text `#FFFFFF` — exactly what the code
+sets. The tint was antialiasing in a small image. Worth recording as a reminder that "looks wrong in a
+screenshot" is not evidence.
+
 ## Step 3 is complete
 
 | obligation | state |

@@ -27,8 +27,7 @@ $home8   = Join-Path $ntUser "deadman-guardian"
 $sources = @("GuardianPorts.cs", "DeadmanGuardianAddOn.cs")
 # net48, NOT netstandard2.0: NinjaTrader's in-process compiler has no 'netstandard' facade in its
 # reference set, so a netstandard2.0 assembly loads at runtime and fails at compile time.
-$coreDll = Join-Path $repo "src\GuardianCorein\Release
-et48\GuardianCore.dll"
+$coreDll = Join-Path $repo "src\GuardianCore\bin\Release\net48\GuardianCore.dll"
 
 if (Get-Process NinjaTrader -ErrorAction SilentlyContinue) {
     throw "NinjaTrader is running. Close it first - the files are locked while it runs."
