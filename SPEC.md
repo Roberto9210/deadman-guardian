@@ -511,6 +511,13 @@ Ordered, idempotent, and resumable — it must survive being killed at any point
    `ORDER_REJECTED_LOCKED`. A single flatten is not a lockout; the DOM, a chart, and a running strategy can
    all still submit.
 
+**Measured in Step 3**, on `Sim101` with one resting limit order: **14.4 ms** from observing a live order to
+the cancel being submitted, and **315.9 ms** for the whole submit-to-cancelled cycle, of which 301 ms are
+venue and platform legs that no add-on can shrink. The order was cancelled while still `Accepted`, before it
+ever reached `Working`. One sample, on a simulated venue, timing a single cancel and not the full lockout —
+the caveats are in [`nt/STEP3_FINDINGS.md`](nt/STEP3_FINDINGS.md) §5. It is also the arithmetic behind §2:
+a 14 ms reaction does not help with the 300 ms the market gets anyway.
+
 Steps 2–4 are idempotent: running them twice is harmless, which is what makes resumption safe.
 
 ## 10. Unknown state ⇒ fail-closed

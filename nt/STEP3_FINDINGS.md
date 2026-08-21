@@ -116,38 +116,79 @@ risk acceptance is something that happens **at the venue, after submission**. `A
 So §9.5 stands as written: enforcement is **detect-and-cancel**, never prevent, and the README may not
 claim otherwise.
 
-## 5. Detect-and-cancel latency — instrumented programmatically, waiting on one compile
+## 5. Detect-and-cancel latency — MEASURED
 
-Placing the order by hand put it on the wrong account: all five manual orders went to account `<funded-acct>`
-on the `(Live)` connection and were rejected for a missing data subscription on `MNQ SEP26`. The probe
-watches `Sim101` and only `Sim101`, so it correctly recorded nothing — account scoping working on its
-first contact with reality, which is the property this thing must have before it goes near a funded
-account.
+One resting limit order on `Sim101`, placed by
+[`probe/DeadmanGuardianLatencyProbe.cs`](probe/DeadmanGuardianLatencyProbe.cs), watched to a live state and
+cancelled. Raw output: [`probe/evidence/latency_report.md`](probe/evidence/latency_report.md).
 
-So the order is now placed **in code**, which removes the account selector from the problem entirely.
-[`probe/DeadmanGuardianLatencyProbe.cs`](probe/DeadmanGuardianLatencyProbe.cs) is a one-shot AddOn whose
-limits are enforced by the code rather than by intention:
+| leg | what it covers | ms |
+|---|---|---|
+| submit → live state observed | our call out, the venue's accept, NT8 raising the event | 171.1 |
+| **live state observed → cancel submitted** | **the guardian's own reaction** | **14.4** |
+| cancel submitted → cancelled confirmed | the venue's round trip back | 130.4 |
+| **submit → cancelled confirmed** | **the whole cycle** | **315.9** |
 
-- the account must be named exactly `Sim101` **and** report `Provider == Simulator`; any other value
-  aborts before anything is sent. `Account.All` and the provider of every account are logged either way.
-- the connection must already be `Connected`. The probe never connects anything and says what is missing
-  if it is not.
-- **one order, ever**: it runs only if a gate file exists, and deletes that file *before* submitting, so
-  neither a crash nor a restart can produce a second one.
-- **limit orders only** — the word `OrderType.Market` does not appear anywhere in the file — 1 contract,
-  `TimeInForce.Day`, priced at a tenth of the market and re-checked to be below half of it before
-  sending, so it cannot fill.
-- it watches the order to a working state, cancels it immediately, and times four legs:
+The order sequence, from the probe's own log:
 
-| leg | what it covers |
-|---|---|
-| submit → working observed | our call out, the venue's accept, NT8 raising the event |
-| **working observed → cancel issued** | **the guardian's own reaction — the only part this design controls, and the number §9.5 is about** |
-| cancel issued → cancelled confirmed | the venue's round trip back |
-| submit → cancelled confirmed | the whole cycle |
+```
+55.277  submitting 1 LIMIT buy @ 766.75 on MES SEP26 / Sim101   (market was 7667.5)
+55.339  Submitted
+55.449  Accepted          <- detected here
+55.459  CancelPending
+55.462  CancelSubmitted
+55.462  cancel issued
+55.463  Working
+55.593  Cancelled
+```
 
-It is deployed, listed in the csproj, compile-checked against the real NinjaTrader assemblies, and armed.
-It needs one compile to run — see §6.
+**Read the 14.4 ms precisely.** `CancelPending` and `CancelSubmitted` appear *before* the "cancel issued"
+line because `Account.Cancel()` raises them synchronously and re-enters the handler before the timestamp on
+the next line runs. So 14.4 ms is "from seeing a live order to the cancel being submitted to the venue",
+NinjaTrader's synchronous cancel path included — not a bare decision time, which is a fraction of it. That
+is the honest boundary of what this design controls.
+
+Worth noting in the sequence: the order was cancelled while still `Accepted`, and only reached `Working`
+*after* the cancel was already in flight. The guardian got there first.
+
+Independently, the read-only probe watched the same seven state transitions and timed the delivery lag from
+NinjaTrader's own event stamp to the handler: **0 to 39 ms** (`Initialized` 26.6, `Submitted` 39.2,
+`Accepted` 0.0, `Working` 1.0, `Cancelled` 24.0).
+
+### What this number is not
+
+- **It is not the lockout.** This times cancelling one resting order. The §9 sequence is cancel-all, then
+  flatten, then verify, across every guarded account, and each of those is its own round trip.
+- **It is not a real venue.** `Sim101` runs on NinjaTrader's Simulation connection
+  (`TradovateOptions name='Simulation' brand='NinjaTrader'`). The two venue legs — 171 ms out, 130 ms back —
+  are the simulator's, and a live venue will differ in both directions.
+- **It is one sample**, not a distribution. No p95 is claimed because none was measured.
+
+### What it supports
+
+Even with a 14 ms reaction, the cycle took **316 ms end to end**, and 301 of those milliseconds belong to
+legs no add-on can shrink. That is the quantitative version of §2: this bounds exposure and removes
+discretion; it does not bound the loss. A market that moves during those 300 ms moves whether or not the
+guardian is perfect.
+
+### The safety checks, exercised for real
+
+The probe's verification pass ran against a machine that had a live account connected, and the output shows
+why the check exists:
+
+```
+Account.All = [Backtest/Simulator, Playback101/Playback, Sim101/Simulator, <funded-acct>/Provider31]
+verified Provider=Simulator
+SimulatorInitialCash=100000   denomination=UsDollar
+connection options=TradovateOptions name='Simulation' brand='NinjaTrader'
+verified ConnectionStatus=Connected
+buy limit price = 766.75   (market reference 7667.5, tick size 0.25)
+gate file deleted before submitting
+```
+
+The funded account `<funded-acct>` reports `Provider31`, not `Simulator`. Had the name matched, the provider check
+would have aborted before anything was sent. The gate file was consumed before the order left, so the probe
+cannot run a second time, and the order was priced at a tenth of the market so it could not fill.
 
 ## 6. Deployment mechanics — CORRECTED: NinjaTrader does not compile on startup
 
@@ -219,17 +260,17 @@ the property a guardian has to have before it is allowed anywhere near a funded 
 
 ---
 
-## Handoff — one keystroke
+## Step 3 is complete
 
-**Compile NinjaScript once**: in NinjaTrader, `New → NinjaScript Editor`, then **`F5`**.
+| obligation | state |
+|---|---|
+| time zone resolved inside the NT8 process | measured (§1) |
+| monotonic clock across suspension | measured across two real S3 sleeps (§2) |
+| real AddOn lifecycle | measured, with one design consequence carried into the adapter (§3) |
+| pre-submit hook | verified absent, 2,912 types scanned at runtime (§4) |
+| detect-and-cancel latency | measured: 14.4 ms ours, 315.9 ms end to end (§5) |
+| install procedure | settled, including what does *not* work (§6) |
+| NtAdapter and status window | written, compile-checked against the real assemblies, **not installed** |
 
-That builds the two new files into `NinjaTrader.Custom.dll`. The latency probe is already armed — its gate
-file is in place — so it fires roughly thirty seconds later, or on the next start, and writes
-`Documents\NinjaTrader 8\deadman-guardian-probe\latency_report.md`. It verifies `Sim101` is the simulator
-before sending anything, sends exactly one unfillable limit order, cancels it, and consumes its own gate so
-it can never run twice.
-
-If the editor reports a compile error, nothing is lost: run `install.ps1 -Uninstall`, or delete the two
-files from `bin\Custom\AddOns\` and restore `NinjaTrader.Custom.csproj` from the backup beside it.
-
-Everything else Step 3 set out to verify is measured and written down above.
+The one thing deliberately left undone is the install itself. A NinjaScript compile error takes down every
+custom script in the platform, so `install.ps1` runs with a human watching — and after it, one `F5`.

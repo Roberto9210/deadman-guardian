@@ -17,7 +17,7 @@ Same discipline in all three: the specification is written first, and the unknow
 | 0 — environment | done: NinjaTrader 8.1.8.2 and .NET SDK 8.0.424 present |
 | 1 — [`SPEC.md`](SPEC.md) | done, v0.4 (v0.1 written before any C#; amendments absorbed after Step 2) |
 | **2 — GuardianCore + tests** | **done: 137 tests, 26 of 26 named guarantees implemented** |
-| 3 — NtAdapter | not started |
+| 3 — NtAdapter + platform verification | **verified in the real platform**; adapter written and compile-checked, not yet installed — see [nt/STEP3_FINDINGS.md](nt/STEP3_FINDINGS.md) |
 
 **Conformance statement, exact**: *26 of 26 named guarantees implemented, 137 collected test cases, all
 passing, 0 skipped.* Not "it works". The guarantees are listed in [SPEC §15](SPEC.md); what each test
@@ -67,6 +67,21 @@ dotnet test
 No NinjaTrader needed, no network, no disk unless a test asks for it: Core is a pure function of
 configuration, persisted state, the event stream and the clock, and every test drives it through the four
 ports of SPEC §14 with fakes.
+
+## What the platform actually does, measured
+
+Every claim in [SPEC](SPEC.md) that depended on NinjaTrader behaving a certain way was checked inside the
+running process, not on a bench. The results are in [nt/STEP3_FINDINGS.md](nt/STEP3_FINDINGS.md):
+
+- **There is no pre-submit hook.** 2,912 types scanned at runtime, zero events that could veto an order
+  before submission. Enforcement is detect-and-cancel, and the README will not claim otherwise.
+- **Detect-and-cancel takes 14.4 ms** from seeing a live order to submitting the cancel — inside a cycle
+  that took **315.9 ms** end to end, of which 301 ms belong to the venue and the platform. That is the
+  arithmetic behind the warning above: a fast guard does not shrink the market's 300 ms.
+- ** throws inside NinjaTrader.** The runtime resolves Windows time zone ids only, so the
+  embedded IANA map is what makes the session boundary work at all.
+- **Sleep does not stop the monotonic clock.** Two real S3 suspends moved wall-vs-monotonic by 41 and 53 ms,
+  where a stopped counter would have moved 5,000 - so a suspend raises no false alarm.
 
 ## Honest comparison with what NinjaTrader already has
 

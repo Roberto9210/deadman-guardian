@@ -1,0 +1,149 @@
+{"tsUtc":"2026-08-21T03:03:15.4742445Z","event":"NOTE","line":"OnStateChange -> SetDefaults"}
+{"tsUtc":"2026-08-21T03:03:17.8195165Z","event":"NOTE","line":"OnStateChange -> Configure"}
+{"tsUtc":"2026-08-21T03:03:17.8270227Z","event":"NOTE","line":"Account.All = [Backtest, Playback101, Sim101]"}
+{"tsUtc":"2026-08-21T03:03:17.8270227Z","event":"NOTE","line":"found Sim101 connection=null denomination=UsDollar"}
+{"tsUtc":"2026-08-21T03:03:17.8280460Z","event":"NOTE","line":"subscribed to OrderUpdate, ExecutionUpdate, PositionUpdate, AccountItemUpdate"}
+{"tsUtc":"2026-08-21T03:03:17.8436573Z","event":"NOTE","line":"OnStateChange -> Active"}
+{"tsUtc":"2026-08-21T03:03:26.2994468Z","event":"ACCOUNT_ITEM","item":"CashValue","value":"100000","currency":"UsDollar"}
+{"tsUtc":"2026-08-21T03:03:26.3019536Z","event":"ACCOUNT_ITEM","item":"ExcessIntradayMargin","value":"100000","currency":"UsDollar"}
+{"tsUtc":"2026-08-21T03:03:26.3029629Z","event":"ACCOUNT_ITEM","item":"ExcessInitialMargin","value":"100000","currency":"UsDollar"}
+{"tsUtc":"2026-08-21T03:03:26.3029629Z","event":"ACCOUNT_ITEM","item":"NetLiquidation","value":"100000","currency":"UsDollar"}
+{"tsUtc":"2026-08-21T03:03:47.8446616Z","event":"CLOCK_SAMPLE","tick":"1","wallElapsedMs":"30023","stopwatchElapsedMs":"30024","getTickCount64ElapsedMs":"30031","wallMinusStopwatchMs":"-1","wallMinusTickCountMs":"-8"}
+{"tsUtc":"2026-08-21T03:04:17.8560157Z","event":"CLOCK_SAMPLE","tick":"2","wallElapsedMs":"60035","stopwatchElapsedMs":"60036","getTickCount64ElapsedMs":"60047","wallMinusStopwatchMs":"0","wallMinusTickCountMs":"-12"}
+{"tsUtc":"2026-08-21T03:04:47.8567740Z","event":"CLOCK_SAMPLE","tick":"3","wallElapsedMs":"90036","stopwatchElapsedMs":"90037","getTickCount64ElapsedMs":"90047","wallMinusStopwatchMs":"0","wallMinusTickCountMs":"-11"}
+{"tsUtc":"2026-08-21T03:05:17.8651197Z","event":"CLOCK_SAMPLE","tick":"4","wallElapsedMs":"120045","stopwatchElapsedMs":"120045","getTickCount64ElapsedMs":"120047","wallMinusStopwatchMs":"-1","wallMinusTickCountMs":"-2"}
+{"tsUtc":"2026-08-21T03:05:47.8723073Z","event":"CLOCK_SAMPLE","tick":"5","wallElapsedMs":"150052","stopwatchElapsedMs":"150053","getTickCount64ElapsedMs":"150063","wallMinusStopwatchMs":"-1","wallMinusTickCountMs":"-11"}
+{"tsUtc":"2026-08-21T03:06:17.8738577Z","event":"CLOCK_SAMPLE","tick":"6","wallElapsedMs":"180053","stopwatchElapsedMs":"180054","getTickCount64ElapsedMs":"180063","wallMinusStopwatchMs":"-1","wallMinusTickCountMs":"-10"}
+{"tsUtc":"2026-08-21T03:06:47.8879233Z","event":"CLOCK_SAMPLE","tick":"7","wallElapsedMs":"210067","stopwatchElapsedMs":"210069","getTickCount64ElapsedMs":"210078","wallMinusStopwatchMs":"-1","wallMinusTickCountMs":"-11"}
+{"tsUtc":"2026-08-21T03:07:17.9016135Z","event":"CLOCK_SAMPLE","tick":"8","wallElapsedMs":"240081","stopwatchElapsedMs":"240083","getTickCount64ElapsedMs":"240094","wallMinusStopwatchMs":"-2","wallMinusTickCountMs":"-13"}
+{"tsUtc":"2026-08-21T03:07:47.9048029Z","event":"CLOCK_SAMPLE","tick":"9","wallElapsedMs":"270084","stopwatchElapsedMs":"270086","getTickCount64ElapsedMs":"270094","wallMinusStopwatchMs":"-2","wallMinusTickCountMs":"-10"}
+{"tsUtc":"2026-08-21T03:08:17.9176912Z","event":"CLOCK_SAMPLE","tick":"10","wallElapsedMs":"300097","stopwatchElapsedMs":"300099","getTickCount64ElapsedMs":"300110","wallMinusStopwatchMs":"-2","wallMinusTickCountMs":"-13"}
+{"tsUtc":"2026-08-21T03:08:47.9223730Z","event":"CLOCK_SAMPLE","tick":"11","wallElapsedMs":"330102","stopwatchElapsedMs":"330104","getTickCount64ElapsedMs":"330110","wallMinusStopwatchMs":"-2","wallMinusTickCountMs":"-8"}
+{"tsUtc":"2026-08-21T03:09:17.9306278Z","event":"CLOCK_SAMPLE","tick":"12","wallElapsedMs":"360110","stopwatchElapsedMs":"360113","getTickCount64ElapsedMs":"360110","wallMinusStopwatchMs":"-3","wallMinusTickCountMs":"0"}
+{"tsUtc":"2026-08-21T03:09:47.9422095Z","event":"CLOCK_SAMPLE","tick":"13","wallElapsedMs":"390122","stopwatchElapsedMs":"390124","getTickCount64ElapsedMs":"390125","wallMinusStopwatchMs":"-3","wallMinusTickCountMs":"-3"}
+{"tsUtc":"2026-08-21T03:10:17.9497026Z","event":"CLOCK_SAMPLE","tick":"14","wallElapsedMs":"420129","stopwatchElapsedMs":"420132","getTickCount64ElapsedMs":"420141","wallMinusStopwatchMs":"-3","wallMinusTickCountMs":"-12"}
+{"tsUtc":"2026-08-21T03:10:47.9635559Z","event":"CLOCK_SAMPLE","tick":"15","wallElapsedMs":"450143","stopwatchElapsedMs":"450146","getTickCount64ElapsedMs":"450156","wallMinusStopwatchMs":"-3","wallMinusTickCountMs":"-13"}
+{"tsUtc":"2026-08-21T03:11:17.9677652Z","event":"CLOCK_SAMPLE","tick":"16","wallElapsedMs":"480147","stopwatchElapsedMs":"480151","getTickCount64ElapsedMs":"480156","wallMinusStopwatchMs":"-4","wallMinusTickCountMs":"-9"}
+{"tsUtc":"2026-08-21T03:11:47.9785875Z","event":"CLOCK_SAMPLE","tick":"17","wallElapsedMs":"510158","stopwatchElapsedMs":"510162","getTickCount64ElapsedMs":"510172","wallMinusStopwatchMs":"-4","wallMinusTickCountMs":"-14"}
+{"tsUtc":"2026-08-21T03:12:17.9811587Z","event":"CLOCK_SAMPLE","tick":"18","wallElapsedMs":"540161","stopwatchElapsedMs":"540165","getTickCount64ElapsedMs":"540172","wallMinusStopwatchMs":"-4","wallMinusTickCountMs":"-11"}
+{"tsUtc":"2026-08-21T03:12:47.9954663Z","event":"CLOCK_SAMPLE","tick":"19","wallElapsedMs":"570175","stopwatchElapsedMs":"570179","getTickCount64ElapsedMs":"570188","wallMinusStopwatchMs":"-4","wallMinusTickCountMs":"-13"}
+{"tsUtc":"2026-08-21T03:13:18.0094079Z","event":"CLOCK_SAMPLE","tick":"20","wallElapsedMs":"600189","stopwatchElapsedMs":"600193","getTickCount64ElapsedMs":"600203","wallMinusStopwatchMs":"-4","wallMinusTickCountMs":"-14"}
+{"tsUtc":"2026-08-21T03:13:48.0094092Z","event":"CLOCK_SAMPLE","tick":"21","wallElapsedMs":"630189","stopwatchElapsedMs":"630194","getTickCount64ElapsedMs":"630203","wallMinusStopwatchMs":"-5","wallMinusTickCountMs":"-14"}
+{"tsUtc":"2026-08-21T03:14:18.0151917Z","event":"CLOCK_SAMPLE","tick":"22","wallElapsedMs":"660195","stopwatchElapsedMs":"660200","getTickCount64ElapsedMs":"660203","wallMinusStopwatchMs":"-5","wallMinusTickCountMs":"-8"}
+{"tsUtc":"2026-08-21T03:14:48.0183817Z","event":"CLOCK_SAMPLE","tick":"23","wallElapsedMs":"690198","stopwatchElapsedMs":"690203","getTickCount64ElapsedMs":"690203","wallMinusStopwatchMs":"-5","wallMinusTickCountMs":"-5"}
+{"tsUtc":"2026-08-21T03:15:18.0247140Z","event":"CLOCK_SAMPLE","tick":"24","wallElapsedMs":"720204","stopwatchElapsedMs":"720210","getTickCount64ElapsedMs":"720219","wallMinusStopwatchMs":"-5","wallMinusTickCountMs":"-15"}
+{"tsUtc":"2026-08-21T03:15:48.0362212Z","event":"CLOCK_SAMPLE","tick":"25","wallElapsedMs":"750216","stopwatchElapsedMs":"750221","getTickCount64ElapsedMs":"750219","wallMinusStopwatchMs":"-6","wallMinusTickCountMs":"-3"}
+{"tsUtc":"2026-08-21T03:16:18.0472386Z","event":"CLOCK_SAMPLE","tick":"26","wallElapsedMs":"780227","stopwatchElapsedMs":"780233","getTickCount64ElapsedMs":"780235","wallMinusStopwatchMs":"-6","wallMinusTickCountMs":"-8"}
+{"tsUtc":"2026-08-21T03:16:48.0606735Z","event":"CLOCK_SAMPLE","tick":"27","wallElapsedMs":"810240","stopwatchElapsedMs":"810246","getTickCount64ElapsedMs":"810250","wallMinusStopwatchMs":"-6","wallMinusTickCountMs":"-10"}
+{"tsUtc":"2026-08-21T03:17:34.1809997Z","event":"CLOCK_SAMPLE","tick":"28","wallElapsedMs":"856360","stopwatchElapsedMs":"856407","getTickCount64ElapsedMs":"856375","wallMinusStopwatchMs":"-46","wallMinusTickCountMs":"-15"}
+{"tsUtc":"2026-08-21T03:18:04.1935763Z","event":"CLOCK_SAMPLE","tick":"29","wallElapsedMs":"886373","stopwatchElapsedMs":"886419","getTickCount64ElapsedMs":"886391","wallMinusStopwatchMs":"-46","wallMinusTickCountMs":"-18"}
+{"tsUtc":"2026-08-21T03:18:34.2029074Z","event":"CLOCK_SAMPLE","tick":"30","wallElapsedMs":"916382","stopwatchElapsedMs":"916428","getTickCount64ElapsedMs":"916391","wallMinusStopwatchMs":"-46","wallMinusTickCountMs":"-9"}
+{"tsUtc":"2026-08-21T03:18:36.5452350Z","event":"ACCOUNT_ITEM","item":"ExcessIntradayMargin","value":"100000","currency":"UsDollar"}
+{"tsUtc":"2026-08-21T03:18:36.5457395Z","event":"ACCOUNT_ITEM","item":"ExcessInitialMargin","value":"100000","currency":"UsDollar"}
+{"tsUtc":"2026-08-21T03:18:36.5457395Z","event":"ACCOUNT_ITEM","item":"NetLiquidation","value":"100000","currency":"UsDollar"}
+{"tsUtc":"2026-08-21T03:19:04.2119683Z","event":"CLOCK_SAMPLE","tick":"31","wallElapsedMs":"946391","stopwatchElapsedMs":"946438","getTickCount64ElapsedMs":"946406","wallMinusStopwatchMs":"-46","wallMinusTickCountMs":"-15"}
+{"tsUtc":"2026-08-21T03:19:34.2124191Z","event":"CLOCK_SAMPLE","tick":"32","wallElapsedMs":"976392","stopwatchElapsedMs":"976438","getTickCount64ElapsedMs":"976406","wallMinusStopwatchMs":"-46","wallMinusTickCountMs":"-14"}
+{"tsUtc":"2026-08-21T03:20:04.2148268Z","event":"CLOCK_SAMPLE","tick":"33","wallElapsedMs":"1006394","stopwatchElapsedMs":"1006440","getTickCount64ElapsedMs":"1006406","wallMinusStopwatchMs":"-46","wallMinusTickCountMs":"-12"}
+{"tsUtc":"2026-08-21T03:20:34.2141210Z","event":"CLOCK_SAMPLE","tick":"34","wallElapsedMs":"1036394","stopwatchElapsedMs":"1036440","getTickCount64ElapsedMs":"1036406","wallMinusStopwatchMs":"-46","wallMinusTickCountMs":"-12"}
+{"tsUtc":"2026-08-21T03:21:04.2285993Z","event":"CLOCK_SAMPLE","tick":"35","wallElapsedMs":"1066408","stopwatchElapsedMs":"1066455","getTickCount64ElapsedMs":"1066422","wallMinusStopwatchMs":"-47","wallMinusTickCountMs":"-14"}
+{"tsUtc":"2026-08-21T03:21:34.2306865Z","event":"CLOCK_SAMPLE","tick":"36","wallElapsedMs":"1096410","stopwatchElapsedMs":"1096456","getTickCount64ElapsedMs":"1096422","wallMinusStopwatchMs":"-46","wallMinusTickCountMs":"-12"}
+{"tsUtc":"2026-08-21T03:22:04.2313570Z","event":"CLOCK_SAMPLE","tick":"37","wallElapsedMs":"1126411","stopwatchElapsedMs":"1126457","getTickCount64ElapsedMs":"1126422","wallMinusStopwatchMs":"-46","wallMinusTickCountMs":"-11"}
+{"tsUtc":"2026-08-21T03:22:34.2403193Z","event":"CLOCK_SAMPLE","tick":"38","wallElapsedMs":"1156420","stopwatchElapsedMs":"1156466","getTickCount64ElapsedMs":"1156438","wallMinusStopwatchMs":"-46","wallMinusTickCountMs":"-18"}
+{"tsUtc":"2026-08-21T03:23:04.2413080Z","event":"CLOCK_SAMPLE","tick":"39","wallElapsedMs":"1186421","stopwatchElapsedMs":"1186467","getTickCount64ElapsedMs":"1186438","wallMinusStopwatchMs":"-46","wallMinusTickCountMs":"-17"}
+{"tsUtc":"2026-08-21T03:23:34.2454078Z","event":"CLOCK_SAMPLE","tick":"40","wallElapsedMs":"1216425","stopwatchElapsedMs":"1216471","getTickCount64ElapsedMs":"1216438","wallMinusStopwatchMs":"-46","wallMinusTickCountMs":"-13"}
+{"tsUtc":"2026-08-21T03:24:04.2461986Z","event":"CLOCK_SAMPLE","tick":"41","wallElapsedMs":"1246426","stopwatchElapsedMs":"1246472","getTickCount64ElapsedMs":"1246438","wallMinusStopwatchMs":"-46","wallMinusTickCountMs":"-12"}
+{"tsUtc":"2026-08-21T03:24:34.2556904Z","event":"CLOCK_SAMPLE","tick":"42","wallElapsedMs":"1276435","stopwatchElapsedMs":"1276481","getTickCount64ElapsedMs":"1276453","wallMinusStopwatchMs":"-46","wallMinusTickCountMs":"-18"}
+{"tsUtc":"2026-08-21T03:25:04.2567168Z","event":"CLOCK_SAMPLE","tick":"43","wallElapsedMs":"1306436","stopwatchElapsedMs":"1306482","getTickCount64ElapsedMs":"1306453","wallMinusStopwatchMs":"-46","wallMinusTickCountMs":"-17"}
+{"tsUtc":"2026-08-21T03:25:34.2561541Z","event":"CLOCK_SAMPLE","tick":"44","wallElapsedMs":"1336436","stopwatchElapsedMs":"1336482","getTickCount64ElapsedMs":"1336453","wallMinusStopwatchMs":"-46","wallMinusTickCountMs":"-17"}
+{"tsUtc":"2026-08-21T03:26:19.8919128Z","event":"CLOCK_SAMPLE","tick":"45","wallElapsedMs":"1382071","stopwatchElapsedMs":"1382170","getTickCount64ElapsedMs":"1382078","wallMinusStopwatchMs":"-99","wallMinusTickCountMs":"-7"}
+{"tsUtc":"2026-08-21T03:26:49.8998287Z","event":"CLOCK_SAMPLE","tick":"46","wallElapsedMs":"1412079","stopwatchElapsedMs":"1412178","getTickCount64ElapsedMs":"1412094","wallMinusStopwatchMs":"-99","wallMinusTickCountMs":"-15"}
+{"tsUtc":"2026-08-21T03:27:20.4778510Z","event":"CLOCK_SAMPLE","tick":"47","wallElapsedMs":"1442657","stopwatchElapsedMs":"1442756","getTickCount64ElapsedMs":"1442672","wallMinusStopwatchMs":"-99","wallMinusTickCountMs":"-15"}
+{"tsUtc":"2026-08-21T03:27:50.4902359Z","event":"CLOCK_SAMPLE","tick":"48","wallElapsedMs":"1472670","stopwatchElapsedMs":"1472768","getTickCount64ElapsedMs":"1472688","wallMinusStopwatchMs":"-99","wallMinusTickCountMs":"-18"}
+{"tsUtc":"2026-08-21T03:28:20.4963926Z","event":"CLOCK_SAMPLE","tick":"49","wallElapsedMs":"1502676","stopwatchElapsedMs":"1502774","getTickCount64ElapsedMs":"1502688","wallMinusStopwatchMs":"-99","wallMinusTickCountMs":"-12"}
+{"tsUtc":"2026-08-21T03:28:50.5131814Z","event":"CLOCK_SAMPLE","tick":"50","wallElapsedMs":"1532692","stopwatchElapsedMs":"1532791","getTickCount64ElapsedMs":"1532703","wallMinusStopwatchMs":"-99","wallMinusTickCountMs":"-11"}
+{"tsUtc":"2026-08-21T03:29:20.5227097Z","event":"CLOCK_SAMPLE","tick":"51","wallElapsedMs":"1562702","stopwatchElapsedMs":"1562801","getTickCount64ElapsedMs":"1562719","wallMinusStopwatchMs":"-99","wallMinusTickCountMs":"-17"}
+{"tsUtc":"2026-08-21T03:29:50.5322236Z","event":"CLOCK_SAMPLE","tick":"52","wallElapsedMs":"1592712","stopwatchElapsedMs":"1592810","getTickCount64ElapsedMs":"1592719","wallMinusStopwatchMs":"-99","wallMinusTickCountMs":"-7"}
+{"tsUtc":"2026-08-21T03:30:20.5464017Z","event":"CLOCK_SAMPLE","tick":"53","wallElapsedMs":"1622726","stopwatchElapsedMs":"1622824","getTickCount64ElapsedMs":"1622735","wallMinusStopwatchMs":"-99","wallMinusTickCountMs":"-9"}
+{"tsUtc":"2026-08-21T03:30:50.5611250Z","event":"CLOCK_SAMPLE","tick":"54","wallElapsedMs":"1652741","stopwatchElapsedMs":"1652839","getTickCount64ElapsedMs":"1652750","wallMinusStopwatchMs":"-99","wallMinusTickCountMs":"-9"}
+{"tsUtc":"2026-08-21T03:31:20.5738195Z","event":"CLOCK_SAMPLE","tick":"55","wallElapsedMs":"1682753","stopwatchElapsedMs":"1682852","getTickCount64ElapsedMs":"1682766","wallMinusStopwatchMs":"-99","wallMinusTickCountMs":"-13"}
+{"tsUtc":"2026-08-21T03:31:50.5803430Z","event":"CLOCK_SAMPLE","tick":"56","wallElapsedMs":"1712760","stopwatchElapsedMs":"1712858","getTickCount64ElapsedMs":"1712766","wallMinusStopwatchMs":"-99","wallMinusTickCountMs":"-6"}
+{"tsUtc":"2026-08-21T03:32:20.5826693Z","event":"CLOCK_SAMPLE","tick":"57","wallElapsedMs":"1742762","stopwatchElapsedMs":"1742861","getTickCount64ElapsedMs":"1742766","wallMinusStopwatchMs":"-99","wallMinusTickCountMs":"-4"}
+{"tsUtc":"2026-08-21T03:32:50.5955133Z","event":"CLOCK_SAMPLE","tick":"58","wallElapsedMs":"1772775","stopwatchElapsedMs":"1772874","getTickCount64ElapsedMs":"1772781","wallMinusStopwatchMs":"-99","wallMinusTickCountMs":"-6"}
+{"tsUtc":"2026-08-21T03:33:20.6107960Z","event":"CLOCK_SAMPLE","tick":"59","wallElapsedMs":"1802790","stopwatchElapsedMs":"1802889","getTickCount64ElapsedMs":"1802797","wallMinusStopwatchMs":"-99","wallMinusTickCountMs":"-7"}
+{"tsUtc":"2026-08-21T03:33:50.6252008Z","event":"CLOCK_SAMPLE","tick":"60","wallElapsedMs":"1832805","stopwatchElapsedMs":"1832903","getTickCount64ElapsedMs":"1832813","wallMinusStopwatchMs":"-99","wallMinusTickCountMs":"-8"}
+{"tsUtc":"2026-08-21T03:34:20.6309848Z","event":"CLOCK_SAMPLE","tick":"61","wallElapsedMs":"1862810","stopwatchElapsedMs":"1862909","getTickCount64ElapsedMs":"1862828","wallMinusStopwatchMs":"-99","wallMinusTickCountMs":"-18"}
+{"tsUtc":"2026-08-21T03:34:50.6407944Z","event":"CLOCK_SAMPLE","tick":"62","wallElapsedMs":"1892820","stopwatchElapsedMs":"1892919","getTickCount64ElapsedMs":"1892828","wallMinusStopwatchMs":"-99","wallMinusTickCountMs":"-8"}
+{"tsUtc":"2026-08-21T03:35:20.6530099Z","event":"CLOCK_SAMPLE","tick":"63","wallElapsedMs":"1922832","stopwatchElapsedMs":"1922931","getTickCount64ElapsedMs":"1922844","wallMinusStopwatchMs":"-99","wallMinusTickCountMs":"-12"}
+{"tsUtc":"2026-08-21T03:35:50.6676352Z","event":"CLOCK_SAMPLE","tick":"64","wallElapsedMs":"1952847","stopwatchElapsedMs":"1952946","getTickCount64ElapsedMs":"1952860","wallMinusStopwatchMs":"-99","wallMinusTickCountMs":"-13"}
+{"tsUtc":"2026-08-21T03:36:20.6680456Z","event":"CLOCK_SAMPLE","tick":"65","wallElapsedMs":"1982848","stopwatchElapsedMs":"1982946","getTickCount64ElapsedMs":"1982860","wallMinusStopwatchMs":"-99","wallMinusTickCountMs":"-12"}
+{"tsUtc":"2026-08-21T03:36:50.6831736Z","event":"CLOCK_SAMPLE","tick":"66","wallElapsedMs":"2012863","stopwatchElapsedMs":"2012961","getTickCount64ElapsedMs":"2012875","wallMinusStopwatchMs":"-99","wallMinusTickCountMs":"-12"}
+{"tsUtc":"2026-08-21T03:37:20.6985683Z","event":"CLOCK_SAMPLE","tick":"67","wallElapsedMs":"2042878","stopwatchElapsedMs":"2042977","getTickCount64ElapsedMs":"2042891","wallMinusStopwatchMs":"-99","wallMinusTickCountMs":"-13"}
+{"tsUtc":"2026-08-21T03:37:50.7133952Z","event":"CLOCK_SAMPLE","tick":"68","wallElapsedMs":"2072893","stopwatchElapsedMs":"2072992","getTickCount64ElapsedMs":"2072906","wallMinusStopwatchMs":"-99","wallMinusTickCountMs":"-13"}
+{"tsUtc":"2026-08-21T03:38:20.7222393Z","event":"CLOCK_SAMPLE","tick":"69","wallElapsedMs":"2102902","stopwatchElapsedMs":"2103000","getTickCount64ElapsedMs":"2102906","wallMinusStopwatchMs":"-99","wallMinusTickCountMs":"-4"}
+{"tsUtc":"2026-08-21T03:38:50.7242885Z","event":"CLOCK_SAMPLE","tick":"70","wallElapsedMs":"2132904","stopwatchElapsedMs":"2133002","getTickCount64ElapsedMs":"2132906","wallMinusStopwatchMs":"-99","wallMinusTickCountMs":"-2"}
+{"tsUtc":"2026-08-21T03:39:20.7354891Z","event":"CLOCK_SAMPLE","tick":"71","wallElapsedMs":"2162915","stopwatchElapsedMs":"2163014","getTickCount64ElapsedMs":"2162922","wallMinusStopwatchMs":"-99","wallMinusTickCountMs":"-7"}
+{"tsUtc":"2026-08-21T03:39:50.7437643Z","event":"CLOCK_SAMPLE","tick":"72","wallElapsedMs":"2192923","stopwatchElapsedMs":"2193022","getTickCount64ElapsedMs":"2192938","wallMinusStopwatchMs":"-99","wallMinusTickCountMs":"-15"}
+{"tsUtc":"2026-08-21T03:40:20.7584458Z","event":"CLOCK_SAMPLE","tick":"73","wallElapsedMs":"2222938","stopwatchElapsedMs":"2223036","getTickCount64ElapsedMs":"2222953","wallMinusStopwatchMs":"-99","wallMinusTickCountMs":"-15"}
+{"tsUtc":"2026-08-21T03:40:50.7598640Z","event":"CLOCK_SAMPLE","tick":"74","wallElapsedMs":"2252939","stopwatchElapsedMs":"2253038","getTickCount64ElapsedMs":"2252953","wallMinusStopwatchMs":"-99","wallMinusTickCountMs":"-14"}
+{"tsUtc":"2026-08-21T03:41:20.7638796Z","event":"CLOCK_SAMPLE","tick":"75","wallElapsedMs":"2282943","stopwatchElapsedMs":"2283042","getTickCount64ElapsedMs":"2282953","wallMinusStopwatchMs":"-99","wallMinusTickCountMs":"-10"}
+{"tsUtc":"2026-08-21T03:41:50.7751801Z","event":"CLOCK_SAMPLE","tick":"76","wallElapsedMs":"2312955","stopwatchElapsedMs":"2313053","getTickCount64ElapsedMs":"2312969","wallMinusStopwatchMs":"-99","wallMinusTickCountMs":"-14"}
+{"tsUtc":"2026-08-21T03:41:53.4347627Z","event":"NOTE","line":"OnStateChange -> Terminated"}
+{"tsUtc":"2026-08-21T03:43:20.2643688Z","event":"NOTE","line":"OnStateChange -> SetDefaults"}
+{"tsUtc":"2026-08-21T03:43:26.5497356Z","event":"NOTE","line":"OnStateChange -> Configure"}
+{"tsUtc":"2026-08-21T03:43:26.5754118Z","event":"NOTE","line":"Account.All = [Backtest, Playback101, Sim101, <funded-acct>]"}
+{"tsUtc":"2026-08-21T03:43:26.5754118Z","event":"NOTE","line":"found Sim101 connection=null denomination=UsDollar"}
+{"tsUtc":"2026-08-21T03:43:26.5774067Z","event":"NOTE","line":"subscribed to OrderUpdate, ExecutionUpdate, PositionUpdate, AccountItemUpdate"}
+{"tsUtc":"2026-08-21T03:43:26.5998272Z","event":"NOTE","line":"OnStateChange -> Active"}
+{"tsUtc":"2026-08-21T03:43:36.6623147Z","event":"ACCOUNT_ITEM","item":"CashValue","value":"100000","currency":"UsDollar"}
+{"tsUtc":"2026-08-21T03:43:36.6638205Z","event":"ACCOUNT_ITEM","item":"ExcessIntradayMargin","value":"100000","currency":"UsDollar"}
+{"tsUtc":"2026-08-21T03:43:36.6638205Z","event":"ACCOUNT_ITEM","item":"ExcessInitialMargin","value":"100000","currency":"UsDollar"}
+{"tsUtc":"2026-08-21T03:43:36.6638205Z","event":"ACCOUNT_ITEM","item":"NetLiquidation","value":"100000","currency":"UsDollar"}
+{"tsUtc":"2026-08-21T03:43:56.6101143Z","event":"CLOCK_SAMPLE","tick":"1","wallElapsedMs":"30060","stopwatchElapsedMs":"30060","getTickCount64ElapsedMs":"30047","wallMinusStopwatchMs":"0","wallMinusTickCountMs":"13"}
+{"tsUtc":"2026-08-21T03:44:26.6142620Z","event":"CLOCK_SAMPLE","tick":"2","wallElapsedMs":"60065","stopwatchElapsedMs":"60064","getTickCount64ElapsedMs":"60047","wallMinusStopwatchMs":"0","wallMinusTickCountMs":"18"}
+{"tsUtc":"2026-08-21T03:44:56.6211469Z","event":"CLOCK_SAMPLE","tick":"3","wallElapsedMs":"90071","stopwatchElapsedMs":"90071","getTickCount64ElapsedMs":"90063","wallMinusStopwatchMs":"0","wallMinusTickCountMs":"8"}
+{"tsUtc":"2026-08-21T03:45:26.6325686Z","event":"CLOCK_SAMPLE","tick":"4","wallElapsedMs":"120083","stopwatchElapsedMs":"120082","getTickCount64ElapsedMs":"120078","wallMinusStopwatchMs":"0","wallMinusTickCountMs":"5"}
+{"tsUtc":"2026-08-21T03:45:56.6348549Z","event":"CLOCK_SAMPLE","tick":"5","wallElapsedMs":"150085","stopwatchElapsedMs":"150085","getTickCount64ElapsedMs":"150078","wallMinusStopwatchMs":"0","wallMinusTickCountMs":"7"}
+{"tsUtc":"2026-08-21T03:46:26.6365372Z","event":"CLOCK_SAMPLE","tick":"6","wallElapsedMs":"180087","stopwatchElapsedMs":"180086","getTickCount64ElapsedMs":"180078","wallMinusStopwatchMs":"0","wallMinusTickCountMs":"9"}
+{"tsUtc":"2026-08-21T03:46:56.6492932Z","event":"CLOCK_SAMPLE","tick":"7","wallElapsedMs":"210100","stopwatchElapsedMs":"210099","getTickCount64ElapsedMs":"210094","wallMinusStopwatchMs":"0","wallMinusTickCountMs":"6"}
+{"tsUtc":"2026-08-21T03:47:26.6595910Z","event":"CLOCK_SAMPLE","tick":"8","wallElapsedMs":"240110","stopwatchElapsedMs":"240109","getTickCount64ElapsedMs":"240094","wallMinusStopwatchMs":"0","wallMinusTickCountMs":"16"}
+{"tsUtc":"2026-08-21T03:47:56.6712289Z","event":"CLOCK_SAMPLE","tick":"9","wallElapsedMs":"270121","stopwatchElapsedMs":"270121","getTickCount64ElapsedMs":"270110","wallMinusStopwatchMs":"0","wallMinusTickCountMs":"11"}
+{"tsUtc":"2026-08-21T03:48:26.6769254Z","event":"CLOCK_SAMPLE","tick":"10","wallElapsedMs":"300127","stopwatchElapsedMs":"300127","getTickCount64ElapsedMs":"300110","wallMinusStopwatchMs":"0","wallMinusTickCountMs":"17"}
+{"tsUtc":"2026-08-21T03:48:56.6810178Z","event":"CLOCK_SAMPLE","tick":"11","wallElapsedMs":"330131","stopwatchElapsedMs":"330131","getTickCount64ElapsedMs":"330125","wallMinusStopwatchMs":"0","wallMinusTickCountMs":"6"}
+{"tsUtc":"2026-08-21T03:49:26.6988145Z","event":"CLOCK_SAMPLE","tick":"12","wallElapsedMs":"360149","stopwatchElapsedMs":"360149","getTickCount64ElapsedMs":"360141","wallMinusStopwatchMs":"0","wallMinusTickCountMs":"8"}
+{"tsUtc":"2026-08-21T03:49:28.5628749Z","event":"NOTE","line":"OnStateChange -> Terminated"}
+{"tsUtc":"2026-08-21T03:58:11.1109230Z","event":"NOTE","line":"OnStateChange -> SetDefaults"}
+{"tsUtc":"2026-08-21T03:58:18.1071083Z","event":"NOTE","line":"OnStateChange -> Configure"}
+{"tsUtc":"2026-08-21T03:58:18.1131047Z","event":"NOTE","line":"Account.All = [Backtest, Playback101, Sim101, <funded-acct>]"}
+{"tsUtc":"2026-08-21T03:58:18.1150995Z","event":"NOTE","line":"found Sim101 connection=null denomination=UsDollar"}
+{"tsUtc":"2026-08-21T03:58:18.1170939Z","event":"NOTE","line":"subscribed to OrderUpdate, ExecutionUpdate, PositionUpdate, AccountItemUpdate"}
+{"tsUtc":"2026-08-21T03:58:18.4956262Z","event":"NOTE","line":"OnStateChange -> Active"}
+{"tsUtc":"2026-08-21T03:58:28.7841132Z","event":"ACCOUNT_ITEM","item":"CashValue","value":"100000","currency":"UsDollar"}
+{"tsUtc":"2026-08-21T03:58:28.7871048Z","event":"ACCOUNT_ITEM","item":"ExcessIntradayMargin","value":"100000","currency":"UsDollar"}
+{"tsUtc":"2026-08-21T03:58:28.7871048Z","event":"ACCOUNT_ITEM","item":"ExcessInitialMargin","value":"100000","currency":"UsDollar"}
+{"tsUtc":"2026-08-21T03:58:28.7871048Z","event":"ACCOUNT_ITEM","item":"NetLiquidation","value":"100000","currency":"UsDollar"}
+{"tsUtc":"2026-08-21T03:58:48.5116733Z","event":"CLOCK_SAMPLE","tick":"1","wallElapsedMs":"30405","stopwatchElapsedMs":"30404","getTickCount64ElapsedMs":"30406","wallMinusStopwatchMs":"0","wallMinusTickCountMs":"-1"}
+{"tsUtc":"2026-08-21T03:59:18.5248331Z","event":"CLOCK_SAMPLE","tick":"2","wallElapsedMs":"60418","stopwatchElapsedMs":"60417","getTickCount64ElapsedMs":"60422","wallMinusStopwatchMs":"0","wallMinusTickCountMs":"-4"}
+{"tsUtc":"2026-08-21T03:59:48.5302310Z","event":"CLOCK_SAMPLE","tick":"3","wallElapsedMs":"90423","stopwatchElapsedMs":"90423","getTickCount64ElapsedMs":"90422","wallMinusStopwatchMs":"0","wallMinusTickCountMs":"1"}
+{"tsUtc":"2026-08-21T04:00:18.5329136Z","event":"CLOCK_SAMPLE","tick":"4","wallElapsedMs":"120426","stopwatchElapsedMs":"120426","getTickCount64ElapsedMs":"120422","wallMinusStopwatchMs":"0","wallMinusTickCountMs":"4"}
+{"tsUtc":"2026-08-21T04:00:48.5403983Z","event":"CLOCK_SAMPLE","tick":"5","wallElapsedMs":"150433","stopwatchElapsedMs":"150433","getTickCount64ElapsedMs":"150438","wallMinusStopwatchMs":"1","wallMinusTickCountMs":"-5"}
+{"tsUtc":"2026-08-21T04:01:18.5474195Z","event":"CLOCK_SAMPLE","tick":"6","wallElapsedMs":"180440","stopwatchElapsedMs":"180440","getTickCount64ElapsedMs":"180438","wallMinusStopwatchMs":"0","wallMinusTickCountMs":"2"}
+{"tsUtc":"2026-08-21T04:01:48.5619516Z","event":"CLOCK_SAMPLE","tick":"7","wallElapsedMs":"210455","stopwatchElapsedMs":"210454","getTickCount64ElapsedMs":"210453","wallMinusStopwatchMs":"0","wallMinusTickCountMs":"2"}
+{"tsUtc":"2026-08-21T04:02:18.5690463Z","event":"CLOCK_SAMPLE","tick":"8","wallElapsedMs":"240462","stopwatchElapsedMs":"240462","getTickCount64ElapsedMs":"240469","wallMinusStopwatchMs":"0","wallMinusTickCountMs":"-7"}
+{"tsUtc":"2026-08-21T04:02:48.5702678Z","event":"CLOCK_SAMPLE","tick":"9","wallElapsedMs":"270463","stopwatchElapsedMs":"270463","getTickCount64ElapsedMs":"270469","wallMinusStopwatchMs":"0","wallMinusTickCountMs":"-6"}
+{"tsUtc":"2026-08-21T04:03:18.5755206Z","event":"CLOCK_SAMPLE","tick":"10","wallElapsedMs":"300468","stopwatchElapsedMs":"300468","getTickCount64ElapsedMs":"300469","wallMinusStopwatchMs":"0","wallMinusTickCountMs":"-1"}
+{"tsUtc":"2026-08-21T04:03:25.2162973Z","event":"NOTE","line":"OnStateChange -> Terminated"}
+{"tsUtc":"2026-08-21T04:03:25.2342882Z","event":"NOTE","line":"OnStateChange -> SetDefaults"}
+{"tsUtc":"2026-08-21T04:03:25.2342882Z","event":"NOTE","line":"OnStateChange -> Configure"}
+{"tsUtc":"2026-08-21T04:03:25.2362840Z","event":"NOTE","line":"Account.All = [Backtest, Playback101, Sim101, <funded-acct>]"}
+{"tsUtc":"2026-08-21T04:03:25.2362840Z","event":"NOTE","line":"found Sim101 connection=Connected denomination=UsDollar"}
+{"tsUtc":"2026-08-21T04:03:25.2377925Z","event":"NOTE","line":"subscribed to OrderUpdate, ExecutionUpdate, PositionUpdate, AccountItemUpdate"}
+{"tsUtc":"2026-08-21T04:03:25.2485587Z","event":"NOTE","line":"OnStateChange -> Active"}
+{"tsUtc":"2026-08-21T04:03:55.2570411Z","event":"CLOCK_SAMPLE","tick":"1","wallElapsedMs":"30023","stopwatchElapsedMs":"30022","getTickCount64ElapsedMs":"30031","wallMinusStopwatchMs":"1","wallMinusTickCountMs":"-8"}
+{"tsUtc":"2026-08-21T04:03:55.2764442Z","event":"ORDER_OBSERVED","orderId":"b92406f4e599482a886cf400ba1bd6b5","state":"Initialized","instrument":"MES SEP26","eventTimeLocal":"2026-08-20T23:03:55.2488352","observedLocal":"2026-08-20T23:03:55.2754467-05:00","eventToObservedMs":"26.612","handlerEntryMs":"0.005"}
+{"tsUtc":"2026-08-21T04:03:55.3391739Z","event":"ORDER_OBSERVED","orderId":"b92406f4e599482a886cf400ba1bd6b5","state":"Submitted","instrument":"MES SEP26","eventTimeLocal":"2026-08-20T23:03:55.2999886","observedLocal":"2026-08-20T23:03:55.3391739-05:00","eventToObservedMs":"39.185","handlerEntryMs":"0.004"}
+{"tsUtc":"2026-08-21T04:03:55.4482034Z","event":"ORDER_OBSERVED","orderId":"b92406f4e599482a886cf400ba1bd6b5","state":"Accepted","instrument":"MES SEP26","eventTimeLocal":"2026-08-20T23:03:55.4482034","observedLocal":"2026-08-20T23:03:55.4482034-05:00","eventToObservedMs":"0.000","handlerEntryMs":"0.001"}
+{"tsUtc":"2026-08-21T04:03:55.4587843Z","event":"ORDER_OBSERVED","orderId":"b92406f4e599482a886cf400ba1bd6b5","state":"CancelPending","instrument":"MES SEP26","eventTimeLocal":"2026-08-20T23:03:55.4587843","observedLocal":"2026-08-20T23:03:55.4587843-05:00","eventToObservedMs":"0.000","handlerEntryMs":"0.002"}
+{"tsUtc":"2026-08-21T04:03:55.4627739Z","event":"ORDER_OBSERVED","orderId":"b92406f4e599482a886cf400ba1bd6b5","state":"CancelSubmitted","instrument":"MES SEP26","eventTimeLocal":"2026-08-20T23:03:55.4627739","observedLocal":"2026-08-20T23:03:55.4627739-05:00","eventToObservedMs":"0.000","handlerEntryMs":"0.001"}
+{"tsUtc":"2026-08-21T04:03:55.4637720Z","event":"ORDER_OBSERVED","orderId":"b92406f4e599482a886cf400ba1bd6b5","state":"Working","instrument":"MES SEP26","eventTimeLocal":"2026-08-20T23:03:55.4627739","observedLocal":"2026-08-20T23:03:55.4637720-05:00","eventToObservedMs":"0.998","handlerEntryMs":"0.002"}
+{"tsUtc":"2026-08-21T04:03:55.5933620Z","event":"ORDER_OBSERVED","orderId":"b92406f4e599482a886cf400ba1bd6b5","state":"Cancelled","instrument":"MES SEP26","eventTimeLocal":"2026-08-20T23:03:55.5694015","observedLocal":"2026-08-20T23:03:55.5933620-05:00","eventToObservedMs":"23.961","handlerEntryMs":"0.004"}
+{"tsUtc":"2026-08-21T04:04:25.2582523Z","event":"CLOCK_SAMPLE","tick":"2","wallElapsedMs":"60024","stopwatchElapsedMs":"60023","getTickCount64ElapsedMs":"60031","wallMinusStopwatchMs":"1","wallMinusTickCountMs":"-7"}
