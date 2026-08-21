@@ -615,6 +615,7 @@ the deadman style ("N of M", never a rounded-up "all").
 | G20 | Lockout has no manual exit before expiry | every public entry point tried while `LOCKED` |
 | G21 | Money never touches `double` in Core | assertion over the public surface |
 | G22 | Core references no NinjaTrader assembly | build/reflection assertion in the test suite |
+| G23 | A missing, zero or negative point value is an unknown that blocks entries, and is never defaulted to 1 (§5.7) | table of non-positive values, each rejected at the book with a reason and surfaced as `INVALID_POINT_VALUE`; a broken account contributes **no** figure to the day loss; at the guardian level, entries are blocked and `PNL_UNCOMPUTABLE` is logged. The decisive fixture makes the two readings straddle the limit — 120 points on 1 MES at $5.00 is exactly the $600.00 limit, at a substituted 1.0 it is $120.00 — and asserts no checkpoint ever carried the substituted figure and no breach was decided on it. Plus two controls, so the guarantee cannot be satisfied by blocking everything: a usable point value clears the unknown, and produces the real money figure |
 
 ## 16. Versioning
 

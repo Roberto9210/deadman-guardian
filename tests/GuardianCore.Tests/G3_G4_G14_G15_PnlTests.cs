@@ -109,19 +109,8 @@ namespace GuardianCore.Tests
             Assert.Equal(1, book.NetQuantity("A", "MES 09-26"));
         }
 
-        [Fact]
-        public void G3_an_execution_without_a_point_value_is_an_unknown_not_a_zero()
-        {
-            var book = new PnlBook();
-            var bad = new ExecutionRecord("A", "MES 09-26", T0, 5000m, 1, Side.Long, 1m, 0m, "e1");
-            Assert.False(book.Apply(bad, out var problem));
-            Assert.Contains("point value", problem);
-
-            var feed = new FakeAccountFeed("A");
-            var snap = book.Snapshot(new[] { "A" }, feed, 5.00m);
-            Assert.False(snap.Ok);
-            Assert.Equal(PnlStatus.InvalidPointValue, snap.FirstProblem.Status);
-        }
+        // The point-value case that used to live here moved to G23_PointValueTests: SPEC v0.4 §5.7 gave it
+        // its own named guarantee, and one guarantee gets one home.
 
         [Fact]
         public void G4_losses_are_summed_across_accounts_and_never_netted()

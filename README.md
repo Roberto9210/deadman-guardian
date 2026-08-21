@@ -15,11 +15,11 @@ Same discipline in all three: the specification is written first, and the unknow
 | Step | State |
 |---|---|
 | 0 — environment | done: NinjaTrader 8.1.8.2 and .NET SDK 8.0.424 present |
-| 1 — [`SPEC.md`](SPEC.md) | done, v0.3, written before any C# |
-| **2 — GuardianCore + tests** | **done: 130 tests, 25 of 25 named guarantees implemented** |
+| 1 — [`SPEC.md`](SPEC.md) | done, v0.4 (v0.1 written before any C#; amendments absorbed after Step 2) |
+| **2 — GuardianCore + tests** | **done: 137 tests, 26 of 26 named guarantees implemented** |
 | 3 — NtAdapter | not started |
 
-**Conformance statement, exact**: *25 of 25 named guarantees implemented, 130 collected test cases, all
+**Conformance statement, exact**: *26 of 26 named guarantees implemented, 137 collected test cases, all
 passing, 0 skipped.* Not "it works". The guarantees are listed in [SPEC §15](SPEC.md); what each test
 actually asserts is in the test file named after it.
 
@@ -38,7 +38,7 @@ src/GuardianCore/        pure C#, netstandard2.0, zero package dependencies, zer
   GuardianConfig.cs      validation with no defaults: a missing field refuses to arm
   TimeZoneMap.cs         the IANA -> Windows map that makes the session boundary work inside NT8
   Json.cs, Money.cs, Hashing.cs, Ports.cs, TradingDay.cs
-tests/GuardianCore.Tests/  130 tests, one file per guarantee group, fakes for all four ports
+tests/GuardianCore.Tests/  137 tests, one file per guarantee group, fakes for all four ports
 ```
 
 `NtAdapter` does not exist yet. When it does, it holds no decisions: SPEC §3.2 makes a conditional about
