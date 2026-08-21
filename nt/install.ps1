@@ -3,7 +3,7 @@
 # Established empirically on 2026-08-20 against NT 8.1.8.2 (see STEP3_FINDINGS.md §6):
 # NinjaTrader compiles `Documents\NinjaTrader 8\bin\Custom\NinjaTrader.Custom.csproj`, an SDK-style
 # net48/x64/WPF project with EnableDefaultCompileItems=false and an explicit <Compile Include> list.
-# Dropping a .cs into bin\Custom\AddOns\ was NOT sufficient in a controlled A/B: with the entry the
+# Dropping a .cs into bin\Custom\AddOns\ is not sufficient: the file must be listed. Nor is a restart
 # enough - NinjaTrader compiles NinjaScript on demand, from the editor (F5). This installer edits the
 # project file and keeps a backup; the compile is yours to trigger. See STEP3_FINDINGS.md section 6.
 #
