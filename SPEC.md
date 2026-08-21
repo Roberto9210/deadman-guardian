@@ -446,13 +446,22 @@ attempt to trade past the limit, because that is what it is.
    deliberate: an unnecessary extra hour of protection costs the trader nothing they should want, and an
    hour of protection lost too early is the entire failure this product exists to prevent.
 
-A consequence worth stating: a machine that sleeps or hibernates stops the monotonic counter, so the seal
-lasts *longer* in wall-clock terms than it otherwise would. That is the safe direction, and it is left as
-is. The wall/monotonic divergence it produces is logged, and clears like any other unknown (§10) once P&L is
-re-verified — it must not pin the guard in `FAIL_CLOSED` forever.
+**Measured in Step 3, and it corrects what this section used to assume.** The worry was that a sleeping
+machine would stop the monotonic counter, so a suspend would look like a forward jump of the wall clock and
+raise a false anomaly. Across two real S3 sleeps inside the target platform, `Stopwatch` and
+`GetTickCount64` **both kept counting**: `wall − Stopwatch` moved by 41 ms and 53 ms, where a stopped
+counter would have moved by about 5,000 ms. Sleep therefore neither extends the seal nor trips
+`CLOCK_ANOMALY`, and the 120,000 ms tolerance sits some 2,000× above the worst observed divergence. Details
+and limits — two ~5 s sleeps, S3 only, hibernation untested — in
+[`nt/STEP3_FINDINGS.md`](nt/STEP3_FINDINGS.md) §2.
 
-*(Verification pending in Step 3: whether the monotonic source advances across sleep on the target machine.
-The rule above is correct either way; only the size of the logged divergence changes.)*
+The rule stands unchanged regardless, because it never depended on that assumption: whenever the two clocks
+disagree, the seal is maintained. What did change is that a divergence large enough to matter is now known
+to be evidence of something other than sleep.
+
+A separate consequence, also measured: **the guardian does not evaluate while the machine is suspended**,
+and NinjaTrader rebuilds its connections on resume, so entries stay blocked for a few tens of seconds after
+the lid opens — fail-closed, for the right reason (§10).
 
 ## 8. State machine
 

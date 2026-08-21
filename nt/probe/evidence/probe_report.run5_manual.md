@@ -3,9 +3,9 @@
 Written from inside the NinjaTrader process. Read-only probe: it places no orders,
 cancels nothing and opens no socket.
 
-- Written because: **tick 10**
-- Local time: 2026-08-20T22:08:17.9176912-05:00
-- UTC: 2026-08-21T03:08:17.9176912Z
+- Written because: **tick 50**
+- Local time: 2026-08-20T22:28:50.5137739-05:00
+- UTC: 2026-08-21T03:28:50.5137739Z
 - Process: NinjaTrader pid 6072
 - Runtime: .NET Framework 4.8.9300.0
 - CLR: 4.0.30319.42000
@@ -34,9 +34,9 @@ DST check with the Windows id, the two dates SPEC §5.1 pins:
 
 - `Environment.TickCount64` present on this runtime: **NO (only TickCount:Int32, wraps at 24.9 days)**
 - `Stopwatch.IsHighResolution`: True, Frequency 10000000
-- samples taken: 10 (every 30 s; see `probe_trace.jsonl`)
-- since Configure: wall 300097 ms, Stopwatch 300103 ms, GetTickCount64 300110 ms
-- wall − Stopwatch: -6 ms · wall − GetTickCount64: -13 ms
+- samples taken: 50 (every 30 s; see `probe_trace.jsonl`)
+- since Configure: wall 1532695 ms, Stopwatch 1532795 ms, GetTickCount64 1532703 ms
+- wall − Stopwatch: -99 ms · wall − GetTickCount64: -8 ms
 
 **Suspend test (needs a human):** hibernate or sleep the machine with NT8 running,
 resume, and read the next `CLOCK_SAMPLE` rows. A source that keeps counting through

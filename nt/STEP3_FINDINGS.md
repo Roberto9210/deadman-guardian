@@ -28,17 +28,58 @@ start, while `dotnet test` stayed green — exactly the failure §5.1 was writte
 DST pinned in-process on the two dates G12 asserts: **2026-03-09 17:00 CT → 22:00Z** (daylight),
 **2026-11-02 17:00 CT → 23:00Z** (standard). Identical to the values the test suite pins.
 
-## 2. Clock sources — SPEC §6.4 CONFIRMED
+## 2. Clock sources and suspend — SPEC §6.4 CONFIRMED, §17.2 ANSWERED
 
 - **`Environment.TickCount64` does not exist** in the NT8 runtime. Only `TickCount:Int32`, which wraps
   every 24.9 days. Confirmed by reflection *inside the process*, not only on the bench.
 - `Stopwatch.IsHighResolution` is `True`, frequency 10,000,000. It is the monotonic source the adapter uses.
-- Over a 50-second window: wall − Stopwatch = **0 ms**, wall − `GetTickCount64` = **5 ms**. All three agree
-  while the machine is awake, which is the baseline the divergence rule of §6.4 measures against.
+- Awake, the three clocks track each other to within ~15 ms over 26 minutes of sampling.
 
-**Still open — needs a human:** the suspend behaviour of §17.2. Sleeping or hibernating the machine with
-NT8 running and reading the next `CLOCK_SAMPLE` rows answers it. §7.5 is correct either way; only the size
-of the logged divergence changes.
+### The suspend question, measured
+
+Two **real S3 sleeps** happened during the session — genuine, not a blank screen: Windows logged
+`Kernel-Power` 42 (entering sleep) and 107 (resumed) for both, with `Firmware S3 times` records, and
+NinjaTrader logged them itself.
+
+| # | Windows: sleep → resume | NT8's own log | probe sample interval (nominal 30,000 ms) |
+|---|---|---|---|
+| 1 | 22:16:58 → 22:17:03 (~5 s) | "entering a suspended state" 22:16:52 → "recovered" 22:17:24 | tick 27→28: **46,120 ms** |
+| 2 | 22:25:38 → 22:25:43 (~5 s) | "entering a suspended state" 22:25:36 → "recovered" 22:25:59 | tick 44→45: **45,635 ms** |
+
+**The answer: both monotonic sources keep counting through S3 sleep on this machine.**
+
+| across | `wall − Stopwatch` | `wall − GetTickCount64` |
+|---|---|---|
+| sleep 1 | −6 ms → −47 ms (moved **41 ms**) | −10 ms → −15 ms |
+| sleep 2 | −46 ms → −99 ms (moved **53 ms**) | −17 ms → −7 ms |
+| whole 26-minute session | −99 ms cumulative | stayed inside ±18 ms |
+
+Neither source lost the ~5 seconds it slept. Had `Stopwatch` stopped during suspend, `wall − Stopwatch`
+would have jumped by about **+5,000 ms**; it moved by 41 and 53 ms, in the *other* direction, and those are
+ordinary drift.
+
+**What this changes in the spec.** §7.5 carried a parenthetical that a sleeping machine *stops* the
+monotonic counter, so the seal would last longer in wall-clock terms and the divergence would be logged.
+That is **wrong on this hardware for short S3 sleeps**, and it has been corrected: sleep neither extends the
+seal nor raises a false `CLOCK_ANOMALY`. The observed worst case, **53 ms**, sits about 2,000× below the
+`ClockDivergenceToleranceMs` of 120,000 — the tolerance is comfortable, not marginal.
+
+**Limits of this measurement, stated:** two sleeps of about five seconds each, S3, on one machine.
+Hibernation (S4) and multi-hour sleeps are **untested**, and a long sleep is exactly where a source that
+counts *unbiased* time would diverge. The rule of §7.5 is unaffected either way — the seal is maintained
+whenever the clocks disagree — but the number above should not be quoted for S4.
+
+### The consequence nobody specified: the guardian is blind while suspended
+
+The evaluation timer did not fire during either sleep: the interval that should have been 30 s came back at
+46 s, so roughly **16 seconds of missed evaluation** per event beyond the nominal cadence. NinjaTrader also
+tore down and rebuilt its connections on resume — its log shows `Connection lost` for both the Live and
+Simulation providers, a `high latency: 35,968 ms` warning, and reconnection about 40 s after the resume.
+
+During that window the account is disconnected, so Core's own rule (§10) blocks entries and the state is
+`FAIL_CLOSED` for the right reason. Nothing needs fixing, but it belongs in writing: **a suspended machine
+is an unwatched machine**, and the guard resumes watching a few tens of seconds after the lid opens, not
+instantly.
 
 ## 3. AddOn lifecycle — SPEC §3.3 CONFIRMED, with one design consequence
 
@@ -75,12 +116,29 @@ risk acceptance is something that happens **at the venue, after submission**. `A
 So §9.5 stands as written: enforcement is **detect-and-cancel**, never prevent, and the README may not
 claim otherwise.
 
-## 5. Detect-and-cancel latency — NOT YET MEASURED
+## 5. Detect-and-cancel latency — STILL NOT MEASURED, and now the reason is known
 
-Zero order events were observed, because no order was placed on Sim101 while the probe ran. The probe is
-instrumented and deployed; the measurement needs one order (see the handoff below). What it will produce:
-the *detect* half — NT8's event timestamp to the moment a decision could be taken. The *cancel* round-trip
-needs the wired adapter of Stage B, which is allowed to cancel.
+Five orders were submitted during the session. **None of them reached Sim101.**
+
+```
+Cbi.Account.CreateOrder: account='<funded-acct>'  instrument='MNQ SEP26'  Buy  Market  qty 1   -> Rejected
+... five of these, every one on account <funded-acct>, every one Rejected
+error=OrderRejected  comment='Your account is not subscribed to the data feed associated with this contract'
+```
+
+All five went to account **`<funded-acct>`** over NinjaTrader's **`(Live)`** connection — a different account from
+the one this work is scoped to — and the venue rejected every one of them for a missing data subscription on
+`MNQ SEP26`. Nothing filled and no position was ever opened.
+
+The probe watches `Sim101` and nothing else, by design, so it correctly recorded zero order events. That is
+the guardian's account scoping working as intended on its first contact with reality: it did not observe,
+touch, or act on an account it was not told to guard.
+
+**To produce the number**, the order has to be entered *with Sim101 selected as the account* in the order
+entry window or SuperDOM — the Simulation connection was up and healthy throughout (`Simulation: Primary
+connection=Connected, Price feed=Connected`) — and on an instrument the simulated feed serves. A rejected
+order will not do either: rejection happens before the order ever reaches a working state, so there is no
+detect-and-cancel to time.
 
 ## 6. Deployment mechanics — SETTLED
 
@@ -109,33 +167,32 @@ trace carries `LogonControl.LoginInternal.5: error creating demo account: Your a
 the data feed associated with this contract`. A session that cannot click cannot get past it, which is why
 run 4 never reached a compile. The reliable path is a human start, as run 5 shows.
 
-## 7. The manual run — what the evidence shows, and what it does not
+## 7. The two manual sessions, in order
 
-Roberto reported doing all three handoff tasks. The evidence from the manual session
-(`probe/evidence/probe_report.run5_manual.md`, `probe_trace.run5_manual.jsonl`) shows one of them.
+Everything above came from one NinjaTrader session driven by hand. It is worth keeping the sequence,
+because the first round is what told us where to look in the second.
 
-**Done — NT8 started normally.** Session began 22:03:15 local. The AddOn compiled, loaded, walked
+**Round one, 22:03 → 22:15.** NT8 started normally: the AddOn compiled, loaded, walked
 `SetDefaults → Configure → Active`, found `Account.All = [Backtest, Playback101, Sim101]`, subscribed, and
-received `AccountItemUpdate` four seconds later carrying `CashValue = 100000` on Sim101. That settles §6
-and, incidentally, proves the subscription taken at `Configure` survives the connection being established:
-the instance is not replaced, so the adapter is not left talking to a corpse.
+received `AccountItemUpdate` four seconds later carrying `CashValue = 100000` on Sim101. That settled §6 and,
+incidentally, proved the subscription taken at `Configure` survives the connection being established — the
+instance is not replaced, so the adapter is not left talking to a corpse.
 
-**No trace of the order.** Zero `ORDER_OBSERVED` and zero `EXECUTION_OBSERVED` in the probe — and, from a
-source that owes the probe nothing, **zero order activity in NinjaTrader's own trace and log files for the
-entire day**. The only lines matching "order" anywhere are hot-key configuration and a login error. Had an
-order been submitted and cancelled on Sim101, NT8 would have recorded it whether or not the probe was
-listening.
+In that round the probe recorded no order and no suspend, and two independent sources agreed with it:
+NinjaTrader's own trace and log carried zero order activity, and the Windows System event log carried no
+`Kernel-Power` event at all. The clock samples ran unbroken every 30 s with 13 ms of maximum divergence,
+which is what an awake machine looks like. So the instrument was fine; the events had not happened yet.
 
-**No trace of the suspend.** The Windows System event log has **no `Kernel-Power` and no
-`Power-Troubleshooter` events in the last three hours** — no sleep, no hibernate, no resume. Independently,
-the probe's clock samples run unbroken every 30 s from 03:03:47Z to 03:11:17Z with a maximum wall-vs-monotonic
-divergence of **13 ms**, which is what an awake machine looks like. A suspend would have left a gap and a
-divergence the size of the sleep.
+**Round two, 22:16 → 22:29.** Both events happened, and both are in the record:
 
-So the latency numbers and the suspend answer are **still missing** — not because the instrument failed but
-because the two events never reached it. Both remain instrumented and waiting, and NinjaTrader is running
-with the probe loaded right now, so an order placed on Sim101 in the next minutes is captured without
-restarting anything.
+- Two real S3 sleeps, confirmed by Windows and by NinjaTrader independently, giving the measurement in §2.
+- Five orders — none of which reached `Sim101`. They went to account `<funded-acct>` on the `(Live)` connection
+  and were all rejected for a missing data subscription (§5).
+
+That second point is the one worth carrying forward, and not only as a missing measurement: the probe was
+told to watch `Sim101` and it watched `Sim101`. Orders on another account, on another connection, were
+neither observed nor acted upon. Account scoping worked on its first contact with reality, which is exactly
+the property a guardian has to have before it is allowed anywhere near a funded account.
 
 **State of the machine, exactly as left:**
 
@@ -145,17 +202,15 @@ restarting anything.
 - The adapter is **written and compile-checked but NOT installed**: `install.ps1` has not been run, so
   NinjaTrader's next start behaves exactly as it does today.
 - NinjaTrader **running**, left alone deliberately so the probe keeps recording.
-- No account traded, no order placed, no connection configured, no NinjaTrader setting changed.
+- No account traded by this work, no order placed by it, no connection configured, no NinjaTrader setting
+  changed.
 
 ---
 
-## Handoff — the two that are still open
+## Handoff — one measurement still open
 
-1. **Place and cancel one order on Sim101**, with NinjaTrader as it is right now. Any instrument, any size;
-   cancel it before it fills. That single order produces the detect-half latency of §5. The probe only
-   observes; it cannot place one itself.
-2. **Sleep or hibernate the machine** with NinjaTrader running, resume, and leave it a minute. The next
-   `CLOCK_SAMPLE` rows answer the suspend question of §17.2. Closing the lid or letting the screen blank is
-   not enough — it has to be a real S3/S4 sleep, the kind Windows records as a `Kernel-Power` event.
+**Place and cancel one order on Sim101**, with the account selector set to `Sim101` (not `<funded-acct>`) and an
+instrument the simulated feed serves. Cancel it before it fills. That single order produces the detect-half
+latency of §5. The probe only observes; it cannot place one itself.
 
-Neither touches a live account.
+Everything else Step 3 set out to verify is now measured and written down above.
