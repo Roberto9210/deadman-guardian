@@ -12,7 +12,7 @@
 #
 # It never touches an account, never places an order, and never changes a NinjaTrader setting.
 
-param([switch]$Uninstall, [switch]$WithSoak)
+param([switch]$Uninstall, [switch]$WithSoak, [switch]$WithBots)
 
 $ErrorActionPreference = "Stop"
 
@@ -28,6 +28,11 @@ $sources = @("GuardianPorts.cs", "DeadmanGuardianAddOn.cs")
 # The soak suite is opt-in: it is an attacker, it places (unfillable) orders on Sim101, and it has no
 # business on a machine that is not being soaked. -WithSoak adds it.
 $soakSources = @("SoakSandbox.cs", "DeadmanGuardianSoak.cs")
+# The two test bots are opt-in for a harder reason than the soak. The soak refuses to send a
+# fillable order; the BOTS EXIST TO SEND THEM. Bot A loses money on purpose until the guardian
+# locks out, and a lockout calls the account-wide Flatten. That belongs on a soak machine and
+# nowhere else, so it never installs unless you ask for it by name.
+$botSources  = @("BotGuardrails.cs", "DeadmanBotA.cs", "DeadmanBotB.cs")
 # net48, NOT netstandard2.0: NinjaTrader's in-process compiler has no 'netstandard' facade in its
 # reference set, so a netstandard2.0 assembly loads at runtime and fails at compile time.
 $coreDll = Join-Path $repo "src\GuardianCore\bin\Release\net48\GuardianCore.dll"
@@ -39,7 +44,7 @@ if (-not (Test-Path $csproj)) { throw "not found: $csproj" }
 
 # ---------------------------------------------------------------- uninstall
 if ($Uninstall) {
-    foreach ($s in ($sources + $soakSources)) {
+    foreach ($s in ($sources + $soakSources + $botSources)) {
         $p = Join-Path $addons $s
         if (Test-Path $p) { Remove-Item $p -Force; "removed $s" }
     }
@@ -76,6 +81,14 @@ if ($WithSoak) {
         "copied $s  (soak suite)"
     }
 }
+if ($WithBots) {
+    foreach ($s in $botSources) {
+        Copy-Item (Join-Path $repo "nt\bots\$s") (Join-Path $addons $s) -Force
+        "copied $s  (test bots - THESE SEND FILLABLE ORDERS)"
+    }
+    New-Item -ItemType Directory -Force -Path (Join-Path $ntUser "deadman-guardian-bots") | Out-Null
+    "created deadman-guardian-bots\ (gates, sandbox runs and reports live there)"
+}
 Copy-Item $coreDll (Join-Path $custom "GuardianCore.dll") -Force
 "copied GuardianCore.dll"
 
@@ -83,7 +96,9 @@ $xml = Get-Content $csproj -Raw
 
 $compileAnchor = '<Compile Include="Indicators\%40DetrendedPriceOscillator.cs" />'
 $toAdd = ""
-$allSources = if ($WithSoak) { $sources + $soakSources } else { $sources }
+$allSources = $sources
+if ($WithSoak) { $allSources += $soakSources }
+if ($WithBots) { $allSources += $botSources }
 foreach ($s in $allSources) {
     $entry = '<Compile Include="AddOns\' + $s + '" />'
     if ($xml -notmatch [regex]::Escape($entry)) { $toAdd += "`t`t$entry`r`n" }
