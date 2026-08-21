@@ -82,52 +82,80 @@ instrumented and deployed; the measurement needs one order (see the handoff belo
 the *detect* half — NT8's event timestamp to the moment a decision could be taken. The *cancel* round-trip
 needs the wired adapter of Stage B, which is allowed to cancel.
 
-## 6. Deployment mechanics — PARTIALLY UNDERSTOOD, and I will not overstate it
+## 6. Deployment mechanics — SETTLED
 
-NT8 8.1.8.2 compiles `Documents\NinjaTrader 8\bin\Custom\NinjaTrader.Custom.csproj`: an SDK-style project,
-`net48`, `x64`, WPF on, `LangVersion 13`, `EnableDefaultCompileItems=false` with 294 explicit
-`<Compile Include>` items.
+NT8 8.1.8.2 compiles `Documents\NinjaTrader 8\bin\Custom\NinjaTrader.Custom.csproj`: SDK-style,
+`net48`, `x64`, WPF on, `LangVersion 13`, `EnableDefaultCompileItems=false` with an explicit
+`<Compile Include>` list of 294 files.
 
-What was observed, in order:
+Five runs, and the pattern is now clean enough to act on:
 
-1. Probe `.cs` copied into `bin\Custom\AddOns\`, csproj **not** touched. NT8 launched. At +90 s the csproj
-   was unchanged and no report existed. At ~+2.5 min NT8 rebuilt `NinjaTrader.Custom.dll` — and the probe
-   **did** run, writing its report. **This run is the evidence above.**
-2. csproj entry added by hand, NT8 restarted: report written again.
-3. csproj restored to the original (no entry), evidence archived, NT8 restarted: **no report after 302 s**.
-4. Entry re-added, NT8 restarted: **no report after 302 s either** — and `NinjaTrader.Custom.dll` was never
-   rebuilt, so nothing was compiled at all in that run.
+| run | csproj entry | outcome |
+|---|---|---|
+| 1 (automated start) | absent when checked before the compile | AddOn **ran** — unexplained, see below |
+| 2 (automated start) | present | ran |
+| 3 (automated start) | absent | **did not run** after 302 s |
+| 4 (automated start) | present | did not run — NT8 never compiled at all, stuck on its logon window |
+| 5 (**manual start by Roberto**) | present | **ran**, clean lifecycle, account events received |
 
-Runs 3 and 4 disagree with each other, which means the variable is not the csproj entry alone. By run 4 the
-platform had been force-killed three times and was sitting on a `Welcome` window without progressing to a
-compile, which is consistent with a startup dialog waiting for a click that no automated session can give.
+**Procedure: the file must be listed in the csproj.** Two runs with the entry loaded the AddOn; the run
+without it did not. Run 4 failed for an unrelated reason now identified (below), and run 1 stays
+unexplained — I could not reproduce it and I am not going to invent a mechanism that makes the table
+tidy. [`install.ps1`](install.ps1) does exactly this, backs up the project file first, and has an
+`-Uninstall` switch that restores it.
 
-**Therefore: unresolved.** What is certain is that the probe compiled and ran in the real platform and
-produced the results in sections 1–4. What the minimal reliable install procedure is — copy the file, or
-create it through the NinjaScript Editor so NT8 maintains its own compile list — needs one clean run with a
-human present. I am not going to invent a mechanism to make the story tidy.
+**Why the automated runs kept stalling — identified.** NT8's startup window is a **logon screen**, and its
+trace carries `LogonControl.LoginInternal.5: error creating demo account: Your account is not subscribed to
+the data feed associated with this contract`. A session that cannot click cannot get past it, which is why
+run 4 never reached a compile. The reliable path is a human start, as run 5 shows.
+
+## 7. The manual run — what the evidence shows, and what it does not
+
+Roberto reported doing all three handoff tasks. The evidence from the manual session
+(`probe/evidence/probe_report.run5_manual.md`, `probe_trace.run5_manual.jsonl`) shows one of them.
+
+**Done — NT8 started normally.** Session began 22:03:15 local. The AddOn compiled, loaded, walked
+`SetDefaults → Configure → Active`, found `Account.All = [Backtest, Playback101, Sim101]`, subscribed, and
+received `AccountItemUpdate` four seconds later carrying `CashValue = 100000` on Sim101. That settles §6
+and, incidentally, proves the subscription taken at `Configure` survives the connection being established:
+the instance is not replaced, so the adapter is not left talking to a corpse.
+
+**No trace of the order.** Zero `ORDER_OBSERVED` and zero `EXECUTION_OBSERVED` in the probe — and, from a
+source that owes the probe nothing, **zero order activity in NinjaTrader's own trace and log files for the
+entire day**. The only lines matching "order" anywhere are hot-key configuration and a login error. Had an
+order been submitted and cancelled on Sim101, NT8 would have recorded it whether or not the probe was
+listening.
+
+**No trace of the suspend.** The Windows System event log has **no `Kernel-Power` and no
+`Power-Troubleshooter` events in the last three hours** — no sleep, no hibernate, no resume. Independently,
+the probe's clock samples run unbroken every 30 s from 03:03:47Z to 03:11:17Z with a maximum wall-vs-monotonic
+divergence of **13 ms**, which is what an awake machine looks like. A suspend would have left a gap and a
+divergence the size of the sleep.
+
+So the latency numbers and the suspend answer are **still missing** — not because the instrument failed but
+because the two events never reached it. Both remain instrumented and waiting, and NinjaTrader is running
+with the probe loaded right now, so an order placed on Sim101 in the next minutes is captured without
+restarting anything.
 
 **State of the machine, exactly as left:**
 
-- `bin\Custom\AddOns\DeadmanGuardianProbe.cs` — deployed, still there.
-- `bin\Custom\NinjaTrader.Custom.csproj` — **modified by me**: one line added,
-  `<Compile Include="AddOns\DeadmanGuardianProbe.cs" />`. The untouched original is in this repo at
-  [`backups/NinjaTrader.Custom.csproj.bak`](backups/NinjaTrader.Custom.csproj.bak); restoring it is a copy.
-- NinjaTrader is **stopped**.
-- Nothing else on the machine was changed. No account was traded, no order was placed, no connection was
-  configured.
+- `bin\Custom\AddOns\DeadmanGuardianProbe.cs` — the read-only probe, deployed and currently loaded.
+- `bin\Custom\NinjaTrader.Custom.csproj` — one `<Compile>` line added for the probe; the untouched original
+  is at [`backups/NinjaTrader.Custom.csproj.bak`](backups/NinjaTrader.Custom.csproj.bak).
+- The adapter is **written and compile-checked but NOT installed**: `install.ps1` has not been run, so
+  NinjaTrader's next start behaves exactly as it does today.
+- NinjaTrader **running**, left alone deliberately so the probe keeps recording.
+- No account traded, no order placed, no connection configured, no NinjaTrader setting changed.
 
 ---
 
-## Handoff — the three things that need a human
+## Handoff — the two that are still open
 
-1. **Start NT8 normally** (from the desktop, so any startup dialog can be answered) and confirm the
-   Control Center reaches the connected state. If the probe report under
-   `Documents\NinjaTrader 8\deadman-guardian-probe\` refreshes, the deployment procedure is "copy the file
-   plus the csproj line" and §6 above can be closed.
-2. **Place and cancel one order on Sim101** — any instrument, any size, it will not be filled if you cancel
-   it. That single order produces the latency numbers of §5. The probe only observes it.
-3. **Sleep or hibernate the machine** with NT8 running, then resume, and leave it running for a minute. The
-   next `CLOCK_SAMPLE` rows in `probe_trace.jsonl` answer §17.2's suspend question.
+1. **Place and cancel one order on Sim101**, with NinjaTrader as it is right now. Any instrument, any size;
+   cancel it before it fills. That single order produces the detect-half latency of §5. The probe only
+   observes; it cannot place one itself.
+2. **Sleep or hibernate the machine** with NinjaTrader running, resume, and leave it a minute. The next
+   `CLOCK_SAMPLE` rows answer the suspend question of §17.2. Closing the lid or letting the screen blank is
+   not enough — it has to be a real S3/S4 sleep, the kind Windows records as a `Kernel-Power` event.
 
-None of the three requires touching a live account, and the probe cannot place an order even if asked to.
+Neither touches a live account.
