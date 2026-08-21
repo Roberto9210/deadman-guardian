@@ -25,7 +25,10 @@ $backup  = Join-Path $custom "NinjaTrader.Custom.csproj.deadman-backup"
 $home8   = Join-Path $ntUser "deadman-guardian"
 
 $sources = @("GuardianPorts.cs", "DeadmanGuardianAddOn.cs")
-$coreDll = Join-Path $repo "src\GuardianCore\bin\Release\netstandard2.0\GuardianCore.dll"
+# net48, NOT netstandard2.0: NinjaTrader's in-process compiler has no 'netstandard' facade in its
+# reference set, so a netstandard2.0 assembly loads at runtime and fails at compile time.
+$coreDll = Join-Path $repo "src\GuardianCorein\Release
+et48\GuardianCore.dll"
 
 if (Get-Process NinjaTrader -ErrorAction SilentlyContinue) {
     throw "NinjaTrader is running. Close it first - the files are locked while it runs."
@@ -54,7 +57,7 @@ if ($Uninstall) {
 
 # ---------------------------------------------------------------- install
 if (-not (Test-Path $coreDll)) {
-    throw "GuardianCore.dll not built. Run: dotnet build src\GuardianCore\GuardianCore.csproj -c Release"
+    throw "GuardianCore.dll (net48) not built. Run: dotnet build src\GuardianCore\GuardianCore.csproj -c Release"
 }
 
 New-Item -ItemType Directory -Force -Path $addons, $home8 | Out-Null
@@ -98,28 +101,30 @@ if ($xml -notmatch 'Include="GuardianCore"') {
 Set-Content -Path $csproj -Value $xml -Encoding UTF8
 "updated NinjaTrader.Custom.csproj"
 
-$config = Join-Path $home8 "config.json"
-if (-not (Test-Path $config)) {
-    $ledger = (Join-Path $home8 "ledger.jsonl") -replace '\\', '\\'
-    $state  = (Join-Path $home8 "state.json")   -replace '\\', '\\'
-    @"
+$example = Join-Path $home8 "config.example.json"
+$ledger  = (Join-Path $home8 "ledger.jsonl") -replace '\\', '\\\\'
+$state   = (Join-Path $home8 "state.json")   -replace '\\', '\\\\'
+@"
 {
   "schemaVersion": 1,
   "accounts": ["Sim101"],
   "currency": "UsDollar",
-  "firmDailyLossLimit": "1000.00",
-  "personalDailyLossLimit": "600.00",
+  "firmDailyLossLimit": "PUT-YOUR-FIRM-LIMIT-HERE",
+  "personalDailyLossLimit": "PUT-YOUR-OWN-LIMIT-HERE",
   "sessionResetTimeZone": "America/Chicago",
   "sessionResetLocalTime": "17:00",
   "ledgerPath": "$ledger",
   "statePath": "$state",
   "pnlToleranceUsd": "5.00"
 }
-"@ | Set-Content -Path $config -Encoding UTF8
-    "wrote a starting config at $config  (Sim101, personal 600.00 under firm 1000.00)"
-} else {
-    "config already exists, left alone: $config"
-}
+"@ | Set-Content -Path $example -Encoding UTF8
+"wrote $example"
+
+# Deliberately NOT writing config.json. SPEC section 4 forbids defaults, and a limit somebody else
+# typed is a default. Until you copy the example to config.json and put your own two numbers in it,
+# the guardian shows NOT PROTECTED and refuses to arm - which is the correct state, not a fault.
+if (Test-Path (Join-Path $home8 "config.json")) { "config.json already exists, left untouched" }
+else { "no config.json: the guardian will start NOT PROTECTED until you write one" }
 
 ""
 "Installed - but NOT yet compiled. NinjaTrader compiles NinjaScript on demand, not at"

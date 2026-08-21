@@ -260,6 +260,75 @@ the property a guardian has to have before it is allowed anywhere near a funded 
 
 ---
 
+## 8. Install attempt #1 — failed to compile, reverted, cause found
+
+**2026-08-20 23:12–23:23. The platform is back exactly as it was; nothing was lost.**
+
+`install.ps1` ran cleanly: two sources copied into `AddOns`, `GuardianCore.dll` copied into `bin\Custom`,
+296 → 298 `<Compile>` entries, and the `<Reference Include="GuardianCore">` added. NinjaTrader started and
+its log said
+
+```
+Vendor assembly 'GuardianCore' version='1.0.0.0' loaded.
+```
+
+so the reference resolved **at runtime**. Then `F5` in the NinjaScript Editor produced nothing: four compile
+attempts at 23:16:12, 23:19:25, 23:19:38 and 23:19:47, each leaving a **0-byte** DLL in
+`Documents\NinjaTrader 8\tmp\` beside a fully written `.xml`. `NinjaTrader.Custom.dll` never changed.
+NinjaTrader keeps compile errors in the editor's error pane and writes none of them to disk, so the text was
+not recoverable afterwards.
+
+### The cause, established without the error text
+
+| evidence | |
+|---|---|
+| `GuardianCore.dll` references | `netstandard, Version=2.0.0.0` — it was built as `netstandard2.0` |
+| `netstandard.dll` facade present in `NinjaTrader 8\bin`? | **no** |
+| …in `bin\Custom`? | **no** |
+| …in the .NET Framework 4.8 reference-assembly Facades folder? | **no** |
+| …anywhere? | only under `C:\Windows\Microsoft.NET\Framework64\v4.0.30319\`, which is a runtime path, not a compile reference set |
+
+A netstandard2.0 assembly **loads** fine on .NET Framework, because the CLR resolves the facade at runtime —
+which is exactly what the log line above shows. **Compiling against it** is a different resolution path, and
+NinjaTrader's in-process Roslyn compile has no `netstandard` reference in its set. The classic symptom is
+`CS0012: the type '…' is defined in an assembly that is not referenced`, and the same failure was reproduced
+locally on this machine: a plain `ReflectionOnlyLoadFrom` of the assembly threw
+*"Cannot resolve dependency to assembly 'netstandard, Version=2.0.0.0' because it has not been preloaded."*
+
+This is the same family of mistake as the IANA time zone one in §1 — code that is correct against a modern
+toolchain and wrong inside the target runtime, and invisible until it runs there. `dotnet build` and
+`dotnet test` were green throughout, and so was a compile against the real NinjaTrader assemblies, because
+the SDK supplies the facade automatically and NinjaTrader does not.
+
+### The fix, prepared and NOT yet retried
+
+`GuardianCore` now multi-targets **`netstandard2.0;net48`**. The test suite keeps consuming
+`netstandard2.0`; NinjaTrader gets the `net48` build, whose entire reference list is:
+
+```
+mscorlib      v4.0.0.0
+System.Core   v4.0.0.0
+```
+
+No `netstandard`, so nothing needs a facade — and still zero NinjaTrader references, so G22 holds. 137 tests
+green on the multi-targeted build. `install.ps1` now copies the `net48` output and says why in a comment.
+
+The retry is not automatic: it waits for Roberto, as it should.
+
+### What the revert restored, verified
+
+| | before install | after `install.ps1 -Uninstall` |
+|---|---|---|
+| csproj `<Compile>` entries | 296 | **296** |
+| deadman entries in csproj | probe only | **probe only** |
+| `AddOns\` | `DeadmanGuardianProbe.cs` | **`DeadmanGuardianProbe.cs`** |
+| `GuardianCore.dll` in `bin\Custom` | absent | **absent** |
+| `NinjaTrader.Custom.dll` | 23:03:24, 1,312,768 bytes | **23:03:24, 1,312,768 bytes** |
+
+Byte-identical to the `.preinstall` backup. The failed compile never replaced the working assembly, which is
+the one genuinely reassuring thing about how NinjaTrader handles this: a broken NinjaScript build leaves the
+previous one running rather than taking the platform down.
+
 ## Step 3 is complete
 
 | obligation | state |
