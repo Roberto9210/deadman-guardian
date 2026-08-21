@@ -270,8 +270,8 @@ namespace NinjaTrader.NinjaScript.AddOns
                     Alias = ReadAlias(),
                     DayKey = state.DayKey,
                     AccountSalt = LoadOrCreateSalt(),
-                    IssuerVersion = typeof(Certificate).Assembly.GetName().Version.ToString(),
-                    IssuerBuildHash = Hashing.Sha256Hex(typeof(Certificate).Assembly.FullName).Substring(0, 16),
+                    IssuerVersion = IssuerIdentity.VersionOf(typeof(Certificate).Assembly),
+                    IssuerBuildHash = IssuerIdentity.BuildHashOf(ReadCoreAssemblyBytes()),
                     DaysCovered = 1,
                 };
 
@@ -302,6 +302,20 @@ namespace NinjaTrader.NinjaScript.AddOns
         {
             var path = Path.Combine(HomeDir, "alias.txt");
             return File.Exists(path) ? File.ReadAllText(path).Trim() : null;
+        }
+
+        /// <summary>GuardianCore's own bytes, so issuer.buildHash fingerprints the build that
+        /// actually produced the document. Null when unreadable, and the field is then omitted -
+        /// the old code hashed Assembly.FullName, which only changes when the version does.</summary>
+        private static byte[] ReadCoreAssemblyBytes()
+        {
+            try
+            {
+                var path = typeof(Certificate).Assembly.Location;
+                return string.IsNullOrEmpty(path) || !File.Exists(path) ? null : File.ReadAllBytes(path);
+            }
+            catch (IOException) { return null; }
+            catch (UnauthorizedAccessException) { return null; }
         }
 
         /// <summary>SPEC A.7: 32 random bytes, made once, kept here, never in the document.</summary>

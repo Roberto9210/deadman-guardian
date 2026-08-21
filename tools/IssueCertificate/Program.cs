@@ -75,15 +75,15 @@ namespace GuardianCore.Tools
             var salt = LoadOrCreateSalt(home);
 
             var entries = ledger.ReadAll().ToList();
-            var version = typeof(Certificate).Assembly.GetName().Version?.ToString() ?? "0.0.0";
+            var assembly = typeof(Certificate).Assembly;
 
             var result = Certificate.Issue(entries, state, new CertificateRequest
             {
                 Alias = alias,
                 DayKey = day,
                 PreviousCertHash = prev,
-                IssuerVersion = version,
-                IssuerBuildHash = Hashing.Sha256Hex(typeof(Certificate).Assembly.Location).Substring(0, 16),
+                IssuerVersion = IssuerIdentity.VersionOf(assembly),
+                IssuerBuildHash = IssuerIdentity.BuildHashOf(ReadAssemblyBytes(assembly)),
                 DaysCovered = 1,
                 AccountSalt = salt,
             }, verify.Ok);
@@ -104,6 +104,21 @@ namespace GuardianCore.Tools
             Console.WriteLine("    pip install deadman-kit");
             Console.WriteLine("    python -m deadman.verify_certificate \"" + stem + ".json\" \"" + ledgerPath + "\"");
             return 0;
+        }
+
+        /// <summary>The assembly's own bytes, for a build fingerprint that is actually a
+        /// fingerprint. Returns null when the file cannot be read, and the certificate then omits
+        /// buildHash rather than publishing the hash of something else - the old code hashed
+        /// Assembly.Location, which is a file PATH.</summary>
+        private static byte[] ReadAssemblyBytes(System.Reflection.Assembly assembly)
+        {
+            try
+            {
+                var path = assembly.Location;
+                return string.IsNullOrEmpty(path) || !File.Exists(path) ? null : File.ReadAllBytes(path);
+            }
+            catch (IOException) { return null; }
+            catch (UnauthorizedAccessException) { return null; }
         }
 
         /// <summary>The per-installation salt of SPEC A.7. Created once with a CSPRNG, kept in the

@@ -8,4 +8,20 @@
     <TargetFrameworks>netstandard2.0;net48</TargetFrameworks>
   </PropertyGroup>
 
+  <PropertyGroup>
+    <!-- The product version, and it is load-bearing rather than cosmetic: a session certificate
+         publishes it as issuer.version, where a reader uses it to say WHICH build produced the
+         document. With nothing set here the SDK defaults to 1.0.0.0, and every certificate issued
+         so far carried that - a number identifying no build, chosen by nobody.
+
+         0.1.0-beta is what the README already states in words: installed and attacked on a
+         simulated account, never armed on a funded one, no release, no users. The number must not
+         claim more than that sentence does. It becomes 1.0.0 when the status block does. -->
+    <VersionPrefix>0.1.0</VersionPrefix>
+    <VersionSuffix>beta</VersionSuffix>
+    <Product>deadman-guardian</Product>
+    <Authors>Roberto Rodriguez</Authors>
+    <Copyright>Copyright (c) 2026 Roberto Rodriguez</Copyright>
+  </PropertyGroup>
+
 </Project>
