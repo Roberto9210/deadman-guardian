@@ -250,8 +250,9 @@ the property a guardian has to have before it is allowed anywhere near a funded 
 **State of the machine, exactly as left:**
 
 - `bin\Custom\AddOns\DeadmanGuardianProbe.cs` — the read-only probe, deployed and currently loaded.
-- `bin\Custom\NinjaTrader.Custom.csproj` — one `<Compile>` line added for the probe; the untouched original
-  is at [`backups/NinjaTrader.Custom.csproj.bak`](backups/NinjaTrader.Custom.csproj.bak).
+- `bin\Custom\NinjaTrader.Custom.csproj` — one `<Compile>` line added for the probe. `install.ps1`
+  keeps the untouched original beside it as `NinjaTrader.Custom.csproj.deadman-backup`; that backup is
+  NinjaTrader's own project file, so it is not republished here.
 - The adapter is **written and compile-checked but NOT installed**: `install.ps1` has not been run, so
   NinjaTrader's next start behaves exactly as it does today.
 - NinjaTrader **running**, left alone deliberately so the probe keeps recording.
