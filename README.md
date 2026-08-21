@@ -10,8 +10,8 @@
 
 | | |
 |---|---|
-| **Conformance statement, exact** | **26 of 26 named guarantees implemented; 159 collected test cases, 159 passing, 0 failing, 0 skipped.** Not "it works", not "all tests green" |
-| **Session certificate** | **17 of 18.** Not 18 — C15 (signature) is partial, and [`CERT_CONFORMANCE.md`](CERT_CONFORMANCE.md) names it and says why rather than rounding up |
+| **Conformance statement, exact** | **26 of 26 named guarantees implemented; 165 collected test cases, 165 passing, 0 failing, 0 skipped.** Not "it works", not "all tests green" |
+| **Session certificate** | **18 of 18 in scope; 19 defined; 1 excluded and named.** C15b (verification against a key we publish) is declared out of scope in v1 — [`CERT_CONFORMANCE.md`](CERT_CONFORMANCE.md) argues the exclusion instead of dropping it from the denominator |
 | **Soak** | **6 of 6 scenarios passed, twice, on 2026-08-21** (runs 12:26:47Z and 12:28:13Z) against real NinjaTrader on `Sim101` — [nt/soak/REMOJO_REPORT.md](nt/soak/REMOJO_REPORT.md) |
 | **Earlier soak runs** | 5 of 6, twice, the same morning — published above the passing ones, not replaced by them. The failing scenario and its fix are in the report |
 | **Release** | none. No tag, no binary, no package |
@@ -30,7 +30,7 @@ outside its sight, and firm minimum-hold rules. A guarantee is worth what its st
 **A risk team can read all of it without installing anything.** The whole decision layer is
 [`src/GuardianCore/`](src/GuardianCore/) — pure C#, no NinjaTrader, no network, no I/O except through four
 injected ports — and the specification it was written against is in this repository, dated before the code.
-`dotnet test` runs the 159 cases with no platform, no account and no connection. Nothing here needs to touch
+`dotnet test` runs the 165 cases with no platform, no account and no connection. Nothing here needs to touch
 a broker to be audited.
 
 ---
@@ -65,7 +65,7 @@ src/GuardianCore/        pure C#, netstandard2.0, zero package dependencies, zer
   TimeZoneMap.cs         the IANA -> Windows map that makes the session boundary work inside NT8
   Json.cs, Money.cs, Hashing.cs, Ports.cs, TradingDay.cs
   Certificate.cs         the session certificate emitter: it counts, it never invents, it cannot send
-tests/GuardianCore.Tests/  159 tests, one file per guarantee group, fakes for all four ports
+tests/GuardianCore.Tests/  165 tests, one file per guarantee group, fakes for all four ports
 
 nt/addon/                the NinjaTrader adapter: subscribes, reports, cancels. It holds no decisions —
                          SPEC §3.2 makes a conditional about money or state inside the adapter a rejected change
@@ -98,7 +98,7 @@ with the runs that failed. They are published above the passing runs, in order, 
 |---|---|
 | [SPEC.md](SPEC.md) | the specification, v0.4 — written before the code |
 | [AMENDMENTS.md](AMENDMENTS.md) | every detail the spec did not settle, and how it was decided |
-| [CERT_CONFORMANCE.md](CERT_CONFORMANCE.md) | the session certificate: 17 of 18, with the missing one named |
+| [CERT_CONFORMANCE.md](CERT_CONFORMANCE.md) | the session certificate: 18 of 18 in scope, 19 defined, the excluded one named and argued |
 | [nt/STEP3_FINDINGS.md](nt/STEP3_FINDINGS.md) | what NinjaTrader actually does, measured inside the process |
 | [nt/soak/REMOJO_REPORT.md](nt/soak/REMOJO_REPORT.md) | every soak run, failures first |
 | [docs/install.md](docs/install.md) | the real procedure, including the two ways it failed first |
