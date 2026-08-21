@@ -617,7 +617,8 @@ Versioned with `schemaVersion`. Adding an event is a minor version; changing a p
   add-on opens no socket. This is a testable property and Step 2 will assert it.
 - **No firm API.** It does not read the firm's dashboard; the firm limit is a number the trader types in.
 - **Only the daily loss limit.** Not trailing drawdown, not the consistency rule, not max position size, not
-  news-trading windows. Those are v2 candidates and must not be implied anywhere in the UI.
+  news-trading windows, and not firm minimum-hold rules (§17.5). Those are v2 candidates and must not be
+  implied anywhere in the UI.
 - **One platform.** NinjaTrader 8 only. Trading the same account from another platform is outside its sight
   (and the ledger will show the guard's view diverging, which is the honest failure mode).
 - **No guarantee about the final number** — see §2.
@@ -731,9 +732,64 @@ Trading the same firm account from another platform, from a phone app, or from a
 Firm rules other than the daily loss limit (§13). A user with disk access who deletes the state directory
 between sessions — detected on the next start as a missing state, which fails closed, but not prevented.
 
+### 17.5 Firm minimum-hold rules
+
+Some firms require a trade to stay open for a minimum time. Two state it per-trade, and their wording
+differs in ways that matter:
+
+- **Elite Trader Funding**, inside the clause prohibiting HFT — *"...strategies that leverage technology to
+  gain advantages execution speeds by engaging in a high number of transactions in a short amount of time in
+  an abusive manner. All trades executed by you on ETF's platform shall have a minimum duration of ten (10)
+  seconds—no exceptions."* The stated purpose is anti-HFT; the sentence itself is absolute.
+- **Top One Futures**, as its own numbered rule *"Minimum Trade Duration (10-Second Rule)"* — *"All trades
+  must remain open longer than 10 seconds."*, *"10.00 seconds = violation, 10.01 seconds = acceptable."*,
+  *"Closing any portion of a trade before 10 seconds violates this rule."* It then adds a tolerance:
+  *"Occasional minor violations are tolerable"*, escalating only when such trades approach half of total or
+  withdrawable profit.
+
+A third shape exists and is **not** the same thing: MyFundedFutures, Funded Futures Family and Lucid Trading
+apply a proportional test over a population of trades — broadly, a majority of trades and of profit must come
+from positions held beyond a threshold (10 seconds; Lucid measures at 5). A single early exit cannot breach
+those. Only a per-trade rule can be breached by one lockout.
+
+**The gap, stated plainly.** If the trader's personal limit is reached within ten seconds of a position
+opening, the lockout sequence (§9) flattens it, and under a per-trade minimum that flatten is itself the
+violation. The guard would have caused a breach the trader did not commit. Note Top One's partial-close
+clause: a partial flatten breaches too, so there is no smaller action that avoids it. This is a defect of
+the *combination*, not of either rule alone, which is why it is written here rather than in a footnote.
+
+**v1 behaviour: flatten anyway, and say so.** The guard does not check position age before flattening.
+Reducing exposure outranks a duration rule, for the same reason exits are fail-open everywhere else in this
+design: the alternative is holding a position already past the trader's limit and hoping a timer expires
+before the loss grows. `LOCKOUT_STARTED` records the age of each position at the moment of the flatten, so
+the ledger shows whether a given lockout could have tripped a minimum-hold rule — the least a tool can do
+about a limit it has chosen not to enforce.
+
+**How large this actually is.** Smaller than it first looks, and the size should not be overstated to make
+the disclosure sound braver. A lockout is a once-a-day event at most, and it fires on a limit the trader set
+— so a flatten inside the first ten seconds of a position requires the limit to be hit almost immediately
+after entry. Top One explicitly tolerates *"Occasional minor violations are tolerable"*, and ETF's rule sits inside an
+anti-HFT clause aimed at *"a high number of transactions"*. Neither of those readings is a permission, and
+neither is written down by the firm as applying to risk tools. Treat the exposure as real but rare.
+
+**Compatibility consequence.** Recorded per firm in the compatibility table, not buried here. At Top One
+Futures the point is currently moot — they prohibit automated tools outright — and becomes live only if that
+prohibition is ever lifted. At ETF it is a limit to disclose in the approval request rather than after it.
+
+**v2 candidate — min-hold awareness, with its difficulty said out loud.** A configurable per-firm minimum
+hold, where a breach detected inside the window defers the flatten until the window closes. Listed as a
+candidate, not a plan, because the obvious implementation is worse than the problem: **deliberately holding
+a losing position to satisfy a duration rule is its own risk**, and a fast market can take more in those
+seconds than the violation would have cost. Any v2 shipping this owes a bounded answer to "what if the loss
+doubles inside the deferral window", and — harder — must not quietly become a mechanism that keeps a trader
+in a trade past their own limit, which is the exact behaviour this product exists to remove. Until both are
+answered, flattening immediately is the honest default.
+
 ---
 
 *v0.4 — 20 August 2026. Amendments A1-A8 absorbed after Step 2 was approved.
+§17.5 added 21 August 2026 (amendment A9), after a second layer of firm research found per-trade
+minimum-duration rules at two firms.
 v0.3 — 19 August 2026. Written before the code. v0.1 approved with two corrections, both defects rather
 than style: the clock defence covered only the harmless direction, and the time-zone rule specified
 something that cannot work inside the target runtime.*

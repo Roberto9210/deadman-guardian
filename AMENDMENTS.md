@@ -1,7 +1,7 @@
-# SPEC amendments (A1-A8) — ABSORBED into SPEC v0.4
+# SPEC amendments — A1-A8 ABSORBED into SPEC v0.4, A9 applied to §17.5
 
-**Status: all eight are now in the specification proper.** This file stays as the record of *why* each one
-exists and what it replaced; the rule it enforces is below. Nothing here is pending.
+**Status: A1-A8 are in the specification proper. A9 is applied to §17.5 and awaits absorption at v0.5.**
+This file stays as the record of *why* each one exists and what it replaced; the rule it enforces is below.
 
 Details Step 2 had to decide because SPEC v0.3 did not fix them. Every one of them was resolved
 **fail-closed**, is implemented that way, and is listed here so the spec can absorb it in v0.4 rather than
@@ -95,7 +95,40 @@ lockout stands; the only exit remains seal expiry.
 
 ---
 
+---
+
+## A9 — firm minimum-hold rules are a known limit, not a feature
+
+**Source**: not Step 2. This came from the second layer of prop-firm research (2026-08-21), which found
+per-trade minimum-duration rules at two firms — Elite Trader Funding (*"a minimum duration of ten (10)
+seconds—no exceptions"*, inside its HFT clause) and Top One Futures (*"All trades must remain open longer
+than 10 seconds"*, with *"Closing any portion of a trade before 10 seconds violates this rule"*).
+
+**Problem**: the spec had nothing to say about them. A lockout triggered inside that window flattens a
+position younger than the firm's floor, so the guard would cause a rule violation the trader did not commit.
+Top One's partial-close clause closes the obvious escape: no smaller action avoids it. Silence here would
+have been the same failure as a plausible default — the code would have had a behaviour the spec did not
+admit to.
+
+**Decision**: **flatten anyway, record the age, publish the limit.** Reducing exposure outranks a duration
+rule, consistent with exits being fail-open everywhere else in this design. `LOCKOUT_STARTED` carries the
+position age so the ledger shows whether a lockout could have tripped a minimum-hold rule. The gap is in
+§17.5 and per firm in the compatibility table, rather than left for a trader to find on a bad day.
+
+**Not overstated**: a lockout is at most a daily event and fires on a limit the trader chose, so the overlap
+requires the limit to be hit within seconds of entry. Top One tolerates *"Occasional minor violations are tolerable"*; ETF's
+sentence sits inside a clause aimed at *"a high number of transactions"*. Neither is a permission, and
+neither firm has written anything about risk tools — so the exposure is recorded as real but rare.
+
+**Rejected**: deferring the flatten until the window closes. Holding a position already past the trader's
+limit to satisfy a timer is its own risk and can cost more than the violation. It would also turn the guard
+into something that keeps a trader in a trade past their own limit — the exact behaviour the product exists
+to remove. Kept as a v2 candidate with both objections attached, so whoever picks it up inherits the reasons
+instead of rediscovering them.
+
 ## Where each one landed in v0.4
+
+*A9 is applied directly to §17.5 of v0.4 and will be folded into the version history at v0.5.*
 
 | # | Absorbed into | Sharpened on approval |
 |---|---|---|
