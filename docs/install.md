@@ -1,0 +1,147 @@
+# Installing deadman-guardian
+
+Written from the install that actually happened on 2026-08-20/21, including the two things that failed
+first. If a step here looks over-explained, it is because that step is where it broke.
+
+**Requirements**: NinjaTrader 8 (built against 8.1.8.2), Windows, and the .NET SDK 8 if you want to build
+`GuardianCore` yourself instead of using a release build.
+
+---
+
+## The short version
+
+```powershell
+# 1. build the library NinjaTrader will reference
+dotnet build src\GuardianCore\GuardianCore.csproj -c Release
+
+# 2. close NinjaTrader, then install
+.\nt\install.ps1
+
+# 3. start NinjaTrader, open New -> NinjaScript Editor, open the AddOn, press F5
+
+# 4. restart NinjaTrader
+```
+
+Then write your `config.json` — see [configure.md](configure.md) — and press **Arm**.
+
+If anything goes wrong, [troubleshooting.md](troubleshooting.md) has the failures we hit, with their
+symptoms. [uninstall.md](uninstall.md) puts your platform back.
+
+---
+
+## The long version, and why each step is there
+
+### 1. Build `GuardianCore` for **net48**
+
+```powershell
+dotnet build src\GuardianCore\GuardianCore.csproj -c Release
+```
+
+The project multi-targets `netstandard2.0;net48`. The installer copies the **net48** build, and that is not
+a preference.
+
+> A `netstandard2.0` assembly references the `netstandard` facade. That facade is **not** in NinjaTrader's
+> `bin`, not in `bin\Custom`, and not in the .NET Framework reference assemblies — it lives only under the
+> runtime directory. So a netstandard2.0 library **loads** fine inside NinjaTrader (the CLR resolves the
+> facade at run time) and **fails to compile against**, with `CS0246`. Our first install died exactly there,
+> after NinjaTrader had cheerfully logged `Vendor assembly 'GuardianCore' version='1.0.0.0' loaded`.
+
+The net48 build's entire reference list is `mscorlib` and `System.Core`. Nothing to resolve.
+
+### 2. Close NinjaTrader
+
+The installer refuses to run while it is open, because the files are locked. Close it from its own menu
+rather than killing it: a forced kill leaves NinjaTrader showing its logon window on the next start, and
+you will spend ten minutes wondering why nothing compiles.
+
+### 3. Run the installer
+
+```powershell
+.\nt\install.ps1              # the guardian
+.\nt\install.ps1 -WithSoak    # ...plus the soak suite, if you are testing rather than trading
+```
+
+It copies `GuardianPorts.cs` and `DeadmanGuardianAddOn.cs` into
+`Documents\NinjaTrader 8\bin\Custom\AddOns\`, copies `GuardianCore.dll` into `bin\Custom\`, and edits
+`NinjaTrader.Custom.csproj`. It backs that project file up first, next to itself.
+
+**Two details in that edit, both learned the hard way:**
+
+- The `<Compile Include>` entries are required. NinjaTrader compiles what its project file lists; dropping a
+  `.cs` into the folder is not enough.
+- The `<Reference>` to `GuardianCore` must be **inside the `<ItemGroup>` NinjaTrader already manages** (the
+  one holding `NinjaTrader.Vendor`, `WindowsBase`, …) and its `HintPath` must be **absolute**. A well-formed
+  `<Reference>` appended in an `<ItemGroup>` of your own, with a relative `HintPath`, is silently ignored —
+  that was our second failed install. The installer now writes the exact shape NinjaTrader's own
+  **References** dialog writes.
+
+If the installer cannot find that ItemGroup it says so and tells you to add the DLL through the dialog:
+*NinjaScript Editor → right-click → References… → Add →*
+`Documents\NinjaTrader 8\bin\Custom\GuardianCore.dll`.
+
+### 4. Compile: `F5` in the NinjaScript Editor
+
+**NinjaTrader does not compile NinjaScript at startup.** Not on a restart, not when it sees a new file.
+Compilation happens on demand from the editor, and its own trace says so:
+`NinjaScriptEditorHotKeys: … Compile='F5'`.
+
+- Start NinjaTrader.
+- `New → NinjaScript Editor`.
+- **Open a script** — expand **AddOns**, double-click `DeadmanGuardianAddOn`. An empty "New tab" is not
+  enough; `F5` on it does nothing.
+- Press **`F5`**.
+
+You will know it worked because `Documents\NinjaTrader 8\bin\Custom\NinjaTrader.Custom.dll` gets a new
+timestamp and grows. If the editor shows errors instead, see [troubleshooting.md](troubleshooting.md) — and
+note that a failed compile leaves the previous working assembly in place, so your platform keeps running.
+
+*(Do not try to force a build by deleting `NinjaTrader.Custom.dll`. NinjaTrader restores a stock copy from
+its installation instead of building one, and takes your compiled scripts with it. We tried.)*
+
+### 5. Restart NinjaTrader
+
+AddOns are instantiated when NinjaTrader **starts**, not when NinjaScript compiles. Until you restart, the
+guardian exists in the assembly and is not running.
+
+### 6. Check it came up
+
+`Documents\NinjaTrader 8\deadman-guardian\` should now contain:
+
+| file | what it means |
+|---|---|
+| `adapter.log` | `boot` → `Core started; state=Disarmed` → `subscribed to <your account>` |
+| `ledger.jsonl` | one line, `GUARDIAN_STARTED`, `"prev":"genesis"` |
+| `state.json` | `"state":"DISARMED"` |
+| `config.example.json` | a template with the two limits left blank |
+
+And a small window appears at the top right saying **NOT PROTECTED**, with the reason: there is no
+`config.json` yet. That is correct. The installer does not write one on purpose — a risk limit somebody
+else typed is a default, and this tool does not do defaults.
+
+You verify the ledger with anything that can hash JSON; it does not have to be our code:
+
+```python
+import json, hashlib
+prev = "genesis"
+for line in open(r"...\deadman-guardian\ledger.jsonl", encoding="utf-8"):
+    e = json.loads(line); h = e.pop("hash")
+    canon = json.dumps(e, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    assert e["prev"] == prev and hashlib.sha256(canon.encode()).hexdigest() == h
+    prev = h
+print("chain OK")
+```
+
+---
+
+## What the installer changes on your machine
+
+Everything, in one list, so uninstalling is not an act of faith:
+
+- `bin\Custom\AddOns\GuardianPorts.cs`, `bin\Custom\AddOns\DeadmanGuardianAddOn.cs` *(plus two soak files
+  with `-WithSoak`)*
+- `bin\Custom\GuardianCore.dll`
+- `bin\Custom\NinjaTrader.Custom.csproj` — `<Compile>` entries and one `<Reference>`; the original is backed
+  up beside it as `NinjaTrader.Custom.csproj.deadman-backup`
+- `deadman-guardian\config.example.json`
+
+It does not touch an account, place an order, change a NinjaTrader setting, or open a socket.

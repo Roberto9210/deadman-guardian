@@ -58,6 +58,15 @@ Two real bugs, both caught by the tests that exist precisely to catch them, both
 Eight details the spec did not fix were decided fail-closed and written down in
 [`AMENDMENTS.md`](AMENDMENTS.md) rather than left to be discovered in the code later.
 
+## Documentation
+
+| | |
+|---|---|
+| [docs/install.md](docs/install.md) | the real procedure, including the two ways it failed first |
+| [docs/configure.md](docs/configure.md) | the two numbers and the one decision, in trader language |
+| [docs/troubleshooting.md](docs/troubleshooting.md) | every failure we actually hit, with its symptom |
+| [docs/uninstall.md](docs/uninstall.md) | putting the platform back |
+
 ## Running it
 
 ```bash

@@ -1,0 +1,104 @@
+# Configuring it
+
+Everything here is about two numbers and one decision. The rest of the file is plumbing.
+
+---
+
+## The two numbers
+
+Open `Documents\NinjaTrader 8\deadman-guardian\config.example.json`, save it next to itself as
+**`config.json`**, and fill in these two:
+
+```jsonc
+"firmDailyLossLimit":     "1000.00",   // the number your firm fails you at
+"personalDailyLossLimit":  "600.00",   // the number YOU stop at. Must be smaller.
+```
+
+**The firm limit** is whatever your funding agreement says. Look it up; do not remember it. If your firm
+publishes a daily loss limit of $1,000 on your account size, that is the number.
+
+**Your personal limit** is the one that does the work, and it has to be strictly smaller. If they are equal
+the guardian refuses to arm, because there is nothing between you and the firm's limit — by the time you
+hit yours you have already hit theirs, and the flatten happens after the fact rather than before it.
+
+How much smaller is your call, but the gap is what you are buying. A guardian at $600 under a $1,000 firm
+limit leaves you $400 of room for the slippage, the gap, and the trade you did not expect to be filled on.
+A guardian at $990 leaves you ten dollars and a good feeling.
+
+There are no defaults for these. A limit somebody else typed is a default, and this tool does not ship one.
+
+---
+
+## The decision
+
+**Arming is a deliberate act, once a day, and it cannot be undone until the session rolls.**
+
+You press **Arm** in the little window. From that moment until **17:00 America/Chicago**:
+
+- the configuration is **sealed**. Every change is rejected — including one that makes the limit *stricter*.
+  There is nothing to argue about at 14:30 because there is nothing you can change.
+- if your day's loss reaches your personal limit, everything closes and no new entry is accepted for the
+  rest of the session.
+- every attempt to loosen it is written down.
+
+That is the whole product. If that sounds like too much, it is doing what it is for.
+
+---
+
+## The rest of the file
+
+```jsonc
+{
+  "schemaVersion": 1,                          // leave it
+  "accounts": ["Sim101"],                      // the NinjaTrader account names to watch
+  "currency": "UsDollar",                      // must match the account's denomination
+  "sessionResetTimeZone": "America/Chicago",   // when your trading day rolls over
+  "sessionResetLocalTime": "17:00",            // 17:00 CT is the CME roll most firms use
+  "ledgerPath": "…\\deadman-guardian\\ledger.jsonl",
+  "statePath":  "…\\deadman-guardian\\state.json",
+  "pnlToleranceUsd": "5.00"                    // see below
+}
+```
+
+**`accounts`** — one or more. Losses are **summed** across them and never netted: if one account is up $500
+and another down $700, your day's loss is $700, not $200. Your firm fails each account on its own number,
+so the guardian counts them that way.
+
+**`sessionResetTimeZone`** — only `America/Chicago`, `America/New_York` and `UTC` are supported. It is a
+short list on purpose: NinjaTrader's runtime cannot resolve IANA time zone names at all, so the guardian
+carries its own small translation table, and a table that guesses would be worse than a table that refuses.
+An id outside it is rejected with a message naming what is supported.
+
+**`pnlToleranceUsd`** — the guardian computes your day's P&L from your fills, and separately reads
+NinjaTrader's own figure. If the two disagree by more than this, it does **not** pick the friendlier one: it
+stops allowing entries and says the accounting is in doubt. Five dollars is a sane starting point. Setting
+it large to "stop the noise" defeats the check.
+
+---
+
+## What you will see
+
+| the window says | what it means |
+|---|---|
+| **NOT PROTECTED** (grey) | disarmed, or no config yet. Nothing is being watched. The reason is printed underneath |
+| **ARMED** (green) | watching. You can trade |
+| **LOCKED** (red) | your limit was reached. Everything was closed, new orders are cancelled on sight, and there is a countdown to when the seal expires |
+| **NOT PROTECTED** (orange) | it does not know something it needs to know — the account went away, the P&L stopped adding up, the clock moved. Entries are blocked until it knows again. The reason is printed |
+
+That last one is the one people misread. Orange is not a crash. It is the guardian refusing to say "fine"
+when it cannot tell.
+
+---
+
+## Two things it will not do
+
+**It will not let you raise the limit while armed.** Not from the window, not by editing `config.json`, not
+by editing the state file, not by restarting NinjaTrader, and not by changing your system clock. Editing the
+sealed files is detected and results in a lockout, because an edit is an attempt to trade past the limit —
+which is what it is.
+
+**It will not bound your loss.** It bounds your *exposure* and removes your discretion. Between the moment
+the limit is reached and the moment the position is actually closed, the market keeps moving: measured on
+the simulator, that gap was about 300 milliseconds, almost all of it the venue's and the platform's rather
+than the guardian's. A gap or a fast market can take you past your limit anyway. Anyone selling you
+otherwise is selling you something else.
