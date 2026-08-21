@@ -4,8 +4,8 @@
 # NinjaTrader compiles `Documents\NinjaTrader 8\bin\Custom\NinjaTrader.Custom.csproj`, an SDK-style
 # net48/x64/WPF project with EnableDefaultCompileItems=false and an explicit <Compile Include> list.
 # Dropping a .cs into bin\Custom\AddOns\ was NOT sufficient in a controlled A/B: with the entry the
-# AddOn compiled and loaded, without it nothing happened. So the installer edits that project file,
-# and keeps a backup of the original next to it.
+# enough - NinjaTrader compiles NinjaScript on demand, from the editor (F5). This installer edits the
+# project file and keeps a backup; the compile is yours to trigger. See STEP3_FINDINGS.md section 6.
 #
 #   .\install.ps1              install
 #   .\install.ps1 -Uninstall   remove everything this script added
@@ -28,7 +28,7 @@ $sources = @("GuardianPorts.cs", "DeadmanGuardianAddOn.cs")
 $coreDll = Join-Path $repo "src\GuardianCore\bin\Release\netstandard2.0\GuardianCore.dll"
 
 if (Get-Process NinjaTrader -ErrorAction SilentlyContinue) {
-    throw "NinjaTrader is running. Close it first: the compile happens at startup and the files are locked while it runs."
+    throw "NinjaTrader is running. Close it first - the files are locked while it runs."
 }
 if (-not (Test-Path $csproj)) { throw "not found: $csproj" }
 
@@ -122,7 +122,12 @@ if (-not (Test-Path $config)) {
 }
 
 ""
-"Installed. Start NinjaTrader; the status window appears top-right saying NOT PROTECTED"
+"Installed - but NOT yet compiled. NinjaTrader compiles NinjaScript on demand, not at"
+"startup: open it, then New > NinjaScript Editor and press F5. Verified the hard way -"
+"a restart does not compile, and deleting NinjaTrader.Custom.dll makes NT8 restore a"
+"stock copy instead of building one (STEP3_FINDINGS.md section 6)."
+""
+"After that compile, the status window appears top-right saying NOT PROTECTED"
 "until you press Arm."
 ""
 "If NinjaTrader reports a NinjaScript compile error, undo everything with:"

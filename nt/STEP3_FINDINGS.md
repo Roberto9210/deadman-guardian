@@ -116,56 +116,68 @@ risk acceptance is something that happens **at the venue, after submission**. `A
 So §9.5 stands as written: enforcement is **detect-and-cancel**, never prevent, and the README may not
 claim otherwise.
 
-## 5. Detect-and-cancel latency — STILL NOT MEASURED, and now the reason is known
+## 5. Detect-and-cancel latency — instrumented programmatically, waiting on one compile
 
-Five orders were submitted during the session. **None of them reached Sim101.**
+Placing the order by hand put it on the wrong account: all five manual orders went to account `<funded-acct>`
+on the `(Live)` connection and were rejected for a missing data subscription on `MNQ SEP26`. The probe
+watches `Sim101` and only `Sim101`, so it correctly recorded nothing — account scoping working on its
+first contact with reality, which is the property this thing must have before it goes near a funded
+account.
 
-```
-Cbi.Account.CreateOrder: account='<funded-acct>'  instrument='MNQ SEP26'  Buy  Market  qty 1   -> Rejected
-... five of these, every one on account <funded-acct>, every one Rejected
-error=OrderRejected  comment='Your account is not subscribed to the data feed associated with this contract'
-```
+So the order is now placed **in code**, which removes the account selector from the problem entirely.
+[`probe/DeadmanGuardianLatencyProbe.cs`](probe/DeadmanGuardianLatencyProbe.cs) is a one-shot AddOn whose
+limits are enforced by the code rather than by intention:
 
-All five went to account **`<funded-acct>`** over NinjaTrader's **`(Live)`** connection — a different account from
-the one this work is scoped to — and the venue rejected every one of them for a missing data subscription on
-`MNQ SEP26`. Nothing filled and no position was ever opened.
+- the account must be named exactly `Sim101` **and** report `Provider == Simulator`; any other value
+  aborts before anything is sent. `Account.All` and the provider of every account are logged either way.
+- the connection must already be `Connected`. The probe never connects anything and says what is missing
+  if it is not.
+- **one order, ever**: it runs only if a gate file exists, and deletes that file *before* submitting, so
+  neither a crash nor a restart can produce a second one.
+- **limit orders only** — the word `OrderType.Market` does not appear anywhere in the file — 1 contract,
+  `TimeInForce.Day`, priced at a tenth of the market and re-checked to be below half of it before
+  sending, so it cannot fill.
+- it watches the order to a working state, cancels it immediately, and times four legs:
 
-The probe watches `Sim101` and nothing else, by design, so it correctly recorded zero order events. That is
-the guardian's account scoping working as intended on its first contact with reality: it did not observe,
-touch, or act on an account it was not told to guard.
+| leg | what it covers |
+|---|---|
+| submit → working observed | our call out, the venue's accept, NT8 raising the event |
+| **working observed → cancel issued** | **the guardian's own reaction — the only part this design controls, and the number §9.5 is about** |
+| cancel issued → cancelled confirmed | the venue's round trip back |
+| submit → cancelled confirmed | the whole cycle |
 
-**To produce the number**, the order has to be entered *with Sim101 selected as the account* in the order
-entry window or SuperDOM — the Simulation connection was up and healthy throughout (`Simulation: Primary
-connection=Connected, Price feed=Connected`) — and on an instrument the simulated feed serves. A rejected
-order will not do either: rejection happens before the order ever reaches a working state, so there is no
-detect-and-cancel to time.
+It is deployed, listed in the csproj, compile-checked against the real NinjaTrader assemblies, and armed.
+It needs one compile to run — see §6.
 
-## 6. Deployment mechanics — SETTLED
+## 6. Deployment mechanics — CORRECTED: NinjaTrader does not compile on startup
 
-NT8 8.1.8.2 compiles `Documents\NinjaTrader 8\bin\Custom\NinjaTrader.Custom.csproj`: SDK-style,
-`net48`, `x64`, WPF on, `LangVersion 13`, `EnableDefaultCompileItems=false` with an explicit
-`<Compile Include>` list of 294 files.
+An earlier version of this document concluded that listing the file in the csproj was what mattered.
+That was built on five runs whose one consistent variable I could not isolate, and further testing
+showed the conclusion was incomplete. What is actually true:
 
-Five runs, and the pattern is now clean enough to act on:
+**NinjaTrader compiles NinjaScript on demand, from the NinjaScript Editor — `F5` — not at startup.**
+The platform's own trace names the binding directly: `NinjaScriptEditorHotKeys: … Compile='F5'`.
 
-| run | csproj entry | outcome |
-|---|---|---|
-| 1 (automated start) | absent when checked before the compile | AddOn **ran** — unexplained, see below |
-| 2 (automated start) | present | ran |
-| 3 (automated start) | absent | **did not run** after 302 s |
-| 4 (automated start) | present | did not run — NT8 never compiled at all, stuck on its logon window |
-| 5 (**manual start by Roberto**) | present | **ran**, clean lifecycle, account events received |
+Three experiments settled it, after the file and its `<Compile>` entry were both in place:
 
-**Procedure: the file must be listed in the csproj.** Two runs with the entry loaded the AddOn; the run
-without it did not. Run 4 failed for an unrelated reason now identified (below), and run 1 stays
-unexplained — I could not reproduce it and I am not going to invent a mechanism that makes the table
-tidy. [`install.ps1`](install.ps1) does exactly this, backs up the project file first, and has an
-`-Uninstall` switch that restores it.
+| experiment | result |
+|---|---|
+| restart NT8 normally, wait 4 minutes | `NinjaTrader.Custom.dll` untouched (still the 21:38 build), new AddOn absent, **no compile attempted** — nothing about compilation appears in the log at all |
+| delete `NinjaTrader.Custom.dll` and restart | NT8 **restored a stock copy dated 10 August**, 1,283,072 bytes, rather than building one. The previously working probe disappeared with it, confirming the restored assembly is the shipped default |
+| build `NinjaTrader.Custom.csproj` from the command line | impossible as written: its three `<ProjectReference>` targets (`NinjaTrader.Core`, `NinjaTrader.Gui`, `Infralution.Localization.Wpf`) **do not exist on disk**. The editor substitutes the loaded assemblies at compile time, in process |
 
-**Why the automated runs kept stalling — identified.** NT8's startup window is a **logon screen**, and its
-trace carries `LogonControl.LoginInternal.5: error creating demo account: Your account is not subscribed to
-the data feed associated with this contract`. A session that cannot click cannot get past it, which is why
-run 4 never reached a compile. The reliable path is a human start, as run 5 shows.
+So the install procedure is: **copy the files, add the `<Compile>` entries, then compile once from the
+NinjaScript Editor.** [`install.ps1`](install.ps1) does the first two and now says so for the third; the
+compile is a human action by construction, and no amount of scripting removes it.
+
+This also explains run 1 of the earlier table, which had looked inexplicable: that session compiled
+because something triggered a compile in it, not because a restart is enough. Restarts are not enough.
+
+**A note on what this cost.** Forcing the issue by deleting the compiled assembly left the platform on a
+stock DLL for a few minutes, with the probe gone. The build that had been running was backed up first and
+restored immediately afterwards, and NinjaTrader is running on it again. Nothing was lost, but the lesson
+is worth keeping: on someone else's trading platform, the artifact you delete to "force a rebuild" may be
+the one the vendor simply hands back.
 
 ## 7. The two manual sessions, in order
 
@@ -207,10 +219,17 @@ the property a guardian has to have before it is allowed anywhere near a funded 
 
 ---
 
-## Handoff — one measurement still open
+## Handoff — one keystroke
 
-**Place and cancel one order on Sim101**, with the account selector set to `Sim101` (not `<funded-acct>`) and an
-instrument the simulated feed serves. Cancel it before it fills. That single order produces the detect-half
-latency of §5. The probe only observes; it cannot place one itself.
+**Compile NinjaScript once**: in NinjaTrader, `New → NinjaScript Editor`, then **`F5`**.
 
-Everything else Step 3 set out to verify is now measured and written down above.
+That builds the two new files into `NinjaTrader.Custom.dll`. The latency probe is already armed — its gate
+file is in place — so it fires roughly thirty seconds later, or on the next start, and writes
+`Documents\NinjaTrader 8\deadman-guardian-probe\latency_report.md`. It verifies `Sim101` is the simulator
+before sending anything, sends exactly one unfillable limit order, cancels it, and consumes its own gate so
+it can never run twice.
+
+If the editor reports a compile error, nothing is lost: run `install.ps1 -Uninstall`, or delete the two
+files from `bin\Custom\AddOns\` and restore `NinjaTrader.Custom.csproj` from the backup beside it.
+
+Everything else Step 3 set out to verify is measured and written down above.
