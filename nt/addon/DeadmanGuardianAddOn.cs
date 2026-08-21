@@ -10,6 +10,8 @@
 using System;
 using System.Globalization;
 using System.IO;
+using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
@@ -240,13 +242,95 @@ namespace NinjaTrader.NinjaScript.AddOns
             }
         }
 
+        // ---------------- exporting, from the window ----------------
+
+        /// <summary>SPEC section 3c: the certificate exists ONLY because a human pressed this.
+        /// Nothing on the engine's side calls it - not the timer, not a breach, not shutdown.
+        /// It writes two files next to the ledger and sends nothing anywhere.</summary>
+        private string ExportDay()
+        {
+            try
+            {
+                // The adapter already owns these paths; there is no need to reach into Core for them.
+                if (!File.Exists(LedgerPath)) return "no ledger at " + LedgerPath;
+                if (!File.Exists(StatePath)) return "no state file yet";
+
+                PersistedState state; string stateError;
+                if (!PersistedState.TryParse(File.ReadAllText(StatePath), out state, out stateError))
+                    return "state unreadable: " + stateError;
+                if (state.Seal == null) return "nothing armed today, so there is no commitment to certify";
+
+                var store = new NtFileStore();
+                var ledger = new Ledger(store, LedgerPath);
+                var verify = ledger.Verify();
+                var entries = ledger.ReadAll().ToList();
+
+                var request = new CertificateRequest
+                {
+                    Alias = ReadAlias(),
+                    DayKey = state.DayKey,
+                    AccountSalt = LoadOrCreateSalt(),
+                    IssuerVersion = typeof(Certificate).Assembly.GetName().Version.ToString(),
+                    IssuerBuildHash = Hashing.Sha256Hex(typeof(Certificate).Assembly.FullName).Substring(0, 16),
+                    DaysCovered = 1,
+                };
+
+                var result = Certificate.Issue(entries, state, request, verify.Ok);
+                if (!result.Ok) return result.Reason;
+
+                var dir = Path.Combine(HomeDir, "certificates");
+                Directory.CreateDirectory(dir);
+                var stem = Path.Combine(dir, "certificate-" + request.DayKey);
+                File.WriteAllText(stem + ".json", result.Json, new UTF8Encoding(false));
+                File.WriteAllText(stem + ".html", result.Html, new UTF8Encoding(false));
+
+                AdapterLog("certificate issued " + result.CertHash.Substring(0, 12) + " -> " + stem + ".json");
+                if (!verify.Ok)
+                    AdapterLog("certificate says ledgerVerified=false (chain breaks at seq " + verify.BrokenSeq + ")");
+                return null;
+            }
+            catch (Exception ex)
+            {
+                AdapterLog("ExportDay: " + ex);
+                return ex.Message;
+            }
+        }
+
+        /// <summary>The alias is the trader's, so it comes from a file they control. No alias
+        /// file means no invented alias: the emitter refuses and says so.</summary>
+        private string ReadAlias()
+        {
+            var path = Path.Combine(HomeDir, "alias.txt");
+            return File.Exists(path) ? File.ReadAllText(path).Trim() : null;
+        }
+
+        /// <summary>SPEC A.7: 32 random bytes, made once, kept here, never in the document.</summary>
+        private string LoadOrCreateSalt()
+        {
+            var path = Path.Combine(HomeDir, "account_salt.txt");
+            if (File.Exists(path))
+            {
+                var existing = File.ReadAllText(path).Trim();
+                if (existing.Length >= 32) return existing;
+            }
+            var bytes = new byte[32];
+            using (var rng = System.Security.Cryptography.RandomNumberGenerator.Create())
+                rng.GetBytes(bytes);
+            var sb = new StringBuilder(64);
+            foreach (var b in bytes) sb.Append(b.ToString("x2", CultureInfo.InvariantCulture));
+            var salt = sb.ToString();
+            File.WriteAllText(path, salt, new UTF8Encoding(false));
+            AdapterLog("created account_salt.txt - keep it with the ledger; it is never published");
+            return salt;
+        }
+
         // ---------------- the window ----------------
 
         private void ShowWindow()
         {
             RunOnUi(() =>
             {
-                _window = new GuardianStatusWindow(Arm);
+                _window = new GuardianStatusWindow(Arm, ExportDay);
                 _window.Show();
                 _window.Render(Snapshot());
             });
@@ -335,15 +419,18 @@ namespace NinjaTrader.NinjaScript.AddOns
         }
 
         private readonly Func<string> _arm;
+        private readonly Func<string> _export;
         private readonly TextBlock _headline = new TextBlock();
         private readonly TextBlock _detail = new TextBlock();
         private readonly TextBlock _countdown = new TextBlock();
         private readonly Button _armButton = new Button();
+        private readonly Button _exportButton = new Button();
         private readonly Border _root = new Border();
 
-        public GuardianStatusWindow(Func<string> arm)
+        public GuardianStatusWindow(Func<string> arm, Func<string> export)
         {
             _arm = arm;
+            _export = export;
 
             Title = "deadman-guardian";
             Width = 330;
@@ -384,11 +471,25 @@ namespace NinjaTrader.NinjaScript.AddOns
                 if (error != null) _detail.Text = "Not armed: " + error;
             };
 
+            _exportButton.Content = "Export my day";
+            _exportButton.Margin = new Thickness(0, 6, 0, 0);
+            _exportButton.Padding = new Thickness(8, 3, 8, 3);
+            _exportButton.HorizontalAlignment = HorizontalAlignment.Left;
+            _exportButton.Click += (s, e) =>
+            {
+                var error = _export();
+                _detail.Text = error == null
+                    ? "Certificate written to the certificates folder. Verify it with: "
+                      + "python -m deadman.verify_certificate"
+                    : "Not exported: " + error;
+            };
+
             var panel = new StackPanel { Margin = new Thickness(14, 14, 14, 18) };
             panel.Children.Add(_headline);
             panel.Children.Add(_detail);
             panel.Children.Add(_countdown);
             panel.Children.Add(_armButton);
+            panel.Children.Add(_exportButton);
 
             _root.Child = panel;
             Content = _root;

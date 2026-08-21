@@ -69,6 +69,12 @@ namespace GuardianCore
         public string IssuerVersion { get; set; }
         public string IssuerBuildHash { get; set; }
         public string KeyId { get; set; }
+
+        /// <summary>Per-installation salt for hashing account names (SPEC A.7). Random, generated
+        /// once, stored locally, NEVER written into the certificate. Without it the emitter
+        /// refuses: an unsalted hash of a short predictable name like "Sim101" is reversed by
+        /// dictionary in seconds, so falling back to one would be a default that leaks.</summary>
+        public string AccountSalt { get; set; }
     }
 
     public sealed class GapDeclaration
@@ -235,6 +241,8 @@ namespace GuardianCore
                 return CertificateResult.Refused("CERT_NO_SEAL: nothing was armed, so there is no commitment to certify");
             if (string.IsNullOrWhiteSpace(request.DayKey))
                 return CertificateResult.Refused("CERT_DAYKEY_MISSING: the session day must be stated, never assumed from the clock");
+            if (string.IsNullOrWhiteSpace(request.AccountSalt))
+                return CertificateResult.Refused("CERT_SALT_MISSING: account names need a per-installation salt (SPEC A.7); an unsalted hash of a short name is reversed by dictionary in seconds");
 
             var seqs = entries.Where(e => e.GetInt("seq").HasValue).Select(e => e.GetInt("seq").Value).ToList();
             if (seqs.Count == 0)
@@ -280,14 +288,15 @@ namespace GuardianCore
             if (!string.IsNullOrEmpty(req.IssuerBuildHash)) issuer.Set("buildHash", req.IssuerBuildHash);
             if (!string.IsNullOrEmpty(req.KeyId)) issuer.Set("keyId", req.KeyId);
 
-            // Accounts are hashed, never named (SPEC section 4.3).
+            // Accounts are hashed with the installation salt, never named (SPEC section 4.3, A.7).
+            // The salt itself never reaches the document - only its effect does.
             var accounts = JsonValue.Arr();
             var accArray = snapshot == null ? null : snapshot["accounts"] as JsonArray;
             if (accArray != null)
                 foreach (var a in accArray.Items)
                 {
                     var s = a as JsonString;
-                    if (s != null) accounts.Add(JsonValue.Str(Hashing.Sha256Hex(s.Value).Substring(0, 16)));
+                    if (s != null) accounts.Add(JsonValue.Str(HashAccount(req.AccountSalt, s.Value)));
                 }
 
             var commitment = JsonValue.Obj()
@@ -374,6 +383,14 @@ namespace GuardianCore
             return doc;
         }
 
+        /// <summary>SPEC A.7. The consequence, stated because it is a real loss: the same account
+        /// hashes DIFFERENTLY on different installations. The hash identifies an account WITHIN a
+        /// series, not ACROSS series. An evaluator can confirm sixty certificates speak about the
+        /// same account; nobody can cross two installations and correlate a trader. That is the
+        /// trade the salt buys, and it is the right way round for a document meant to be shared.</summary>
+        public static string HashAccount(string salt, string accountName) =>
+            Hashing.Sha256Hex((salt ?? "") + ":" + (accountName ?? "")).Substring(0, 16);
+
         private static JsonObject ParseSnapshot(string snapshot)
         {
             if (string.IsNullOrEmpty(snapshot)) return null;
@@ -397,7 +414,7 @@ namespace GuardianCore
             sb.Append("<!doctype html><html><head><meta charset=\"utf-8\">");
             sb.Append("<title>Session certificate</title>");
             sb.Append("<style>body{font:15px/1.55 system-ui,sans-serif;max-width:52rem;margin:2rem auto;padding:0 1rem;color:#111}")
-              .Append("h1{font-size:1.3rem}table{border-collapse:collapse;width:100%;margin:1rem 0}")
+              .Append("h1{font-size:1.3rem}h2{font-size:1rem;margin-top:1.6rem}table{border-collapse:collapse;width:100%;margin:1rem 0}")
               .Append("td,th{border-bottom:1px solid #ddd;padding:.4rem .5rem;text-align:left;vertical-align:top}")
               .Append("code{background:#f4f4f4;padding:.1rem .3rem}.lim{background:#fafafa;border-left:3px solid #999;padding:.6rem 1rem;margin:1rem 0}")
               .Append("</style></head><body>");
@@ -421,11 +438,40 @@ namespace GuardianCore
             Row(sb, "lockoutsTriggered", Raw(claims, "lockoutsTriggered"));
             Row(sb, "changeAttemptsWhileSealed", Raw(commitment, "changeAttemptsWhileSealed"));
             Row(sb, "ordersRejectedWhileLocked", Raw(claims, "ordersRejectedWhileLocked"));
-            Row(sb, "failClosedEpisodes", Raw(claims, "failClosedEpisodes"));
-            Row(sb, "clockAnomalies", Raw(claims, "clockAnomalies"));
-            Row(sb, "ledgerRange", Raw(claims, "ledgerRange"));
+            Row(sb, "clockAnomalies", ByType(claims));
+            Row(sb, "ledgerRange", Range(claims));
             Row(sb, "ledgerVerified", Raw(claims, "ledgerVerified"));
             sb.Append("</table>");
+
+            // Episodes get their own table because a JSON blob in a cell is unreadable, and
+            // unreadable is its own kind of dishonest. Every cell below is still a value lifted
+            // straight out of the document: no adjective, no duration computed, no judgement of
+            // whether two episodes is a lot. The reader decides that; this page only shows them.
+            var episodes = claims == null ? null : claims["failClosedEpisodes"] as JsonArray;
+            sb.Append("<h2>failClosedEpisodes</h2>");
+            if (episodes == null || episodes.Count == 0)
+            {
+                sb.Append("<p>none</p>");
+            }
+            else
+            {
+                sb.Append("<table><tr><th>seq</th><th>from (UTC)</th><th>to (UTC)</th>")
+                  .Append("<th>open</th><th>trigger</th><th>reasons</th></tr>");
+                foreach (var item in episodes.Items)
+                {
+                    var e = item as JsonObject;
+                    if (e == null) continue;
+                    sb.Append("<tr>");
+                    Cell(sb, Raw(e, "fromSeq") + Arrow(e));
+                    Cell(sb, Str(e, "fromUtc"));
+                    Cell(sb, Str(e, "toUtc"));
+                    Cell(sb, Raw(e, "open"));
+                    Cell(sb, Trigger(e));
+                    Cell(sb, Reasons(e));
+                    sb.Append("</tr>");
+                }
+                sb.Append("</table>");
+            }
 
             sb.Append("<div class=\"lim\"><strong>What this does not say</strong><ul>");
             var lims = doc["limitations"] as JsonArray;
@@ -451,6 +497,51 @@ namespace GuardianCore
             if (label == null) return;
             sb.Append("<tr><th>").Append(Escape(label)).Append("</th><td>")
               .Append(value == null ? "<em>omitted</em>" : Escape(value)).Append("</td></tr>");
+        }
+
+        private static void Cell(System.Text.StringBuilder sb, string value)
+        {
+            sb.Append("<td>").Append(value == null ? "<em>omitted</em>" : Escape(value)).Append("</td>");
+        }
+
+        private static string Arrow(JsonObject e)
+        {
+            var to = Raw(e, "toSeq");
+            return to == null ? "" : ".." + to;
+        }
+
+        private static string Trigger(JsonObject e)
+        {
+            var ev = Str(e, "triggerEvent");
+            if (ev == null) return null;               // omitted, not "none": the rule has edges
+            var seq = Raw(e, "triggerSeq");
+            return seq == null ? ev : ev + " @ " + seq;
+        }
+
+        private static string Reasons(JsonObject e)
+        {
+            var r = e["reasons"] as JsonObject;
+            if (r == null) return null;
+            var parts = new List<string>();
+            foreach (var k in r.Keys) parts.Add(k + " " + Raw(r, k));
+            return parts.Count == 0 ? "" : string.Join(", ", parts);
+        }
+
+        private static string ByType(JsonObject claims)
+        {
+            var c = claims == null ? null : claims["clockAnomalies"] as JsonObject;
+            var byType = c == null ? null : c["byType"] as JsonObject;
+            if (byType == null) return null;
+            var parts = new List<string>();
+            foreach (var k in byType.Keys) parts.Add(k + " " + Raw(byType, k));
+            return string.Join(", ", parts);
+        }
+
+        private static string Range(JsonObject claims)
+        {
+            var r = claims == null ? null : claims["ledgerRange"] as JsonObject;
+            if (r == null) return null;
+            return "seq " + Raw(r, "fromSeq") + " to " + Raw(r, "toSeq");
         }
 
         private static string Str(JsonObject o, string key) => o == null ? null : o.GetString(key);

@@ -17,6 +17,10 @@ namespace GuardianCore.Tests
 {
     public class C_CertificateEmitterTests : Harness
     {
+        /// <summary>A fixed salt so tests are deterministic. Real installations use 32 random
+        /// bytes from a CSPRNG; what matters here is that it never reaches the document.</summary>
+        private const string TestSalt = "0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f0";
+
         private static CertificateRequest Req(string alias = "roberto", string day = "2026-08-19",
                                               string prev = null, IReadOnlyList<AnchorRecord> anchors = null)
         {
@@ -24,6 +28,7 @@ namespace GuardianCore.Tests
             {
                 Alias = alias, DayKey = day, PreviousCertHash = prev,
                 Anchors = anchors, IssuerVersion = "0.1.0", IssuerBuildHash = "test",
+                AccountSalt = TestSalt,
             };
         }
 
@@ -201,6 +206,61 @@ namespace GuardianCore.Tests
             Assert.Equal(16, ((JsonString)accounts.Items[0]).Value.Length);
         }
 
+        [Fact]
+        public void C9_the_salt_never_appears_in_the_certificate_in_any_form()
+        {
+            // SPEC A.7. The salt is what makes the account hash unguessable; leaking it into the
+            // document would undo the whole point in one line.
+            Armed("600.00");
+            var result = Issue();
+
+            Assert.DoesNotContain(TestSalt, result.Json);
+            Assert.DoesNotContain(TestSalt, result.Html);
+            Assert.DoesNotContain(TestSalt.ToUpperInvariant(), result.Json.ToUpperInvariant());
+            Assert.DoesNotContain(Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(TestSalt)), result.Json);
+            Assert.DoesNotContain("salt", result.Json, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("salt", result.Html, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public void C9_an_unsalted_hash_of_a_short_account_name_is_refused()
+        {
+            // The reason the salt exists: sha256("Sim101") is a dictionary lookup away.
+            Armed("600.00");
+            var req = Req();
+            req.AccountSalt = null;
+            var result = Certificate.Issue(LedgerEntries(), StateFromDisk(), req, true);
+            Assert.False(result.Ok);
+            Assert.Contains("CERT_SALT_MISSING", result.Reason);
+        }
+
+        [Fact]
+        public void C9_the_same_account_hashes_differently_under_different_salts()
+        {
+            // The honest consequence of A.7, asserted rather than left implicit: the hash
+            // identifies an account WITHIN a series, not ACROSS installations. That is the trade.
+            var a = Certificate.HashAccount("salt-one", Harness.Account);
+            var b = Certificate.HashAccount("salt-two", Harness.Account);
+            var c = Certificate.HashAccount("salt-one", Harness.Account);
+
+            Assert.NotEqual(a, b);
+            Assert.Equal(a, c);                       // stable within one installation
+            Assert.Equal(16, a.Length);
+            Assert.NotEqual(Hashing.Sha256Hex(Harness.Account).Substring(0, 16), a);
+        }
+
+        [Fact]
+        public void C9_the_salt_actually_changes_the_published_hash()
+        {
+            Armed("600.00");
+            var one = Req(); one.AccountSalt = "aaaa" + TestSalt;
+            var two = Req(); two.AccountSalt = "bbbb" + TestSalt;
+
+            var h1 = ((JsonArray)((JsonObject)Parse(Certificate.Issue(LedgerEntries(), StateFromDisk(), one, true).Json)["subject"])["accounts"]).Items[0];
+            var h2 = ((JsonArray)((JsonObject)Parse(Certificate.Issue(LedgerEntries(), StateFromDisk(), two, true).Json)["subject"])["accounts"]).Items[0];
+            Assert.NotEqual(((JsonString)h1).Value, ((JsonString)h2).Value);
+        }
+
         // ---------------------------------------------------------------- C10
 
         [Fact]
@@ -279,6 +339,34 @@ namespace GuardianCore.Tests
             Assert.True(result.Ok, result.Reason);
             Assert.DoesNotContain("<script>", result.Html);
             Assert.Contains("&lt;script&gt;", result.Html);
+        }
+
+        [Fact]
+        public void C8_episodes_are_rendered_readably_not_as_a_json_blob()
+        {
+            Armed("600.00");
+            AccountDisappears();
+            Guardian.Tick();
+            AccountReturns();
+            Guardian.Tick();
+
+            var html = Issue().Html;
+            Assert.Contains("<h2>failClosedEpisodes</h2>", html);
+            Assert.Contains("<th>trigger</th>", html);
+            Assert.Contains(Ev.AccountUnknown, html);
+            // the unreadable form is gone: no escaped JSON object in a cell
+            Assert.DoesNotContain("&quot;fromSeq&quot;", html);
+            Assert.DoesNotContain("&quot;reasons&quot;", html);
+        }
+
+        [Fact]
+        public void C8_a_day_with_no_episodes_says_none_rather_than_showing_an_empty_table()
+        {
+            Armed("600.00");
+            Guardian.Tick();
+            var html = Issue().Html;
+            Assert.Contains("<h2>failClosedEpisodes</h2>", html);
+            Assert.Contains("<p>none</p>", html);
         }
 
         // ---------------------------------------------------------------- C14

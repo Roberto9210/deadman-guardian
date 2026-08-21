@@ -72,6 +72,8 @@ namespace GuardianCore.Tools
             if (!PersistedState.TryParse(File.ReadAllText(statePath), out state, out stateError))
                 return Fail("CERT_STATE_UNREADABLE: " + stateError);
 
+            var salt = LoadOrCreateSalt(home);
+
             var entries = ledger.ReadAll().ToList();
             var version = typeof(Certificate).Assembly.GetName().Version?.ToString() ?? "0.0.0";
 
@@ -83,6 +85,7 @@ namespace GuardianCore.Tools
                 IssuerVersion = version,
                 IssuerBuildHash = Hashing.Sha256Hex(typeof(Certificate).Assembly.Location).Substring(0, 16),
                 DaysCovered = 1,
+                AccountSalt = salt,
             }, verify.Ok);
 
             if (!result.Ok) return Fail(result.Reason);
@@ -101,6 +104,30 @@ namespace GuardianCore.Tools
             Console.WriteLine("    pip install deadman-kit");
             Console.WriteLine("    python -m deadman.verify_certificate \"" + stem + ".json\" \"" + ledgerPath + "\"");
             return 0;
+        }
+
+        /// <summary>The per-installation salt of SPEC A.7. Created once with a CSPRNG, kept in the
+        /// guardian's own directory, and never sent anywhere - it is not in the certificate and it
+        /// must not be. Losing this file does not invalidate old certificates; it only means the
+        /// next ones hash the same account to a different value, which is exactly what A.7 warns
+        /// about and why the file is worth keeping alongside the ledger.</summary>
+        private static string LoadOrCreateSalt(string home)
+        {
+            var path = Path.Combine(home, "account_salt.txt");
+            if (File.Exists(path))
+            {
+                var existing = File.ReadAllText(path).Trim();
+                if (existing.Length >= 32) return existing;
+                Console.Error.WriteLine("WARNING: " + path + " is too short to be a salt; generating a new one.");
+            }
+
+            var bytes = new byte[32];
+            using (var rng = System.Security.Cryptography.RandomNumberGenerator.Create())
+                rng.GetBytes(bytes);
+            var salt = string.Concat(bytes.Select(b => b.ToString("x2")));
+            File.WriteAllText(path, salt, new System.Text.UTF8Encoding(false));
+            Console.Error.WriteLine("created " + path + " - keep it with your ledger; it is never published.");
+            return salt;
         }
 
         private static int Fail(string reason)
