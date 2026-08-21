@@ -1,4 +1,4 @@
-# deadman-guardian — SPEC v0.3
+# deadman-guardian — SPEC v0.4
 
 **Status: written before a single line of C#.** Nothing in this document was derived from code that already
 exists, because none does. Where it names a NinjaTrader 8 API, that API was verified by reflection against
@@ -15,6 +15,13 @@ protect against.*
 catalogue (§12) and the transition table (§8) now agree with §7.5, and the event records which basis decided
 it. P&L cadence is pinned in §5.6 as two Core constants with their reasons, replacing an undefined "every N
 seconds", and states explicitly that a breach is never decided on the ledger's rhythm.*
+
+*Changes in v0.4: the eight details Step 2 had to decide because this document did not fix them are now
+**absorbed into the sections they belong to** (A1-A8; [`AMENDMENTS.md`](AMENDMENTS.md) keeps the reasoning
+that produced each one). Two were sharpened by Roberto on approving Step 2: §5.3 now states exactly what the
+P&L cross-check compares and, more importantly, **what it does not**; and §5.7 states that the contract's
+point value comes from platform metadata and may never be typed by the trader, with the reason. Code and
+spec are level again: nothing in `GuardianCore` knows a rule this document does not.*
 
 **What this is:** an add-on that stops a prop-firm trader from breaking their own daily loss limit, by
 closing everything and refusing to let them re-enter until the session rolls.
@@ -196,17 +203,39 @@ totalDayLoss     = Σ dayLoss over guarded accounts        // no netting between
 Losses are summed, never netted against another account's profit: a firm fails each account on its own
 number, and netting would let a winning account mask a losing one into a breach.
 
-### 5.3 Sources
+### 5.3 Sources, and exactly what the cross-check covers
 
 - **Primary (authoritative): executions.** Core accumulates from `Execution` objects —
   `Price`, `Quantity`, `MarketPosition`, `Commission`, `Time`, `Instrument` *(all verified members of
   `NinjaTrader.Cbi.Execution`)*. Commission is included at the moment it is reported; it is never estimated.
-- **Cross-check: the platform's own figures.** `Account.Get(AccountItem.RealizedProfitLoss, currency)` and
-  `Account.Get(AccountItem.UnrealizedProfitLoss, currency)` *(verified enum members)*.
+- **Cross-check: the platform's own figures**, via `Account.Get(AccountItem, currency)` *(verified)*.
+
+The cross-check is **gross against gross**, and its scope is written out here because a check whose
+boundaries are vague is a check people over-trust:
+
+| Quantity | Core's source | Platform's source | Cross-checked? |
+|---|---|---|---|
+| Realized P&L, **excluding** commissions | its own execution accounting (§5.2) | `AccountItem.GrossRealizedProfitLoss` | **yes** — this is the whole of the comparison |
+| Commissions and fees | `Execution.Commission`, accumulated per account | `AccountItem.RealizedProfitLoss` carries them netted, and is **not read** | **no** |
+| Unrealized P&L | none — Core has no market data | `AccountItem.UnrealizedProfitLoss` | **no** — single-sourced from the platform |
+
+Gross against gross is deliberate: Core tracks commissions separately, so comparing its gross figure against
+a net platform figure would produce a permanent difference, and therefore a permanent `FAIL_CLOSED` (A2).
+
+**What that leaves uncovered, said plainly.** Commissions are verified by *Core alone*. If NT8 reports a
+commission on `Execution.Commission` that does not match what the broker actually charges, nothing in this
+design notices — the number is taken as given. Unrealized P&L is the same shape of exposure from the other
+side: it comes from one source only, so a platform that mis-values an open position mis-values it here too.
+Both are blind spots by construction, not oversights, and both are inside the guarded number.
+
+*(v2 candidate, deliberately not implemented in v1: a second comparison of Core's net realized
+(gross minus commissions) against `AccountItem.RealizedProfitLoss`, which would close the commission blind
+spot. Left out because it doubles the tolerance surface — two comparisons are two ways to manufacture a
+false `FAIL_CLOSED` — and because Step 2 is approved and frozen.)*
 
 ### 5.4 Disagreement is an unknown, not a tie-break
 
-If `|coreRealized − platformRealized| > pnlToleranceUsd`, the add-on does **not** pick the friendlier
+If `|coreGrossRealized − platformGrossRealized| > pnlToleranceUsd`, the add-on does **not** pick the friendlier
 number and does not average them. It logs `PNL_DISAGREEMENT` with both values and enters `FAIL_CLOSED`
 (§10). Two sources that disagree mean the accounting is wrong, and a wrong accounting is exactly how a
 trader ends the day past a limit that was "being watched".
@@ -232,15 +261,40 @@ lockout. A checkpoint is additionally written on every state transition, so the 
 transition is always on the record even if it fell between two heartbeats. `LIMIT_BREACHED` carries its own
 P&L payload and does not depend on a checkpoint existing.
 
+### 5.7 The point value comes from the platform, never from the trader
+
+Turning "3.25 points" into "$16.25" needs the contract's point value ($5.00 for MES). Core cannot know it,
+so the adapter reads it from NT8 instrument metadata — `Instrument.MasterInstrument.PointValue` — and puts
+it on every `ExecutionRecord` (§14).
+
+**It is not a configuration field and must never become one.** The reason is not tidiness: a trader who can
+type the point value can type `2.50` instead of `5.00` for MES, and the guardian would then compute half of
+every loss and let the real loss run to twice the limit before tripping. A configuration field that silently
+doubles the effective limit is a bypass with a friendly name. Nor is it a risk preference the way the
+personal limit is — it is a fact about the contract, and facts come from the platform (A3).
+
+Fail-closed: a missing, zero or negative point value marks the account `INVALID_POINT_VALUE`, which is an
+unknown, which blocks entries (§10). It is never defaulted to 1.
+
 ## 6. Persistence
 
-Three files, all local, all under paths given in the config:
+Three files, all local:
 
 | File | Content | Written |
 |---|---|---|
 | `state.json` | current state, day key, seal, lockout flag, last-seen clock, P&L checkpoint | atomically, before any broker action |
 | `ledger.jsonl` | append-only hash chain (§11) | append + flush + fsync before the action it describes |
 | `config.json` | the user's configuration (§4) | by the user; read-only to the add-on |
+
+**The state and ledger paths are host-level, not config-level** (A4). The add-on is constructed with both,
+and a configuration must *declare the same two paths* or it is rejected. If the paths came from the
+configuration alone there would be a circular dependency with a hole in it: the state has to be read at
+startup, before any configuration is trusted, so a trader who deleted or corrupted `config.json` would leave
+the guardian unable to find a lockout that is still in force. "Break the config" must not be a way out.
+
+The seal's `configSnapshot` is stored as the **canonical text** that was hashed, not as a nested object
+(A5): re-serialising a parsed object to re-check a hash makes the hash depend on the serialiser instead of
+on the configuration.
 
 1. **Atomic writes**: write temp file in the same directory, flush, fsync, then `File.Replace`/rename. A
    torn state file must be impossible; an unreadable one is handled by rule 3.
@@ -378,6 +432,11 @@ The rule above is correct either way; only the size of the logged divergence cha
 
 `LOCKED` has no manual exit. Not a button, not a config key, not a hotkey. The only exit is time.
 
+**`LOCKED` outranks `FAIL_CLOSED`** (A8). The table's "any -> `FAIL_CLOSED`" row does not apply to a locked
+guardian: an unknown that arrives after a breach is recorded, and the lockout stands. Read the other way
+round, an unknown would move the guardian into the *weaker* of the two states — one that clears by itself —
+which is a bypass anyone could trigger by unplugging the data feed.
+
 ## 9. The lockout sequence
 
 Ordered, idempotent, and resumable — it must survive being killed at any point.
@@ -389,8 +448,12 @@ Ordered, idempotent, and resumable — it must survive being killed at any point
    `ORDERS_CANCELLED` with the count.
 3. **Flatten** every guarded account (`Account.Flatten` / `FlattenEverything`); log `FLATTEN_REQUESTED`.
 4. **Verify**, do not assume: re-read positions and working orders. Flat and empty ⇒ `FLATTEN_VERIFIED`.
-   Not flat after *N* attempts with backoff ⇒ `LOCKOUT_INCOMPLETE` (loud UI, stays `LOCKED`, keeps
-   retrying). The add-on never reports success it has not observed.
+   Not flat after `MaxFlattenAttempts` = **3** attempts ⇒ `LOCKOUT_INCOMPLETE` (loud UI, stays `LOCKED`,
+   keeps retrying). The add-on never reports success it has not observed. The retry cadence is the tick
+   (§5.6), not a spin loop: the tick is already the rhythm at which the guardian is allowed to act, and a
+   busy retry loop inside NT8's thread is a worse failure than a slow one. The attempt count is persisted,
+   so it survives a restart. **Exhausting the attempts releases nothing** — it makes the lockout louder,
+   not shorter (A7).
 5. **Keep enforcing.** While `LOCKED`, every new order on a guarded account is cancelled on sight and logged
    `ORDER_REJECTED_LOCKED`. A single flatten is not a lockout; the DOM, a chart, and a running strategy can
    all still submit.
@@ -409,7 +472,10 @@ Any of these means Core does not know the truth, and therefore blocks entries:
 - state or seal unreadable, or of an unknown schema version (§6.3)
 
 `FAIL_CLOSED` is not a lockout: it clears by itself the moment the unknown resolves — but it clears
-*through* a re-computation, never by assumption. It is logged on entry and on exit, with the reason, so
+*through* a re-computation, never by assumption. **For a clock unknown the re-computation is the next
+coherent observation of the clock**: the tick that detects an anomaly may not clear it (A6). Step 2 found
+this the hard way — a clock anomaly set `FAIL_CLOSED` and the same evaluation cleared it again because the
+P&L happened to be computable, which was never what was in doubt. It is logged on entry and on exit, with the reason, so
 "the guard was blind for 40 minutes" is a thing you can find out afterwards.
 
 ## 11. Ledger
@@ -504,7 +570,8 @@ interface IClock          { DateTime UtcNow { get; }      // wall clock: timesta
                                                           // adapter: Stopwatch.GetTimestamp()/Frequency
                                                           // (Environment.TickCount64 does NOT exist on .NET FW 4.8)
 interface IFileStore      { bool Exists(string p); string ReadAllText(string p);
-                            void WriteAtomic(string p, string contents); void AppendLine(string p, string line); }
+                            void WriteAtomic(string p, string contents); void AppendLine(string p, string line);
+                            IEnumerable<string> ReadLines(string p); }  // A1: Verify() reads the chain back
 interface IBrokerActions  { void CancelAllOrders(string account); void Flatten(string account);
                             IReadOnlyList<PositionSnapshot> GetPositions(string account);
                             IReadOnlyList<OrderSnapshot> GetWorkingOrders(string account); }
@@ -605,6 +672,7 @@ between sessions — detected on the next start as a missing state, which fails 
 
 ---
 
-*v0.3 — 19 August 2026. Written before the code. v0.1 approved with two corrections, both defects rather
+*v0.4 — 20 August 2026. Amendments A1-A8 absorbed after Step 2 was approved.
+v0.3 — 19 August 2026. Written before the code. v0.1 approved with two corrections, both defects rather
 than style: the clock defence covered only the harmless direction, and the time-zone rule specified
 something that cannot work inside the target runtime.*

@@ -1,4 +1,7 @@
-# Pending SPEC amendments
+# SPEC amendments (A1-A8) — ABSORBED into SPEC v0.4
+
+**Status: all eight are now in the specification proper.** This file stays as the record of *why* each one
+exists and what it replaced; the rule it enforces is below. Nothing here is pending.
 
 Details Step 2 had to decide because SPEC v0.3 did not fix them. Every one of them was resolved
 **fail-closed**, is implemented that way, and is listed here so the spec can absorb it in v0.4 rather than
@@ -92,4 +95,17 @@ lockout stands; the only exit remains seal expiry.
 
 ---
 
-*Written during Step 2, 19 August 2026, against SPEC v0.3.*
+## Where each one landed in v0.4
+
+| # | Absorbed into | Sharpened on approval |
+|---|---|---|
+| A1 `ReadLines` | §14 (the port signature) | — |
+| A2 gross-vs-gross cross-check | §5.3, with a table of what **is** and **is not** compared | yes: commissions are verified by Core alone, unrealized is single-sourced; both stated as blind spots |
+| A3 point value | §5.7, its own subsection | yes: it comes from platform metadata and may **never** be a config field, with the bypass it would create |
+| A4 host-level paths | §6 | — |
+| A5 canonical-text snapshot | §6 | — |
+| A6 clock unknown may not self-clear | §10 | — |
+| A7 `MaxFlattenAttempts` = 3, retry on the tick | §9 step 4 | — |
+| A8 `LOCKED` outranks `FAIL_CLOSED` | §8 | — |
+
+*Written during Step 2, 19 August 2026, against SPEC v0.3. Absorbed into SPEC v0.4 on 20 August 2026.*
