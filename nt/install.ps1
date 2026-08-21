@@ -12,7 +12,7 @@
 #
 # It never touches an account, never places an order, and never changes a NinjaTrader setting.
 
-param([switch]$Uninstall)
+param([switch]$Uninstall, [switch]$WithSoak)
 
 $ErrorActionPreference = "Stop"
 
@@ -25,6 +25,9 @@ $backup  = Join-Path $custom "NinjaTrader.Custom.csproj.deadman-backup"
 $home8   = Join-Path $ntUser "deadman-guardian"
 
 $sources = @("GuardianPorts.cs", "DeadmanGuardianAddOn.cs")
+# The soak suite is opt-in: it is an attacker, it places (unfillable) orders on Sim101, and it has no
+# business on a machine that is not being soaked. -WithSoak adds it.
+$soakSources = @("SoakSandbox.cs", "DeadmanGuardianSoak.cs")
 # net48, NOT netstandard2.0: NinjaTrader's in-process compiler has no 'netstandard' facade in its
 # reference set, so a netstandard2.0 assembly loads at runtime and fails at compile time.
 $coreDll = Join-Path $repo "src\GuardianCore\bin\Release\net48\GuardianCore.dll"
@@ -36,7 +39,7 @@ if (-not (Test-Path $csproj)) { throw "not found: $csproj" }
 
 # ---------------------------------------------------------------- uninstall
 if ($Uninstall) {
-    foreach ($s in $sources) {
+    foreach ($s in ($sources + $soakSources)) {
         $p = Join-Path $addons $s
         if (Test-Path $p) { Remove-Item $p -Force; "removed $s" }
     }
@@ -67,6 +70,12 @@ foreach ($s in $sources) {
     Copy-Item (Join-Path $repo "nt\addon\$s") (Join-Path $addons $s) -Force
     "copied $s"
 }
+if ($WithSoak) {
+    foreach ($s in $soakSources) {
+        Copy-Item (Join-Path $repo "nt\soak\$s") (Join-Path $addons $s) -Force
+        "copied $s  (soak suite)"
+    }
+}
 Copy-Item $coreDll (Join-Path $custom "GuardianCore.dll") -Force
 "copied GuardianCore.dll"
 
@@ -74,27 +83,30 @@ $xml = Get-Content $csproj -Raw
 
 $compileAnchor = '<Compile Include="Indicators\%40DetrendedPriceOscillator.cs" />'
 $toAdd = ""
-foreach ($s in $sources) {
+$allSources = if ($WithSoak) { $sources + $soakSources } else { $sources }
+foreach ($s in $allSources) {
     $entry = '<Compile Include="AddOns\' + $s + '" />'
     if ($xml -notmatch [regex]::Escape($entry)) { $toAdd += "`t`t$entry`r`n" }
 }
 if ($toAdd -ne "") {
     $xml = $xml -replace [regex]::Escape($compileAnchor), ($toAdd + "`t`t" + $compileAnchor)
-    "added $($sources.Count) <Compile> entr(y/ies)"
+    "added <Compile> entries for: $($allSources -join ', ')"
 }
 
+# NinjaTrader IGNORES a <Reference> appended in an ItemGroup of your own with a relative HintPath -
+# established the hard way, see STEP3_FINDINGS.md section 9. The entry its own References dialog writes
+# goes INSIDE the ItemGroup NT8 already manages, and its HintPath is ABSOLUTE. Write exactly that shape.
 if ($xml -notmatch 'Include="GuardianCore"') {
-    $ref = @"
-	<ItemGroup>
-		<Reference Include="GuardianCore">
-			<HintPath>GuardianCore.dll</HintPath>
-			<SpecificVersion>False</SpecificVersion>
-			<Private>false</Private>
-		</Reference>
-	</ItemGroup>
-"@
-    $xml = $xml -replace "</Project>", ($ref + "`r`n</Project>")
-    "added the GuardianCore <Reference>"
+    $absolute = Join-Path $custom "GuardianCore.dll"
+    $anchor = '<Reference Include="WindowsBase">'
+    if ($xml -match [regex]::Escape($anchor)) {
+        $entry = "<Reference Include=`"GuardianCore`">`r`n        <HintPath>$absolute</HintPath>`r`n      </Reference>`r`n      "
+        $xml = $xml -replace [regex]::Escape($anchor), ($entry + $anchor)
+        "added the GuardianCore <Reference> (absolute HintPath, in NinjaTrader's own ItemGroup)"
+    } else {
+        "WARNING: could not find NinjaTrader's reference ItemGroup. Add GuardianCore.dll by hand:"
+        "  NinjaScript Editor -> right click -> References... -> Add -> $absolute"
+    }
 }
 
 Set-Content -Path $csproj -Value $xml -Encoding UTF8
