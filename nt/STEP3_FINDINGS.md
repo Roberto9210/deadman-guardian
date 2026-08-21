@@ -399,6 +399,87 @@ in the capture. Sampling the pixels gave background `#424242` and text `#FFFFFF`
 sets. The tint was antialiasing in a small image. Worth recording as a reminder that "looks wrong in a
 screenshot" is not evidence.
 
+## 10. First real arm, and the first soak run
+
+**2026-08-21 12:13Z. The guardian is armed on Sim101 and the soak suite has run twice.**
+
+### Armed, and it survived a restart
+
+The production ledger, 38 entries, chain verified by the independent Python checker:
+
+```
+seq 20  CONFIG_LOADED   {"configHash":"aba4d873…"}
+seq 21  ARMED           {"accounts":["Sim101"],"dayKey":"2026-08-21","firmLimit":"1000.00","personalLimit":"600.00"}
+seq 22  SEAL_CREATED    {"expiresAtUtc":"2026-08-21T22:00:00.000Z", …}
+seq 23  DAY_OPENED      {"dayKey":"2026-08-21"}
+seq 24  GUARDIAN_STOPPED {"state":"ARMED"}      <- NinjaTrader restarted here
+seq 25  GUARDIAN_STARTED {"state":"ARMED"}
+seq 26  STATE_RESTORED   {"sealHash":"aba4d873…"}
+seq 27  SEAL_VERIFIED    {"sealHash":"aba4d873…"}
+```
+
+`22:00:00Z` is 17:00 America/Chicago — the session boundary, computed through the embedded time-zone map
+that §1 showed is the only thing that works in this runtime. The stored `configSnapshot` re-hashes to
+`sealHash` when checked outside the process, so the seal is verifiable by someone who does not trust our
+code.
+
+**The seal survived a restart** and was re-verified rather than re-created. That is §6 and §7 working on a
+real machine rather than in a fixture.
+
+### And the fail-closed path fired on its own, for the right reason
+
+Immediately after that restart, seq 28–37:
+
+```
+ACCOUNT_UNKNOWN      {"account":"Sim101","detail":"account is Disconnected"}
+FAIL_CLOSED_ENTERED  {"reason":"AccountUnknown on Sim101: account is Disconnected"}
+…six seconds of the same…
+FAIL_CLOSED_CLEARED  {"previousReason":"AccountUnknown on Sim101: account is Disconnected"}
+PNL_CHECKPOINT       {"dayLoss":"0.00","perAccount":{"Sim101":"0.00"},"trigger":"transition"}
+```
+
+NinjaTrader had not finished connecting. The guardian blocked entries for six seconds, said exactly why, and
+cleared **through a re-computation** when the account came back. Nobody staged that; it is the startup
+sequence of §3 meeting the rule of §10.
+
+Two things to carry forward, neither a defect:
+
+- `ACCOUNT_UNKNOWN` was logged once per evaluation — eight lines for one condition. Honest, but noisy. A
+  candidate improvement is to log the transition rather than the state.
+- The event is named `ACCOUNT_UNKNOWN` while the detail says `Disconnected`. The ledger carries the truth in
+  `detail`; only the event name is coarse. Already noted as an amendment candidate.
+
+### The soak found a defect on its first run — in the soak
+
+```
+order while locked is cancelled | logged=True, stillWorking=True | FAIL
+```
+
+Five of six scenarios passed, twice, identically. The failure was real and the diagnosis is not comfortable:
+**the sandbox handed its Guardian the synthetic broker**, so `OnOrderObserved → CancelAllOrders` cancelled an
+in-memory list and never reached the venue. Core decided correctly and logged `ORDER_REJECTED_LOCKED`; the
+order stayed working at NinjaTrader because nothing had asked NinjaTrader to cancel it.
+
+The scenario asserted something it had itself wired to be impossible. Which means **the guardian's
+enforcement path was not proven end-to-end against a real order** — precisely what that scenario existed to
+prove. The temptation was to relax the assertion. The fix is the wiring:
+
+`ScopedNtBroker` talks to the real NinjaTrader account and is deliberately narrow:
+
+- it cancels **only** orders tagged `deadman-soak`, so it can never touch an order the trader placed;
+- it **never flattens**. A soak that can flatten a real account is a soak that can cost money. `Flatten` logs
+  a refusal and does nothing.
+
+The locked-order scenario now uses it. Pending one compile to take effect, and its result on the next run is
+the thing to look at first.
+
+### Order hygiene, observed
+
+Every run placed exactly one order of the three allowed, priced at a tenth of the market
+(`LIMIT buy @ 769.25` against a market near 7,690), and the run's own cleanup cancelled it:
+`cleanup: cancelled 1 leftover order(s)`. `Account.All` in the log shows the funded account
+`<funded-acct>/Provider31` sitting alongside `Sim101/Simulator` and untouched, run after run.
+
 ## Step 3 is complete
 
 | obligation | state |

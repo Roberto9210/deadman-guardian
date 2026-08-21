@@ -19,6 +19,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using GuardianCore;
+using NinjaTrader.Cbi;
 
 namespace NinjaTrader.NinjaScript.AddOns.DeadmanGuardian
 {
@@ -98,6 +99,53 @@ namespace NinjaTrader.NinjaScript.AddOns.DeadmanGuardian
         public PlatformPnl GetPlatformPnl(string account) => new PlatformPnl(GrossRealized, Unrealized);
     }
 
+    /// <summary>The REAL NinjaTrader broker, scoped to what this suite placed and nothing else.
+    ///
+    /// The first soak run failed the "order while locked is cancelled" scenario with
+    /// logged=True, stillWorking=True: the sandbox had handed the guardian the synthetic broker, so
+    /// the cancel never left the process. That made the scenario unable to prove the one thing it
+    /// existed for. This class is the fix, and it is deliberately narrow:
+    ///   * it cancels ONLY orders whose Name is the suite's own tag;
+    ///   * it NEVER flattens. Positions on that account belong to the trader, not to a test.
+    /// </summary>
+    public sealed class ScopedNtBroker : IBrokerActions
+    {
+        public const string Tag = "deadman-soak";
+        private readonly Action<string> _log;
+
+        public ScopedNtBroker(Action<string> log) { _log = log ?? (_ => { }); }
+
+        private static IEnumerable<Order> Ours(Account a) =>
+            a.Orders.Where(o => string.Equals(o.Name, Tag, StringComparison.Ordinal) && Accounts.IsWorking(o.OrderState));
+
+        public void CancelAllOrders(string account)
+        {
+            var a = Accounts.Find(account);
+            if (a == null) return;
+            var ours = Ours(a).ToList();
+            if (ours.Count == 0) { _log("scoped cancel: nothing of ours working on " + account); return; }
+            _log("scoped cancel: " + ours.Count + " order(s) tagged '" + Tag + "' on " + account);
+            a.Cancel(ours);
+        }
+
+        public void Flatten(string account)
+        {
+            // Refused on purpose. A soak that can flatten a real account is a soak that can cost money.
+            _log("scoped flatten: REFUSED on " + account + " - the soak never flattens a real account");
+        }
+
+        public IReadOnlyList<PositionSnapshot> GetPositions(string account) => new List<PositionSnapshot>();
+
+        public IReadOnlyList<OrderSnapshot> GetWorkingOrders(string account)
+        {
+            var a = Accounts.Find(account);
+            if (a == null) return new List<OrderSnapshot>();
+            return Ours(a).Select(o => new OrderSnapshot(account, o.OrderId ?? o.Id.ToString(CultureInfo.InvariantCulture),
+                                                         o.Instrument == null ? "?" : o.Instrument.FullName,
+                                                         o.OrderAction.ToString())).ToList();
+        }
+    }
+
     /// <summary>One scenario's world: its own directory, its own Guardian, its own ledger.</summary>
     public sealed class Sandbox
     {
@@ -114,13 +162,18 @@ namespace NinjaTrader.NinjaScript.AddOns.DeadmanGuardian
         public string LedgerPath { get; }
         public SoakClock Clock { get; } = new SoakClock();
         public SoakBroker Broker { get; } = new SoakBroker();
+        private readonly IBrokerActions _brokerForGuardian;
         public SoakFeed Feed { get; } = new SoakFeed(Account);
         public Guardian Guardian { get; private set; }
 
-        public Sandbox(string name, string root, Action<string> note)
+        /// <summary>When <paramref name="brokerOverride"/> is supplied the guardian talks to it instead
+        /// of the synthetic broker. The locked-order scenario passes the scoped REAL broker, because a
+        /// cancel that never leaves the process proves nothing.</summary>
+        public Sandbox(string name, string root, Action<string> note, IBrokerActions brokerOverride = null)
         {
             Name = name;
             _note = note ?? (_ => { });
+            _brokerForGuardian = brokerOverride;
             _dir = Path.Combine(root, "sandbox", name + "-" + DateTime.UtcNow.ToString("HHmmss", CultureInfo.InvariantCulture));
             Directory.CreateDirectory(_dir);
             StatePath = Path.Combine(_dir, "state.json");
@@ -134,7 +187,7 @@ namespace NinjaTrader.NinjaScript.AddOns.DeadmanGuardian
             {
                 Clock = Clock,
                 Store = _store,
-                Broker = Broker,
+                Broker = _brokerForGuardian ?? Broker,
                 Feed = Feed,
                 StatePath = StatePath,
                 LedgerPath = LedgerPath,

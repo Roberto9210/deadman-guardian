@@ -156,7 +156,9 @@ namespace NinjaTrader.NinjaScript.AddOns
             if (_ordersPlaced >= MaxOrdersPerSession)
             { Record("order while locked is cancelled", "cancelled and logged", "skipped: session order budget spent", true, "n/a"); return; }
 
-            var sb = NewSandbox("locked-order");
+            // The REAL broker, scoped to orders this suite tagged. The first run used the synthetic one
+            // and the cancel never left the process - see REMOJO_REPORT.md, run 2026-08-21 12:13Z.
+            var sb = new Sandbox("locked-order", SoakDir, Note, new ScopedNtBroker(Note));
             sb.Arm();
             sb.Lose(PersonalLimit);
             if (sb.Guardian.Status.Kind != StateKind.Locked)
@@ -171,7 +173,7 @@ namespace NinjaTrader.NinjaScript.AddOns
                                              order.Instrument == null ? "?" : order.Instrument.FullName,
                                              order.OrderAction.ToString());
             sb.Guardian.OnOrderObserved(snapshot);
-            Thread.Sleep(2000);
+            Thread.Sleep(3000);   // measured cancel round trip was ~130 ms; this is generous
 
             var stillWorking = account.Orders.Any(o => o.Id == order.Id && Accounts.IsWorking(o.OrderState));
             // belt and braces: whatever happened, this suite does not leave orders behind
