@@ -480,6 +480,82 @@ Every run placed exactly one order of the three allowed, priced at a tenth of th
 `cleanup: cancelled 1 leftover order(s)`. `Account.All` in the log shows the funded account
 `<funded-acct>/Provider31` sitting alongside `Sim101/Simulator` and untouched, run after run.
 
+## 11. The enforcement path, proven end-to-end against a real order
+
+**2026-08-21 12:28Z. 6 of 6, twice. The scenario that failed in §10 now passes, and it passes for the
+right reason.**
+
+The claim in §10 was that the guardian's cancel never reached the venue. The fix was `ScopedNtBroker`.
+Here is the evidence that it works, taken from **NinjaTrader's own log**, not from the suite's verdict on
+itself — which is exactly the mistake §10 was about:
+
+```
+07:28:13:675  Order='e6c4b237.../Sim101' Name='deadman-soak' New state='Submitted'  MES SEP26 Buy Limit 769.5
+07:28:13:786  Order='e6c4b237.../Sim101' Name='deadman-soak' New state='Accepted'
+07:28:13:801  Order='e6c4b237.../Sim101' Name='deadman-soak' New state='Working'
+07:28:15:187  Order='e6c4b237.../Sim101' Name='deadman-soak' New state='Cancel submitted'
+07:28:15:311  Order='e6c4b237.../Sim101' Name='deadman-soak' New state='Cancelled'
+```
+
+And the sandbox ledger, seq 10:
+
+```
+ORDER_REJECTED_LOCKED  {"account":"Sim101","action":"Buy","instrument":"MES SEP26",
+                        "orderId":"e6c4b237666c42968f755590ac705a5a"}
+```
+
+**Same order id in both.** The guardian was handed a real, working order on a real account while LOCKED; it
+logged the rejection and the order reached `Cancelled` at the venue. `Filled=0` throughout.
+
+### The latency, separated honestly
+
+`Cbi.Account.Cancel0` is at `15:184` in the trace and the guardian's own `ORDER_REJECTED_LOCKED` is stamped
+`12:28:15.187Z`. The 1.38 s between `Working` and the cancel is the scenario's own `Thread.Sleep(1500)`,
+not the guardian: the suite deliberately lets the order rest before handing it over. Ours is the gap from
+`OnOrderObserved` to `Cancel0` — single-digit milliseconds — and the venue's acknowledgement took a further
+**127 ms** (`15:184` → `15:311`). That is consistent with the 316 ms detect-and-cancel measured in §5, of
+which 14 ms were ours. **Do not quote the 1.38 s as a guardian number.**
+
+### The other five, unchanged
+
+Breach → LOCKED with `LIMIT_BREACHED`, `ORDERS_CANCELLED`, `FLATTEN_REQUESTED`, `FLATTEN_VERIFIED`.
+Hand-edited seal → `SEAL_MISMATCH` → LOCKED. Config edited under seal → `CONFIG_TAMPERED` → LOCKED. Killed
+mid-lockout → state on disk was already LOCKED before the broker was touched, restart resumes LOCKED. Wall
+clock pushed nine hours forward → `FailClosed`, seal unchanged, `CLOCK_ANOMALY`. Every sandbox chain verified
+`OK`. One order of three allowed per run, and `Account.All` shows the funded `<funded-acct>/Provider31` beside
+`Sim101/Simulator`, untouched.
+
+### A live fact about the seal that the soak does NOT cover
+
+The production seal `aba4d873…` has now survived a hot F5 recompile (`12:26:02`, down 27 ms) and a cold
+NinjaTrader restart (`12:27:03` → `12:27:28`, down 25 s), re-verified both times with `STATE_RESTORED` →
+`SEAL_VERIFIED` and the same hash from the original arm at `12:13:09Z`.
+
+But `HasMonotonicContinuity` is `_state.Seal.RunId == _runId` (`Guardian.cs:107`), and the live state file now
+reads:
+
+```
+state.runId : 1e1b67cafa30449f8f4aa20d4ac45c4b
+seal.runId  : 70aa07e449a342d2ac18bcd4b576148b   -> continuity: False
+```
+
+So **today's seal is being measured on the wall clock, not the monotonic counter** (`Guardian.cs:489-494`).
+That is the documented gap of SPEC §17.2 behaving exactly as written, but it is worth stating plainly: the
+clock-forward scenario passes because it pushes the wall clock *inside one process*, where the monotonic
+defence applies. It does not exercise the restart-then-move-the-clock path, because after a restart there is
+no monotonic evidence left to appeal to. **The sales page's "moving the clock does not help" is true only
+without an intervening restart**, and any copy that omits that is overclaiming. A restart plus a clock change
+is still a premeditated two-step act that both leaves marks in the ledger, which is the design's actual claim.
+
+### Two adapter observations, neither a defect
+
+- `subscribed to Sim101` appears three times per boot. Checked rather than assumed: `SubscribeToAccount`
+  calls `UnsubscribeFromAccount` first (`DeadmanGuardianAddOn.cs:110`), so the handlers are not stacked and
+  fills cannot be double-counted. Noisy logging, nothing more.
+- The `ACCOUNT_UNKNOWN` chatter of §10 recurred on the cold restart: eight entries in seven seconds while
+  Sim101 finished connecting, then `FAIL_CLOSED_CLEARED` through a re-computation. Still honest, still noisy;
+  still a candidate for logging the transition rather than the state.
+
 ## Step 3 is complete
 
 | obligation | state |

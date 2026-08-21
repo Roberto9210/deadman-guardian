@@ -94,3 +94,93 @@ cancelled by the run. `Sim101` is verified to be the simulator before anything i
 12:15:47.041  PASS  wall clock pushed past expiry does not release the seal  ->  FailClosed, sealSame=True, anomaly=True
 ```
 </details>
+
+---
+
+## Soak run 2026-08-21 12:26:47Z
+
+- account: `Sim101` (Provider must be `Simulator`, verified before anything is sent)
+- orders placed this session: **1** of 3 allowed, all LIMIT, all priced below any possible fill, all cancelled
+- scenarios: **6 of 6 passed**
+
+| scenario | expected | observed | ledger chain | |
+|---|---|---|---|---|
+| breach at the limit locks out | LOCKED, LIMIT_BREACHED in the ledger | Locked, events: 9 (GUARDIAN_STARTED, CONFIG_LOADED, ARMED, SEAL_CREATED, DAY_OPENED, LIMIT_BREACHED, ORDERS_CANCELLED, FLATTEN_REQUESTED) | OK | PASS |
+| order while locked is cancelled | ORDER_REJECTED_LOCKED logged and the order no longer working | logged=True, stillWorking=False | OK | PASS |
+| hand-edited seal is caught | SEAL_MISMATCH then LOCKED | Locked, mismatch logged=True | OK | PASS |
+| config edited under seal is caught | CONFIG_TAMPERED then LOCKED | Locked, tampered logged=True | OK | PASS |
+| killed mid-lockout resumes LOCKED | state on disk LOCKED before the broker was touched, and the restart resumes LOCKED | onDisk=True, afterRestart=Locked, positionsLeft=0 | OK | PASS |
+| wall clock pushed past expiry does not release the seal | seal maintained, entries blocked, CLOCK_ANOMALY logged | FailClosed, sealSame=True, anomaly=True | OK | PASS |
+
+<details><summary>run log</summary>
+
+```
+12:26:02.490  gate present; soak armed
+12:26:47.501  Account.All = [Backtest/Simulator, Playback101/Playback, Sim101/Simulator, <funded-acct>/Provider31]
+12:26:47.501  verified Sim101 Provider=Simulator, Connected
+12:26:47.528  [breach] arm -> ARMED
+12:26:47.572  PASS  breach at the limit locks out  ->  Locked, events: 9 (GUARDIAN_STARTED, CONFIG_LOADED, ARMED, SEAL_CREATED, DAY_OPENED, LIMIT_BREACHED, ORDERS_CANCELLED, FLATTEN_REQUESTED)
+12:26:47.591  [locked-order] arm -> ARMED
+12:26:47.616  scoped cancel: nothing of ours working on Sim101
+12:26:47.617  scoped flatten: REFUSED on Sim101 - the soak never flattens a real account
+12:26:47.634  instrument: MES 09-26
+12:26:47.634  placing 1 LIMIT buy @ 769.5 on MES SEP26 (order 1/3)
+12:26:49.154  scoped cancel: 1 order(s) tagged 'deadman-soak' on Sim101
+12:26:52.160  PASS  order while locked is cancelled  ->  logged=True, stillWorking=False
+12:26:52.183  [seal-tamper] arm -> ARMED
+12:26:52.218  [seal-tamper] restarted -> Locked
+12:26:52.219  PASS  hand-edited seal is caught  ->  Locked, mismatch logged=True
+12:26:52.239  [config-tamper] arm -> ARMED
+12:26:52.267  PASS  config edited under seal is caught  ->  Locked, tampered logged=True
+12:26:52.287  [kill-mid-lockout] arm -> ARMED
+12:26:52.342  [kill-mid-lockout] restarted -> Locked
+12:26:52.343  PASS  killed mid-lockout resumes LOCKED  ->  onDisk=True, afterRestart=Locked, positionsLeft=0
+12:26:52.361  [clock-forward] arm -> ARMED
+12:26:52.385  PASS  wall clock pushed past expiry does not release the seal  ->  FailClosed, sealSame=True, anomaly=True
+```
+</details>
+
+---
+
+## Soak run 2026-08-21 12:28:13Z
+
+- account: `Sim101` (Provider must be `Simulator`, verified before anything is sent)
+- orders placed this session: **1** of 3 allowed, all LIMIT, all priced below any possible fill, all cancelled
+- scenarios: **6 of 6 passed**
+
+| scenario | expected | observed | ledger chain | |
+|---|---|---|---|---|
+| breach at the limit locks out | LOCKED, LIMIT_BREACHED in the ledger | Locked, events: 9 (GUARDIAN_STARTED, CONFIG_LOADED, ARMED, SEAL_CREATED, DAY_OPENED, LIMIT_BREACHED, ORDERS_CANCELLED, FLATTEN_REQUESTED) | OK | PASS |
+| order while locked is cancelled | ORDER_REJECTED_LOCKED logged and the order no longer working | logged=True, stillWorking=False | OK | PASS |
+| hand-edited seal is caught | SEAL_MISMATCH then LOCKED | Locked, mismatch logged=True | OK | PASS |
+| config edited under seal is caught | CONFIG_TAMPERED then LOCKED | Locked, tampered logged=True | OK | PASS |
+| killed mid-lockout resumes LOCKED | state on disk LOCKED before the broker was touched, and the restart resumes LOCKED | onDisk=True, afterRestart=Locked, positionsLeft=0 | OK | PASS |
+| wall clock pushed past expiry does not release the seal | seal maintained, entries blocked, CLOCK_ANOMALY logged | FailClosed, sealSame=True, anomaly=True | OK | PASS |
+
+<details><summary>run log</summary>
+
+```
+12:27:28.457  gate present; soak armed
+12:28:13.455  Account.All = [Backtest/Simulator, Playback101/Playback, Sim101/Simulator, <funded-acct>/Provider31]
+12:28:13.455  verified Sim101 Provider=Simulator, Connected
+12:28:13.487  [breach] arm -> ARMED
+12:28:13.539  PASS  breach at the limit locks out  ->  Locked, events: 9 (GUARDIAN_STARTED, CONFIG_LOADED, ARMED, SEAL_CREATED, DAY_OPENED, LIMIT_BREACHED, ORDERS_CANCELLED, FLATTEN_REQUESTED)
+12:28:13.561  [locked-order] arm -> ARMED
+12:28:13.588  scoped cancel: nothing of ours working on Sim101
+12:28:13.589  scoped flatten: REFUSED on Sim101 - the soak never flattens a real account
+12:28:13.605  instrument: MES 09-26
+12:28:13.605  placing 1 LIMIT buy @ 769.5 on MES SEP26 (order 1/3)
+12:28:15.180  scoped cancel: 1 order(s) tagged 'deadman-soak' on Sim101
+12:28:18.191  PASS  order while locked is cancelled  ->  logged=True, stillWorking=False
+12:28:18.215  [seal-tamper] arm -> ARMED
+12:28:18.250  [seal-tamper] restarted -> Locked
+12:28:18.251  PASS  hand-edited seal is caught  ->  Locked, mismatch logged=True
+12:28:18.269  [config-tamper] arm -> ARMED
+12:28:18.305  PASS  config edited under seal is caught  ->  Locked, tampered logged=True
+12:28:18.328  [kill-mid-lockout] arm -> ARMED
+12:28:18.390  [kill-mid-lockout] restarted -> Locked
+12:28:18.391  PASS  killed mid-lockout resumes LOCKED  ->  onDisk=True, afterRestart=Locked, positionsLeft=0
+12:28:18.417  [clock-forward] arm -> ARMED
+12:28:18.446  PASS  wall clock pushed past expiry does not release the seal  ->  FailClosed, sealSame=True, anomaly=True
+```
+</details>
