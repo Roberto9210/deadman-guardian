@@ -14,7 +14,7 @@ Hay **dos suites independientes**, escritas en ese orden y a propósito:
 | | dónde | qué prueba | conteo |
 |---|---|---|---|
 | **el juez** | `deadman` (público) `tests/test_c_certificate.py` | que un certificado mentiroso no sobrevive | 42 tests |
-| **el acusado** | `deadman-guardian` (privado) `tests/GuardianCore.Tests/C_CertificateEmitterTests.cs` | que el emisor cuenta igual que el juez y no inventa | 28 tests |
+| **el acusado** | `deadman-guardian` (público) `tests/GuardianCore.Tests/C_CertificateEmitterTests.cs` | que el emisor cuenta igual que el juez y no inventa | 28 tests |
 
 El juez se escribió **antes** que el emisor. Si el orden hubiera sido el inverso, el verificador
 habría terminado diseñado para aprobar lo que el emisor produce.

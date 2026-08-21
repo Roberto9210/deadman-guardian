@@ -566,7 +566,7 @@ is still a premeditated two-step act that both leaves marks in the ledger, which
 | pre-submit hook | verified absent, 2,912 types scanned at runtime (§4) |
 | detect-and-cancel latency | measured: 14.4 ms ours, 315.9 ms end to end (§5) |
 | install procedure | settled, including what does *not* work (§6) |
-| NtAdapter and status window | written, compile-checked against the real assemblies, **not installed** |
+| NtAdapter and status window | **installed and running** in real NT8, armed on `Sim101`, enforcement proven end-to-end against a real order (§9, §11) |
 
 The one thing deliberately left undone is the install itself. A NinjaScript compile error takes down every
 custom script in the platform, so `install.ps1` runs with a human watching — and after it, one `F5`.
