@@ -68,6 +68,25 @@ No NinjaTrader needed, no network, no disk unless a test asks for it: Core is a 
 configuration, persisted state, the event stream and the clock, and every test drives it through the four
 ports of SPEC §14 with fakes.
 
+## Honest comparison with what NinjaTrader already has
+
+NT8 carries risk plumbing, and none of it is a trader-set daily loss lockout. `Cbi.Risk` /
+`InstrumentRisk` is a named template of per-instrument **margins and size caps** — no daily-loss concept
+in it at all. The daily-loss-shaped fields (`AccountItem.DailyLossLimit`, `WeeklyLossLimit`,
+`DailyProfitTrigger`, `TrailingMaxDrawdown`) are values **the venue reports** and NT8 mirrors, and the
+matching `Account` members — along with `IsAutoLiquidationEnabled` and `LiquidationState` — do not appear
+anywhere in the published [Account class reference](https://developer.ninjatrader.com/docs/desktop/account_class).
+They are public in IL and undocumented in the API.
+
+This add-on **ignores all of them**: a public setter is not an enforcement contract, and a guardian built
+on an undocumented member stops protecting silently when the member changes. See [SPEC §3.4](SPEC.md).
+
+And the part that costs a sale: **where a venue-side self-set daily loss limit exists, it is stronger than
+this add-on.** Tradovate exposes one, and firms that use it document that once set it cannot be overridden
+even by their own staff. A venue-side limit does not depend on your machine being on, on NT8 running, or on
+this code being installed. Use it if you have it. This add-on is for when you do not — or when you want a
+stricter personal limit on top of it, with a local auditable record of every attempt to loosen it.
+
 ## What it does not protect against
 
 [SPEC §17](SPEC.md), in full and up front: deleting the add-on with NT8 closed (premeditation wins — the

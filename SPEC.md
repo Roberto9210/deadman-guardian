@@ -112,6 +112,50 @@ no documented pre-submit hook to third-party AddOns, so §9.5 specifies enforcem
 *detect-and-cancel-immediately*, not *prevent*. If a pre-submit hook is found, it is an addition, not a
 replacement — and the cancel path stays as the backstop.
 
+### 3.4 What NinjaTrader already provides, and why this add-on does not lean on it
+
+Investigated before writing the adapter, because building on top of something that already works would be
+waste, and building on top of something that only *looks* like it works would be worse.
+
+**What is actually there** (reflection over `NinjaTrader.Core` 8.1.8.2, cross-checked against the
+first-party [Account Class reference](https://developer.ninjatrader.com/docs/desktop/account_class)):
+
+| Member | What it is | Documented in the NinjaScript API? |
+|---|---|---|
+| `Cbi.Risk` + `Cbi.InstrumentRisk` | A **named risk template**, savable per account: `InitialMargin`, `MaintenanceMargin`, `BuyIntradayMargin`, `SellIntradayMargin`, `MaxOrderSize`, `MaxPositionSize`, `IsEnabledForTrading`. Per instrument, and **no daily-loss concept anywhere in it** | **No** |
+| `Account.DailyLossLimit` (double), and `AccountItem.DailyLossLimit`, `WeeklyLossLimit`, `DailyProfitTrigger`, `WeeklyProfitTrigger`, `TrailingMaxDrawdown` | Account-level values **reported by the venue**. The set matches the risk fields Tradovate-style venues expose, which is where firms such as TradeDay tell traders to set them | **No** |
+| `Account.IsAutoLiquidationEnabled`, `Account.LiquidationState` (`Fail`, `ValidationFail`, `Disabled`, `Enabled`, `Excluded`), `AccountLiquidationChanged` | The **venue's** auto-liquidation feature, whose state NT8 mirrors | **No** |
+| `OrderState.AcceptedByRisk` | An order state meaning **the venue's risk system accepted the order** — i.e. the risk check happens at or after submission, not before it | The state enum is documented; this member's semantics are not |
+
+All four rows have public getters *and setters* in IL. None of them appears in the published Account class
+reference, whose complete member list is `Cancel`, `CancelAllOrders`, `Change`, `CreateOrder`, `Flatten`,
+`Get`, `Submit`, `All`, `Connection`, `Denomination`, `Executions`, `Name`, `Orders`, `Positions`,
+`Strategies`.
+
+**Decision: ignore them. The guardian neither leans on them nor competes with them.**
+
+1. A public setter is not an enforcement contract. Nothing published says that assigning
+   `Account.DailyLossLimit` *does* anything beyond writing NT8's local mirror of a number the venue
+   reported — and for a safety product, "probably enforces" is indistinguishable from "does not".
+2. Undocumented members carry no stability guarantee. If a future NT8 renames or removes one, a guardian
+   built on it stops protecting **silently**, which is the exact failure mode §10 exists to prevent.
+3. `Risk`/`InstrumentRisk` is not the same feature under another name: margins and size caps are not a
+   daily loss limit, and no amount of configuring them produces one.
+4. `AcceptedByRisk` confirms the shape of the platform rather than offering a hook: risk lives at the
+   venue, after submission. It is consistent with the verified absence of any pre-submit event (§3.3).
+
+*(v2 candidate, not v1: **reading** `AccountItem.DailyLossLimit` as a sanity check against the
+`firmDailyLossLimit` the trader typed. Read-only, never enforcement, and only if the field turns out to be
+populated consistently across venues. §13 keeps v1 from reading the firm's numbers at all.)*
+
+**What must be said out loud, in the README as well as here**: where a **venue-side** self-set daily loss
+limit exists — Tradovate exposes one, and firms that use it document that once set it cannot be overridden
+even by their own staff — that limit is **stronger than this add-on**, because it lives inside the venue and
+does not depend on the trader's machine being on, or on NT8 running, or on this code being installed. This
+add-on is for the case where no such venue-side limit exists, or where a trader wants a stricter personal
+limit layered on top of it with a local auditable record. Recommending it over a venue-side limit that is
+available would be selling the weaker mechanism.
+
 ## 4. Configuration: no defaults, ever
 
 A field that is missing, empty, unparseable, or out of range does **not** fall back to a plausible value.
