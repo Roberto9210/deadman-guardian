@@ -1,0 +1,12 @@
+{"tsUtc":"2026-08-21T02:38:14.3386528Z","event":"NOTE","line":"OnStateChange -> SetDefaults"}
+{"tsUtc":"2026-08-21T02:38:18.9903704Z","event":"NOTE","line":"OnStateChange -> Configure"}
+{"tsUtc":"2026-08-21T02:38:18.9993572Z","event":"NOTE","line":"Account.All = [Backtest, Playback101, Sim101]"}
+{"tsUtc":"2026-08-21T02:38:19.0003440Z","event":"NOTE","line":"found Sim101 connection=null denomination=UsDollar"}
+{"tsUtc":"2026-08-21T02:38:19.0013401Z","event":"NOTE","line":"subscribed to OrderUpdate, ExecutionUpdate, PositionUpdate, AccountItemUpdate"}
+{"tsUtc":"2026-08-21T02:38:19.0408922Z","event":"NOTE","line":"OnStateChange -> Active"}
+{"tsUtc":"2026-08-21T02:38:26.7759199Z","event":"ACCOUNT_ITEM","item":"CashValue","value":"100000","currency":"UsDollar"}
+{"tsUtc":"2026-08-21T02:38:26.7769304Z","event":"ACCOUNT_ITEM","item":"ExcessIntradayMargin","value":"100000","currency":"UsDollar"}
+{"tsUtc":"2026-08-21T02:38:26.7769304Z","event":"ACCOUNT_ITEM","item":"ExcessInitialMargin","value":"100000","currency":"UsDollar"}
+{"tsUtc":"2026-08-21T02:38:26.7769304Z","event":"ACCOUNT_ITEM","item":"NetLiquidation","value":"100000","currency":"UsDollar"}
+{"tsUtc":"2026-08-21T02:38:49.0412248Z","event":"CLOCK_SAMPLE","tick":"1","wallElapsedMs":"30051","stopwatchElapsedMs":"30051","getTickCount64ElapsedMs":"30047","wallMinusStopwatchMs":"0","wallMinusTickCountMs":"4"}
+{"tsUtc":"2026-08-21T02:39:09.2725515Z","event":"NOTE","line":"OnStateChange -> Terminated"}
