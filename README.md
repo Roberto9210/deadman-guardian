@@ -78,7 +78,7 @@ running process, not on a bench. The results are in [nt/STEP3_FINDINGS.md](nt/ST
 - **Detect-and-cancel takes 14.4 ms** from seeing a live order to submitting the cancel — inside a cycle
   that took **315.9 ms** end to end, of which 301 ms belong to the venue and the platform. That is the
   arithmetic behind the warning above: a fast guard does not shrink the market's 300 ms.
-- ** throws inside NinjaTrader.** The runtime resolves Windows time zone ids only, so the
+- **`America/Chicago` throws inside NinjaTrader.** The runtime resolves Windows time zone ids only, so the
   embedded IANA map is what makes the session boundary work at all.
 - **Sleep does not stop the monotonic clock.** Two real S3 suspends moved wall-vs-monotonic by 41 and 53 ms,
   where a stopped counter would have moved 5,000 - so a suspend raises no false alarm.
