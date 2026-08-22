@@ -36,22 +36,41 @@ alternates two probe kinds and reports them in separate columns:
 
 - **a resting LIMIT**, far from the market. The guardian *can* cancel this before it fills. Reported:
   how many were cancelled, and the submit→cancelled latency.
-- **a MARKET order**, which was expected to fill before anything could stop it. Reported: how many
-  filled anyway, how long until the position was flattened, and whether the guardian stayed `LOCKED`
-  and flattened it again on the next attempt.
-
-  **The first real run contradicted that expectation, and the expectation was mine.** On 2026-08-22
-  all four market probes went `Submitted -> Accepted -> Cancel submitted -> Working -> Cancelled`
-  with `Filled=0`: the guardian, already `LOCKED`, issued the cancel inside the same event dispatch
-  that observed the order, before the simulation engine had a trade to fill against. **Four of four
-  stopped, zero fills.** The window that detect-and-cancel leaves open is real in principle and was
-  not observed here - which is a statement about this environment, not a guarantee about a venue with
-  real latency.
+- **a MARKET order**, meant to fill before anything could stop it. Reported: how many filled anyway,
+  how long until the position was flattened, and whether the guardian stayed `LOCKED` and flattened it
+  again on the next attempt. **This probe does not work in this environment - see "What Bot A cannot
+  prove either" below. Its result is not a finding.**
 
 A market order reaching a fill after the lockout is **not** a guardian failure. It is the documented
 consequence of detect-and-cancel, and pretending otherwise would make the certificate claim something
 false. What is under test is the next column: **the exposure did not survive**, repeatedly, and the
 state never left `LOCKED`.
+
+## What Bot A cannot prove either — the MARKET probe measures nothing here
+
+The first run reported **4 of 4 market probes cancelled, 0 filled**. That reads like good news and it
+is not news at all: **this environment cannot produce the race the probe exists to test.**
+
+On the Simulated Data Feed the matching engine runs **inside the same process** as the guardian. The
+order and the cancellation compete within one machine, with no network and no venue between them -
+and the guardian, already `LOCKED`, issues its cancel inside the very event dispatch that observes
+the order. It wins by construction. At a real exchange the order is sitting **at the venue** and the
+cancellation has to travel there; that is the race, and none of its ingredients exist here.
+
+So "zero fills" is not *we tested it and it did not happen*. It is *it cannot be tested here*. A
+green that does not depend on the thing it claims to measure is the same defect this project keeps
+finding, and this time we produced one ourselves and nearly filed it as a result.
+
+**What proving it would actually take:** a real data feed and a real venue, a lockout triggered while
+a genuine market order is in flight, and the timing almost certainly measured **from the venue's
+side** rather than ours - our own clock cannot see when the exchange decided the order was
+uncancellable. Until then the window between submit and cancel is a design property we can reason
+about and cannot bound with a number.
+
+**And it changes nothing about SPEC §17.** *Hitting the limit and flattening does not guarantee the
+day ends above the limit* - slippage and gaps between the breach and the fill remain exactly as
+stated. This result is not evidence toward softening that sentence by any amount, and if a future
+version of it reads gentler, this paragraph is the reason to put it back.
 
 ## What the first run measured, and how far it is allowed to travel
 
@@ -62,7 +81,7 @@ Run of 2026-08-22, and **every number below is n = 1**:
 | breach at | `dayLoss 50.00`, after 32 round trips / 66 orders / 2 min 25 s |
 | breach -> `FLATTEN_VERIFIED` | **502 ms**, in two attempts (`LOCKOUT_INCOMPLETE` then verified) |
 | post-lockout LIMIT probes | 4 of 4 cancelled, submit -> `Cancelled` min 232 / median 241 / max 248 ms |
-| post-lockout MARKET probes | 4 of 4 cancelled, **0 filled** |
+| post-lockout MARKET probes | 4 of 4 cancelled, 0 filled — **not a result, see above: this environment cannot run that test** |
 | account gate | 72 evaluations, min 25 / median 66 / max 232 **microseconds** |
 
 **The ceiling on all of it: the prices came from NinjaTrader's Simulated Data Feed**, which its own
