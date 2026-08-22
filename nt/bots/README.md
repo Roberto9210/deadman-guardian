@@ -163,11 +163,17 @@ The last entry is real money. `BotSafety.VerifyAccount` would refuse it - it dem
 *"it was not there"*, and Bot A exists to lose money on purpose. Do not run it in a session where a
 funded account is present.
 
-The `Simulated Data Feed` connection is mutually exclusive with `Simulation` - NinjaTrader says so
-itself: `You can't connect while having an open 'Simulated Data Feed' connection (Panic)`. So
-connecting it **removes the funded account from the session**, which is the real reason
-[`nt/set-connect-on-startup.ps1`](../set-connect-on-startup.ps1) exists. Data reliability is the
-smaller half.
+**It was claimed here that connecting the `Simulated Data Feed` removes the funded account from the
+session. That was wrong, and a run on 2026-08-22 disproved it.** With that feed connected and no
+`Simulation:` line anywhere in the log, the soak still reported all four accounts, funded one
+included. The mutual exclusion NinjaTrader enforces
+(`You can't connect while having an open 'Simulated Data Feed' connection (Panic)`) is between
+**connections**, not accounts: `Account.All` enumerates every configured account regardless of which
+connection is up.
+
+What connecting the simulated feed does buy is narrower: the funded account goes from *online behind
+a live data connection* to *listed but not connected*. Real, and not the same thing. **Assume it is
+still reachable until something proves otherwise.**
 
 Two things to confirm after every restart, by **reading**, not by assuming:
 

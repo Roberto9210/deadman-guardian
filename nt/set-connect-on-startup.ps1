@@ -27,12 +27,22 @@
 # The last of those is real money. With the platform in that state we were one gate file away from
 # arming a bot whose stated purpose is to lose, in a session where the funded account was present.
 #
-# The bots' rails would still have refused it - VerifyAccount demands the name Sim101 AND
-# Provider == Simulator - but "a check would have caught it" is a worse guarantee than "it was not
-# there". Connecting the Simulated Data Feed takes 2127534 out of the session entirely, so the funded
-# account stops being something a check has to save us from.
+# CORRECTION (2026-08-22, from a real run): CONNECTING THIS FEED DOES **NOT** REMOVE THE FUNDED
+# ACCOUNT FROM THE SESSION. That claim was written here and a run disproved it the same day.
 #
-# So this script is a safety control, not a convenience. Reliability of the data is the smaller half.
+# With the Simulated Data Feed connected and zero "Simulation:" lines in the log, the soak still
+# reported:
+#     Account.All = [Backtest/Simulator, Playback101/Playback, Sim101/Simulator, 2127534/Provider31]
+#
+# The mutual exclusion is between CONNECTIONS, not between accounts. Account.All enumerates every
+# CONFIGURED account whether or not its connection is up, so 2127534 stays listed. What this script
+# actually buys is narrower and should be stated as exactly that: the funded account goes from
+# "online behind a live data connection" to "listed but with no connection". That is a real
+# reduction. It is not isolation, and calling it isolation was the same overclaim this repository
+# keeps catching in other people's work.
+#
+# So: this script is about data reliability, which is what it was originally for. The funded account
+# is a separate problem and still open - see docs/proposals/testing-the-account-rail.md.
 #
 # THE RISK, written down rather than assumed: NinjaTrader's own support recommends against connecting
 # on startup, because a connection that hangs can hang the platform's startup with it. That warning is
