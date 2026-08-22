@@ -146,6 +146,42 @@ repetition is the point — a flatten is one action, a lockout is a standing sta
 breached, a position still open minutes after the lockout, or the state leaving `LOCKED` before the
 session reset. Those are failures. A strategy switching itself off is not.
 
+## Before any gate: the funded account must not be in the session
+
+**Check this before creating `botA.GO`, every time.** It is not part of the bots' own rails; it is
+about what else is standing in the room.
+
+NinjaTrader's `Simulation` connection brings the trader's **funded** account online alongside
+`Sim101`. Every soak run so far recorded exactly this:
+
+```
+Account.All = [Backtest/Simulator, Playback101/Playback, Sim101/Simulator, 2127534/Provider31]
+```
+
+The last entry is real money. `BotSafety.VerifyAccount` would refuse it - it demands the name `Sim101`
+**and** `Provider == Simulator` - but *"a check would have caught it"* is a weaker guarantee than
+*"it was not there"*, and Bot A exists to lose money on purpose. Do not run it in a session where a
+funded account is present.
+
+The `Simulated Data Feed` connection is mutually exclusive with `Simulation` - NinjaTrader says so
+itself: `You can't connect while having an open 'Simulated Data Feed' connection (Panic)`. So
+connecting it **removes the funded account from the session**, which is the real reason
+[`nt/set-connect-on-startup.ps1`](../set-connect-on-startup.ps1) exists. Data reliability is the
+smaller half.
+
+Two things to confirm after every restart, by **reading**, not by assuming:
+
+1. **`Account.All` does not list the funded account.** The soak writes this line into its report on
+   every run, so the newest run in `deadman-guardian-soak/REMOJO_REPORT.md` answers it. If the funded
+   account is there, **stop** - no gate file until it is gone.
+2. **The active connection is `Simulated Data Feed`, not `Simulation`.** In the Control Center Log:
+   `Simulated Data Feed: Primary connection=Connected`. The name before the colon is the connection;
+   `Simulation` is a different one that serves delayed *real* data and carries the funded account
+   with it.
+
+And after setting the feed to connect on startup: **do not click `Simulation` in the Connections
+menu.** Choosing it disconnects the simulated feed and puts the funded account back.
+
 ## Running them
 
 Both bots compile as NinjaScript AddOns. `dotnet build` of the repo does **not** cover them — they

@@ -15,11 +15,34 @@
 #     powershell -ExecutionPolicy Bypass -File nt\set-connect-on-startup.ps1
 #     powershell -ExecutionPolicy Bypass -File nt\set-connect-on-startup.ps1 -Connection "..." -Value false
 #
+# WHY THIS MATTERS MORE THAN DATA RELIABILITY: IT ISOLATES THE FUNDED ACCOUNT.
+#
+# NinjaTrader refuses to hold two of these connections at once - its own words, from this machine's
+# log: "Simulation: You can't connect while having an open 'Simulated Data Feed' connection (Panic)".
+# That mutual exclusion is the point.
+#
+# The connection that runs when this one does not is "Simulation", and it brings the FUNDED account
+# online: every one of the 16 soak runs recorded
+#     Account.All = [Backtest/Simulator, Playback101/Playback, Sim101/Simulator, 2127534/Provider31]
+# The last of those is real money. With the platform in that state we were one gate file away from
+# arming a bot whose stated purpose is to lose, in a session where the funded account was present.
+#
+# The bots' rails would still have refused it - VerifyAccount demands the name Sim101 AND
+# Provider == Simulator - but "a check would have caught it" is a worse guarantee than "it was not
+# there". Connecting the Simulated Data Feed takes 2127534 out of the session entirely, so the funded
+# account stops being something a check has to save us from.
+#
+# So this script is a safety control, not a convenience. Reliability of the data is the smaller half.
+#
 # THE RISK, written down rather than assumed: NinjaTrader's own support recommends against connecting
 # on startup, because a connection that hangs can hang the platform's startup with it. That warning is
 # about NETWORK connections waiting on a broker or data vendor. The Simulated Data Feed generates its
 # market internally - it opens no socket and has nothing to wait for - so the failure it warns about
 # has no mechanism here. Enabling it on any other connection deserves that warning in full.
+#
+# AND THE COROLLARY, for whoever operates this: after running this script, do not click "Simulation"
+# in the Connections menu. It is mutually exclusive with the feed this sets, and choosing it puts the
+# funded account back in the session.
 
 param(
     [string]$Connection = "Simulated Data Feed",
