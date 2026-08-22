@@ -33,6 +33,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -150,6 +151,37 @@ namespace NinjaTrader.NinjaScript.AddOns.DeadmanGuardian
         private static string SafeName(Account a)
         {
             try { return a.Name; } catch { return null; }
+        }
+
+        /// <summary>THE GATE, RE-ASKED. Same rule as VerifyAccount, evaluated before EVERY send.
+        ///
+        /// VerifyAccount answers "is this session safe to start in". That answer expires the moment
+        /// somebody clicks Connect, and on this machine somebody already clicked a connection once
+        /// without knowing what it brought online. A start-up check cannot hold a premise that another
+        /// human can change mid-run - the same reason the guardian re-reads its own state on every
+        /// tick instead of trusting what it saw at boot.
+        ///
+        /// Quiet by design: it says nothing when the answer is yes, because it runs once per order and
+        /// a line per order is a log nobody reads. <paramref name="elapsedMicros"/> is filled every
+        /// call so the cost is a measurement in the run report, not a guess in a comment.</summary>
+        public static AccountVerdict StillSafe(out long elapsedMicros)
+        {
+            var started = Stopwatch.GetTimestamp();
+            try
+            {
+                List<AccountFacts> facts;
+                try { facts = Account.All.Select(FactsOf).ToList(); }
+                catch (Exception ex)
+                {
+                    // Cannot look is not "nothing is there". Deny.
+                    return AccountVerdict.Deny("Account.All threw while re-checking: " + ex.Message);
+                }
+                return BotAccountRule.Decide(facts, TargetAccount);
+            }
+            finally
+            {
+                elapsedMicros = (long)((Stopwatch.GetTimestamp() - started) * 1000000.0 / Stopwatch.Frequency);
+            }
         }
 
         /// <summary>An instrument the feed actually serves. Nothing is assumed to exist by name.</summary>
@@ -382,6 +414,20 @@ namespace NinjaTrader.NinjaScript.AddOns.DeadmanGuardian
         public string StatePath { get; private set; }
         public string LedgerPath { get; private set; }
 
+        /// <summary>The bot's OWN chained record, in the same run directory but a DIFFERENT FILE.
+        ///
+        /// It is not written into the guardian's ledger on purpose. The Guardian holds a live Ledger
+        /// object over that path and keeps (seq, head) in memory; a second Ledger instance over the
+        /// same file would append behind its back, and the guardian's next append - still using its
+        /// own stale head - would break the hash chain. Sharing the file to keep events together
+        /// would corrupt the one artefact this project sells as evidence.
+        ///
+        /// So the bot gets its own file and is its sole writer. Same hash chain, same verify, no
+        /// contention; correlation between the two is by timestamp, which is enough.</summary>
+        public string BotEventsPath { get; private set; }
+
+        private Ledger _botLedger;
+
         public BotSandboxGuardian(string bot, DateTime startedUtc, Action<string> note)
         {
             _note = note ?? (_ => { });
@@ -389,6 +435,7 @@ namespace NinjaTrader.NinjaScript.AddOns.DeadmanGuardian
             Directory.CreateDirectory(Dir);
             StatePath = Path.Combine(Dir, "state.json");
             LedgerPath = Path.Combine(Dir, "ledger.jsonl");
+            BotEventsPath = Path.Combine(Dir, "bot-events.jsonl");
 
             _guardian = new Guardian(new GuardianOptions
             {
@@ -470,6 +517,37 @@ namespace NinjaTrader.NinjaScript.AddOns.DeadmanGuardian
         {
             var all = Events().ToList();
             return all.Count + " (" + string.Join(", ", all.Distinct().Take(10)) + ")";
+        }
+
+        /// <summary>Appends to the BOT's own chained file. Failures are COUNTED, not swallowed:
+        /// a notification path that fails without leaving a trace is the exact defect this project
+        /// keeps finding, and "the bot records why it stopped" is a claim that needs to be checkable.
+        /// The count reaches the run report even when it is zero.</summary>
+        public int BotEventFailures { get; private set; }
+
+        public void RecordBotEvent(string ev, JsonObject payload)
+        {
+            try
+            {
+                if (_botLedger == null) _botLedger = new Ledger(_store, BotEventsPath);
+                _botLedger.Append(ev, new NtClock().UtcNow, payload ?? JsonValue.Obj());
+            }
+            catch (Exception ex)
+            {
+                BotEventFailures++;
+                _note("bot event '" + ev + "' could NOT be recorded (" + BotEventFailures + " so far): " + ex.Message);
+            }
+        }
+
+        public string VerifyBotChain()
+        {
+            try
+            {
+                if (!File.Exists(BotEventsPath)) return "empty";
+                var r = new Ledger(_store, BotEventsPath).Verify();
+                return r.Ok ? "OK" : ("BROKEN@" + r.BrokenSeq);
+            }
+            catch (Exception ex) { return "unreadable: " + ex.Message; }
         }
 
         public string VerifyChain()

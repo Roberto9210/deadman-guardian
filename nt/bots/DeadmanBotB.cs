@@ -113,6 +113,10 @@ namespace NinjaTrader.NinjaScript.AddOns
         private volatile bool _stopping;
         private bool _ran;
 
+        private readonly List<long> _gateMicros = new List<long>();
+        private volatile bool _abortRun;
+        private string _unsafeReason;
+
         private DateTime _startedUtc;
         private DateTime _sessionEndUtc;
         private int _trades, _stopsFilled, _targetsHit, _timeExits;
@@ -208,7 +212,7 @@ namespace NinjaTrader.NinjaScript.AddOns
             Note("---- trading the session: at most " + MaxTradesPerSession + " trades, one contract, " +
                  "self-stop at $" + Money.Format(SelfStopUsd) + " against a $" + SandboxPersonalLimit + " limit ----");
 
-            while (!_stopping && DateTime.UtcNow < _sessionEndUtc && _trades < MaxTradesPerSession)
+            while (!_stopping && !_abortRun && DateTime.UtcNow < _sessionEndUtc && _trades < MaxTradesPerSession)
             {
                 var loss = _sandbox.DayLoss();
                 if (loss > _worstDayLoss) _worstDayLoss = loss;
@@ -290,7 +294,7 @@ namespace NinjaTrader.NinjaScript.AddOns
         {
             var deadline = DateTime.UtcNow.AddMinutes(MaxHoldMinutes);
 
-            while (!_stopping && DateTime.UtcNow < deadline)
+            while (!_stopping && !_abortRun && DateTime.UtcNow < deadline)
             {
                 if (NetQty() == 0)
                 {
@@ -339,6 +343,8 @@ namespace NinjaTrader.NinjaScript.AddOns
 
         private Order Submit(OrderAction action, OrderType type, double limitPrice, double stopPrice, string label)
         {
+            if (!GateOpen()) return null;
+
             var opening = action == OrderAction.Buy || action == OrderAction.SellShort;
             var netAfter = opening
                 ? NetQty() + (action == OrderAction.Buy ? Quantity : -Quantity)
@@ -366,6 +372,38 @@ namespace NinjaTrader.NinjaScript.AddOns
                 Note("submit threw (" + label + "): " + ex.Message);
                 return null;
             }
+        }
+
+        /// <summary>THE GATE, before every single send. "Listed but disconnected" stops being true
+        /// the moment somebody clicks Connect, so a start-up check cannot hold it - the same reason the
+        /// armed check moved here rather than staying at boot. If it closes mid-run the bot stops and
+        /// writes WHY into its own chained record, not only into the log.</summary>
+        private bool GateOpen()
+        {
+            long micros;
+            var verdict = BotSafety.StillSafe(out micros);
+            lock (_gate) _gateMicros.Add(micros);
+            if (verdict.Allowed) return true;
+            HaltUnsafe(verdict.Reason);
+            return false;
+        }
+
+        private void HaltUnsafe(string reason)
+        {
+            lock (_gate)
+            {
+                if (_unsafeReason != null) return;   // say it once
+                _unsafeReason = reason;
+            }
+            Note("!!! ACCOUNT GATE CLOSED MID-RUN, stopping: " + reason);
+            if (_sandbox != null)
+            {
+                _sandbox.RecordBotEvent("BOT_ACCOUNT_UNSAFE",
+                    JsonValue.Obj().Set("bot", "B").Set("reason", reason));
+            }
+            // NOT _stopping: that flag makes Shutdown() return early, and this run still has to cancel
+            // its orders and flatten. This one only ends the trading loops.
+            _abortRun = true;
         }
 
         private void Subscribe()
@@ -561,7 +599,7 @@ namespace NinjaTrader.NinjaScript.AddOns
         private void Sleep(int ms)
         {
             var deadline = DateTime.UtcNow.AddMilliseconds(ms);
-            while (!_stopping && DateTime.UtcNow < deadline && DateTime.UtcNow < _sessionEndUtc)
+            while (!_stopping && !_abortRun && DateTime.UtcNow < deadline && DateTime.UtcNow < _sessionEndUtc)
                 Thread.Sleep(100);
         }
 
@@ -608,6 +646,14 @@ namespace NinjaTrader.NinjaScript.AddOns
             body.Add("- self-stopped before the guardian: " + (_selfStopped ? "**yes**" : "no (never reached the self-stop)"));
             body.Add("");
 
+            body.Add("### The account gate, re-asked before every send");
+            body.Add("");
+            body.Add("- evaluated **" + _gateMicros.Count + "** times, " + Micros(_gateMicros));
+            body.Add("- closed mid-run: " + (_unsafeReason == null ? "no" : "**YES** - " + _unsafeReason));
+            body.Add("- bot-events chain: " + _sandbox.VerifyBotChain() +
+                     " - write failures: " + _sandbox.BotEventFailures);
+            body.Add("");
+
             body.Add("### Clean session? **" + (clean ? "YES" : "NO") + "**");
             body.Add("");
             body.Add("All five conditions, fixed before the run:");
@@ -625,6 +671,13 @@ namespace NinjaTrader.NinjaScript.AddOns
             body.Add("Ledger events: " + _sandbox.EventsSummary());
 
             _log.AppendSection(BotPaths.Report("B"), title, body);
+        }
+
+        private static string Micros(List<long> samples)
+        {
+            if (samples == null || samples.Count == 0) return "never evaluated";
+            var sorted = samples.OrderBy(x => x).ToList();
+            return "min " + sorted[0] + " us, median " + sorted[sorted.Count / 2] + " us, max " + sorted[sorted.Count - 1] + " us";
         }
 
         private static string Mark(bool ok) { return ok ? "PASS" : "**FAIL**"; }

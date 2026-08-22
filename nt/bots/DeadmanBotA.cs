@@ -113,6 +113,10 @@ namespace NinjaTrader.NinjaScript.AddOns
         private bool _ran;
 
         // ---- what the report is made of ----
+        private readonly List<long> _gateMicros = new List<long>();
+        private volatile bool _abortRun;
+        private string _unsafeReason;
+
         private DateTime _startedUtc;
         private int _roundTrips;
         private DateTime? _lockedAtUtc;
@@ -208,7 +212,7 @@ namespace NinjaTrader.NinjaScript.AddOns
             Note("---- loss phase: churning until the sandbox guardian locks at $" + SandboxPersonalLimit + " ----");
             var deadline = DateTime.UtcNow.AddMinutes(LossPhaseMaxMinutes);
 
-            while (!_stopping && DateTime.UtcNow < deadline)
+            while (!_stopping && !_abortRun && DateTime.UtcNow < deadline)
             {
                 if (_sandbox.Status.Kind == StateKind.Locked)
                 {
@@ -271,7 +275,7 @@ namespace NinjaTrader.NinjaScript.AddOns
 
             Note("---- provocation phase: " + PostLockoutProbes + " entry attempts against a LOCKED guardian ----");
 
-            for (var i = 1; i <= PostLockoutProbes && !_stopping; i++)
+            for (var i = 1; i <= PostLockoutProbes && !_stopping && !_abortRun; i++)
             {
                 if (_sandbox.Status.Kind != StateKind.Locked)
                 {
@@ -392,6 +396,8 @@ namespace NinjaTrader.NinjaScript.AddOns
 
         private Order Submit(OrderAction action, OrderType type, double limitPrice, string label)
         {
+            if (!GateOpen()) return null;
+
             var opening = action == OrderAction.Buy || action == OrderAction.SellShort;
             var netAfter = opening
                 ? NetQty() + (action == OrderAction.Buy ? Quantity : -Quantity)
@@ -433,6 +439,38 @@ namespace NinjaTrader.NinjaScript.AddOns
                 Note("submit threw (" + label + "): " + ex.Message);
                 return null;
             }
+        }
+
+        /// <summary>THE GATE, before every single send. "Listed but disconnected" stops being true
+        /// the moment somebody clicks Connect, so a start-up check cannot hold it - the same reason the
+        /// armed check moved here rather than staying at boot. If it closes mid-run the bot stops and
+        /// writes WHY into its own chained record, not only into the log.</summary>
+        private bool GateOpen()
+        {
+            long micros;
+            var verdict = BotSafety.StillSafe(out micros);
+            lock (_gate) _gateMicros.Add(micros);
+            if (verdict.Allowed) return true;
+            HaltUnsafe(verdict.Reason);
+            return false;
+        }
+
+        private void HaltUnsafe(string reason)
+        {
+            lock (_gate)
+            {
+                if (_unsafeReason != null) return;   // say it once
+                _unsafeReason = reason;
+            }
+            Note("!!! ACCOUNT GATE CLOSED MID-RUN, stopping: " + reason);
+            if (_sandbox != null)
+            {
+                _sandbox.RecordBotEvent("BOT_ACCOUNT_UNSAFE",
+                    JsonValue.Obj().Set("bot", "A").Set("reason", reason));
+            }
+            // NOT _stopping: that flag makes Shutdown() return early, and this run still has to cancel
+            // its orders and flatten. This one only ends the trading loops.
+            _abortRun = true;
         }
 
         private void Subscribe()
@@ -638,7 +676,7 @@ namespace NinjaTrader.NinjaScript.AddOns
         private void Sleep(int ms)
         {
             var deadline = DateTime.UtcNow.AddMilliseconds(ms);
-            while (!_stopping && DateTime.UtcNow < deadline) Thread.Sleep(50);
+            while (!_stopping && !_abortRun && DateTime.UtcNow < deadline) Thread.Sleep(50);
         }
 
         private void Abort(string reason)
@@ -711,6 +749,18 @@ namespace NinjaTrader.NinjaScript.AddOns
             body.Add("detect-and-cancel. The claim under test is the next column: the exposure did not survive.");
             body.Add("");
 
+            body.Add("### The account gate, re-asked before every send");
+            body.Add("");
+            body.Add("| | |");
+            body.Add("|---|---|");
+            body.Add("| times evaluated | " + _gateMicros.Count + " |");
+            body.Add("| cost per call | " + Micros(_gateMicros) + " |");
+            body.Add("| closed mid-run | " + (_unsafeReason == null ? "no" : "**YES** - " + Escape(_unsafeReason)) + " |");
+            body.Add("| bot-events chain | " + _sandbox.VerifyBotChain() + " |");
+            body.Add("| bot-event write failures | " + _sandbox.BotEventFailures +
+                     (_sandbox.BotEventFailures == 0 ? " (a zero that is always printed, so it is a verified zero)" : " **- events were lost**") + " |");
+            body.Add("");
+
             body.Add("### Did this run disturb production?");
             body.Add("");
             body.Add("- production guardian state after the run: **" + ProductionState() + "**");
@@ -718,6 +768,12 @@ namespace NinjaTrader.NinjaScript.AddOns
             body.Add("  run's losses are bounded by the sandbox limit of $" + SandboxPersonalLimit + ".");
 
             _log.AppendSection(BotPaths.Report("A"), title, body);
+        }
+
+        private static string Micros(List<long> samples)
+        {
+            if (samples == null || samples.Count == 0) return "n/a";
+            return "min " + samples.Min() + " us, median " + Median(samples) + " us, max " + samples.Max() + " us";
         }
 
         private static string Latency(List<long> samples)
