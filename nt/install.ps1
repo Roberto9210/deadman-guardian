@@ -37,8 +37,48 @@ $botSources  = @("BotGuardrails.cs", "DeadmanBotA.cs", "DeadmanBotB.cs")
 # reference set, so a netstandard2.0 assembly loads at runtime and fails at compile time.
 $coreDll = Join-Path $repo "src\GuardianCore\bin\Release\net48\GuardianCore.dll"
 
-if (Get-Process NinjaTrader -ErrorAction SilentlyContinue) {
-    throw "NinjaTrader is running. Close it first - the files are locked while it runs."
+# This check runs BEFORE anything is created, copied or edited, and it exits with a non-zero code so
+# that a script calling this one finds out too.
+#
+# It is deliberately loud. On 2026-08-21 this guard fired, printed one line, and the operator - who had
+# typed the right command - watched text scroll past, pressed F5, restarted NinjaTrader and carried on
+# believing the install had happened. Nothing had been copied; the old build kept running. An error
+# that does not stop the human reading it is, in its result, an error that did not happen. "Close it
+# first" says what to DO; it never said what had NOT occurred, and that is the half that mattered.
+$ntProc = Get-Process NinjaTrader -ErrorAction SilentlyContinue
+if ($ntProc) {
+    $bar = "=" * 76
+    Write-Host ""
+    Write-Host $bar -ForegroundColor Red
+    Write-Host ""
+    Write-Host "     N O T H I N G   W A S   I N S T A L L E D" -ForegroundColor Red
+    Write-Host ""
+    Write-Host "     No file was copied. No file was edited. Nothing changed at all." -ForegroundColor Red
+    Write-Host "     The version NinjaTrader is running is the OLD one, unchanged." -ForegroundColor Red
+    Write-Host ""
+    Write-Host $bar -ForegroundColor Red
+    Write-Host ""
+    Write-Host ("  Why: NinjaTrader is still running (PID " + ($ntProc.Id -join ", ") + ").")
+    Write-Host "  It holds GuardianCore.dll open, so that file cannot be replaced."
+    Write-Host ""
+    Write-Host "  CLOSING THE MAIN WINDOW IS NOT ENOUGH." -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "  NinjaTrader keeps running in the SYSTEM TRAY - the small icons beside the"
+    Write-Host "  clock, bottom-right of your screen. Some of them are hidden behind a small"
+    Write-Host "  up-arrow (^); click it to show them."
+    Write-Host ""
+    Write-Host "    1. find the NinjaTrader icon there"
+    Write-Host "    2. right-click it"
+    Write-Host "    3. choose Exit"
+    Write-Host "    4. run this script again"
+    Write-Host ""
+    Write-Host "  You will know it worked because this script will print a list of copied"
+    Write-Host "  files and a checksum at the end. If you do not see that list, nothing was"
+    Write-Host "  installed - no matter what else scrolled past."
+    Write-Host ""
+    Write-Host $bar -ForegroundColor Red
+    Write-Host ""
+    exit 2
 }
 if (-not (Test-Path $csproj)) { throw "not found: $csproj" }
 
@@ -71,25 +111,30 @@ New-Item -ItemType Directory -Force -Path $addons, $home8 | Out-Null
 
 if (-not (Test-Path $backup)) { Copy-Item $csproj $backup -Force; "backed up NinjaTrader.Custom.csproj" }
 
+$copied = @()
 foreach ($s in $sources) {
     Copy-Item (Join-Path $repo "nt\addon\$s") (Join-Path $addons $s) -Force
+    $copied += $s
     "copied $s"
 }
 if ($WithSoak) {
     foreach ($s in $soakSources) {
         Copy-Item (Join-Path $repo "nt\soak\$s") (Join-Path $addons $s) -Force
+        $copied += $s
         "copied $s  (soak suite)"
     }
 }
 if ($WithBots) {
     foreach ($s in $botSources) {
         Copy-Item (Join-Path $repo "nt\bots\$s") (Join-Path $addons $s) -Force
+        $copied += $s
         "copied $s  (test bots - THESE SEND FILLABLE ORDERS)"
     }
     New-Item -ItemType Directory -Force -Path (Join-Path $ntUser "deadman-guardian-bots") | Out-Null
     "created deadman-guardian-bots\ (gates, sandbox runs and reports live there)"
 }
 Copy-Item $coreDll (Join-Path $custom "GuardianCore.dll") -Force
+$copied += "GuardianCore.dll"
 "copied GuardianCore.dll"
 
 $xml = Get-Content $csproj -Raw
@@ -116,8 +161,10 @@ if ($toAdd -ne "") {
     # Replacing the anchor alone left the first inserted entry double-indented - visible on line
     # 86 of the installed project file after the -WithBots run of 2026-08-21.
     $xml = $xml -replace ('(?m)^[ \t]*' + [regex]::Escape($compileAnchor)), ($toAdd + $indent + $compileAnchor)
-    # $added, not $allSources: naming the ones already present would claim work never done, which is
-    # rule 5 of the spec applied to the console. A message that overstates is a message that lies.
+    # $added, not $allSources: naming the ones already present would claim work never done. A message
+    # that overstates is a message that lies, and this one is read by someone deciding whether to trust
+    # the install. (An earlier version of this comment cited "SPEC section 4 rule 5" for that; rule 5 is
+    # about currency denomination. The principle stands on its own and needed no borrowed authority.)
     "added <Compile> entries for: $($added -join ', ')"
 }
 else { "no <Compile> entries to add: all $($allSources.Count) were already listed" }
@@ -165,6 +212,35 @@ $state   = (Join-Path $home8 "state.json")   -replace '\\', '\\\\'
 # the guardian shows NOT PROTECTED and refuses to arm - which is the correct state, not a fault.
 if (Test-Path (Join-Path $home8 "config.json")) { "config.json already exists, left untouched" }
 else { "no config.json: the guardian will start NOT PROTECTED until you write one" }
+
+# ---------------------------------------------------------------- what actually changed
+# The confirmation belongs on THIS screen. Requiring a second command to find out whether the first
+# one worked is how an operator ends up believing an install that never happened.
+$deployedDll  = Join-Path $custom "GuardianCore.dll"
+$deployedHash = (Get-FileHash $deployedDll -Algorithm SHA256).Hash.Substring(0, 16).ToLower()
+$builtHash    = (Get-FileHash $coreDll     -Algorithm SHA256).Hash.Substring(0, 16).ToLower()
+$bar2 = "=" * 76
+
+""
+$bar2
+"  INSTALLED - " + $copied.Count + " file(s) copied:"
+foreach ($c in $copied) { "      " + $c }
+""
+"  GuardianCore.dll now deployed : " + $deployedHash
+"  the build it was copied from  : " + $builtHash
+if ($deployedHash -eq $builtHash) {
+    "  MATCH - the deployed binary is the one you just built."
+} else {
+    Write-Host "  *** MISMATCH - the copy did NOT take. Do not compile, do not continue. ***" -ForegroundColor Red
+}
+""
+"  Those 16 characters are the same value a certificate reports as issuer.buildHash."
+"  Note what does NOT verify this: the NinjaTrader Log line"
+"      Vendor assembly 'GuardianCore' version='0.1.0.0' loaded"
+"  0.1.0.0 is the AssemblyVersion and is identical in every build ever made. It tells"
+"  you something loaded. It cannot tell you WHICH."
+$bar2
+if ($deployedHash -ne $builtHash) { exit 3 }
 
 ""
 "Installed - but NOT yet compiled. NinjaTrader compiles NinjaScript on demand, not at"
