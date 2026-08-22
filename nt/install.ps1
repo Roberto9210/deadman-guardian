@@ -95,18 +95,32 @@ Copy-Item $coreDll (Join-Path $custom "GuardianCore.dll") -Force
 $xml = Get-Content $csproj -Raw
 
 $compileAnchor = '<Compile Include="Indicators\%40DetrendedPriceOscillator.cs" />'
+# Use the ANCHOR LINE'S OWN indentation for the entries we insert, instead of hardcoding tabs.
+# Two reasons: the project file keeps one indentation style, and the anchor line is not ours
+# to reformat.
+$indent = "`t`t"
+$anchorMatch = [regex]::Match($xml, '(?m)^([ \t]*)' + [regex]::Escape($compileAnchor))
+if ($anchorMatch.Success) { $indent = $anchorMatch.Groups[1].Value }
+
 $toAdd = ""
+$added = @()
 $allSources = $sources
 if ($WithSoak) { $allSources += $soakSources }
 if ($WithBots) { $allSources += $botSources }
 foreach ($s in $allSources) {
     $entry = '<Compile Include="AddOns\' + $s + '" />'
-    if ($xml -notmatch [regex]::Escape($entry)) { $toAdd += "`t`t$entry`r`n" }
+    if ($xml -notmatch [regex]::Escape($entry)) { $toAdd += "$indent$entry`r`n"; $added += $s }
 }
 if ($toAdd -ne "") {
-    $xml = $xml -replace [regex]::Escape($compileAnchor), ($toAdd + "`t`t" + $compileAnchor)
-    "added <Compile> entries for: $($allSources -join ', ')"
+    # The match CONSUMES the anchor's leading whitespace and the replacement puts it back once.
+    # Replacing the anchor alone left the first inserted entry double-indented - visible on line
+    # 86 of the installed project file after the -WithBots run of 2026-08-21.
+    $xml = $xml -replace ('(?m)^[ \t]*' + [regex]::Escape($compileAnchor)), ($toAdd + $indent + $compileAnchor)
+    # $added, not $allSources: naming the ones already present would claim work never done, which is
+    # rule 5 of the spec applied to the console. A message that overstates is a message that lies.
+    "added <Compile> entries for: $($added -join ', ')"
 }
+else { "no <Compile> entries to add: all $($allSources.Count) were already listed" }
 
 # NinjaTrader IGNORES a <Reference> appended in an ItemGroup of your own with a relative HintPath -
 # established the hard way, see STEP3_FINDINGS.md section 9. The entry its own References dialog writes

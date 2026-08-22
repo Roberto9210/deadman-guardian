@@ -12,9 +12,16 @@ namespace GuardianCore
 
         public static string Sha256Hex(string utf8Text)
         {
+            return Sha256Hex(new UTF8Encoding(false).GetBytes(utf8Text));
+        }
+
+        /// <summary>The same digest over raw bytes, for input that is not text. Split out rather than
+        /// duplicated so the assembly keeps ONE SHA-256 implementation: a second one is a second thing
+        /// that can drift, and both feed values a stranger is invited to recompute.</summary>
+        public static string Sha256Hex(byte[] bytes)
+        {
             using (var sha = SHA256.Create())
             {
-                var bytes = new UTF8Encoding(false).GetBytes(utf8Text);
                 var hash = sha.ComputeHash(bytes);
                 var sb = new StringBuilder(hash.Length * 2);
                 foreach (var b in hash) sb.Append(b.ToString("x2", CultureInfo.InvariantCulture));

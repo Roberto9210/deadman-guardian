@@ -67,6 +67,23 @@ namespace GuardianCore.Tests
             Assert.Equal(16, IssuerIdentity.BuildHashOf(a).Length);
         }
 
+        /// <summary>The published definition, pinned. Every other buildHash test is behavioural -
+        /// deterministic, sensitive, not-a-path - and all of them passed while the implementation
+        /// hashed the base64 TEXT of the bytes instead of the bytes. A field a stranger is invited to
+        /// recompute needs its exact formula under test, or the documentation is the only thing
+        /// holding it and documentation does not fail a build.</summary>
+        [Fact]
+        public void Build_hash_is_exactly_the_first_16_hex_of_sha256_over_the_bytes()
+        {
+            var bytes = Encoding.UTF8.GetBytes("whatever bytes a build happens to have");
+
+            // What CERT_CONFORMANCE.md tells a third party to run, expressed in code.
+            var expected = Hashing.Sha256Hex(bytes).Substring(0, 16);
+
+            Assert.Equal(expected, IssuerIdentity.BuildHashOf(bytes));
+            Assert.Matches("^[0-9a-f]{16}$", IssuerIdentity.BuildHashOf(bytes));
+        }
+
         [Fact]
         public void A_single_changed_byte_changes_the_build_hash()
         {

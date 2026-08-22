@@ -44,19 +44,33 @@ namespace GuardianCore
             return text == "0.0.0.0" || text == "1.0.0.0" ? null : text;
         }
 
-        /// <summary>A real build fingerprint: SHA-256 over the assembly's own bytes, first 16 hex
-        /// characters. Two builds differ here if and only if their code differs.
+        /// <summary>A build fingerprint: SHA-256 over the assembly bytes exactly as given, first 16
+        /// hex characters, lowercase. No normalisation of any kind - the PE header, its timestamp and
+        /// the MVID are all hashed along with the code.
         ///
-        /// The CALLER supplies the bytes. GuardianCore performs no file I/O anywhere - every
-        /// other read and write goes through an injected IFileStore - and reading a file here to
-        /// save the caller four lines would break that invariant for a cosmetic field.
+        /// WHAT THIS FIELD ANSWERS, said precisely because a certificate is read by someone who does
+        /// not trust us: "is this the same binary I was given?" - NOT "was this built from the same
+        /// source?". Two builds of identical source normally differ here, because the toolchain writes
+        /// a fresh MVID and timestamp into the PE header. A reader comparing two certificates learns
+        /// that the binaries differ; they do not learn that the code did.
+        ///
+        /// The definition is deliberately the one a stranger reaches for first:
+        ///     sha256sum GuardianCore.dll | cut -c1-16
+        /// An earlier version hashed the base64 TEXT of the bytes, which produced a value nobody could
+        /// reproduce without knowing the quirk - so anyone running the obvious command saw a mismatch
+        /// and had every reason to conclude the field was a lie. A check that raises false alarms is
+        /// worse than one nobody runs.
+        ///
+        /// The CALLER supplies the bytes. GuardianCore performs no file I/O anywhere - every other
+        /// read and write goes through an injected IFileStore - and reading a file here to save the
+        /// caller four lines would break that invariant for a cosmetic field.
         ///
         /// Returns null for null or empty input, so an unreadable assembly omits the field rather
         /// than publishing the hash of nothing.</summary>
         public static string BuildHashOf(byte[] assemblyBytes)
         {
             if (assemblyBytes == null || assemblyBytes.Length == 0) return null;
-            return Hashing.Sha256Hex(Convert.ToBase64String(assemblyBytes)).Substring(0, 16);
+            return Hashing.Sha256Hex(assemblyBytes).Substring(0, 16);
         }
     }
 }

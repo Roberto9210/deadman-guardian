@@ -107,13 +107,50 @@ Se repite acá porque un statement de conformidad es el lugar donde más tienta 
 - **L3 no dice «lo emitió deadman-guardian».** Ver C15b arriba. Cualquier página que lo insinúe está
   mintiendo.
 
+## `issuer.buildHash` — definición exacta y cómo recomputarlo
+
+Un campo que existe para ser contradicho tiene que ser recomputable por quien no nos cree, con una
+herramienta que ya tiene. La definición es, entonces, la que un extraño busca primero:
+
+```
+buildHash = HEX(SHA-256(bytes_del_archivo))[0:16]      en minúsculas
+```
+
+- `bytes_del_archivo`: el `GuardianCore.dll` completo, byte por byte, **sin normalización de ningún
+  tipo** — la cabecera PE, su timestamp y el MVID entran al hash junto con el código.
+- `[0:16]`: los primeros 16 de los 64 caracteres hexadecimales.
+
+Una línea, cualquiera de las dos:
+
+```
+sha256sum GuardianCore.dll | cut -c1-16
+(Get-FileHash GuardianCore.dll -Algorithm SHA256).Hash.Substring(0,16).ToLower()
+```
+
+Verificado contra el emisor real el 21-ago-2026: el código devolvió `7cc9a56217c62681` y `sha256sum`
+devolvió `7cc9a56217c62681`. La fórmula está fijada por
+`C_IssuerIdentityTests.Build_hash_is_exactly_the_first_16_hex_of_sha256_over_the_bytes`, no sólo por
+este párrafo: la documentación no rompe un build.
+
+**Qué responde y qué no.** Responde *«¿es el mismo binario que me dieron?»*. **No** responde *«¿se
+compiló del mismo código?»*: dos builds del mismo fuente normalmente difieren acá, porque el toolchain
+escribe un MVID y un timestamp nuevos en la cabecera PE. Quien compare dos certificados aprende que los
+binarios difieren; no aprende que difiera el código.
+
+**Historial, porque explica la forma.** Hasta el 21-ago-2026 la implementación hasheaba el **texto
+base64** de los bytes. Era determinista y era sensible — los tests de comportamiento pasaban todos —
+pero producía un valor que nadie podía reproducir sin conocer la rareza: quien corriera el comando obvio
+veía que no coincidía y tenía todos los motivos para concluir que el campo era mentira. **Una
+verificación que da falsas alarmas es peor que una que nadie corre.** Se quitó el día que costaba menos:
+sin base instalada, sin certificados de terceros en circulación.
+
 ---
 
 ## Reproducirlo
 
 ```
 cd deadman          && python -m pytest tests/test_c_certificate.py -q    # 42
-cd deadman-guardian && dotnet test                                        # 165 (28 del emisor)
+cd deadman-guardian && dotnet test                                        # 175 (29 del emisor)
 ```
 
 Y el certificado real, contradecible por cualquiera con el paquete público:
