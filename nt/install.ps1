@@ -32,7 +32,12 @@ $soakSources = @("SoakSandbox.cs", "DeadmanGuardianSoak.cs")
 # fillable order; the BOTS EXIST TO SEND THEM. Bot A loses money on purpose until the guardian
 # locks out, and a lockout calls the account-wide Flatten. That belongs on a soak machine and
 # nowhere else, so it never installs unless you ask for it by name.
-$botSources  = @("BotGuardrails.cs", "DeadmanBotA.cs", "DeadmanBotB.cs")
+# Shared by the soak AND the bots since 2026-08-22: the soak prints Account.All through the same
+# mapping (BotSafety.FactsOf) and the same formatter (BotAccountRule.Describe) the bots decide
+# with. That is the point - a second dialect of the same line is a second thing to get wrong, and
+# the printed line is the only verification the mapping gets. So -WithSoak now needs them too.
+$botShared   = @("BotAccountRule.cs", "BotGuardrails.cs")
+$botSources  = @("DeadmanBotA.cs", "DeadmanBotB.cs")
 # net48, NOT netstandard2.0: NinjaTrader's in-process compiler has no 'netstandard' facade in its
 # reference set, so a netstandard2.0 assembly loads at runtime and fails at compile time.
 $coreDll = Join-Path $repo "src\GuardianCore\bin\Release\net48\GuardianCore.dll"
@@ -84,7 +89,7 @@ if (-not (Test-Path $csproj)) { throw "not found: $csproj" }
 
 # ---------------------------------------------------------------- uninstall
 if ($Uninstall) {
-    foreach ($s in ($sources + $soakSources + $botSources)) {
+    foreach ($s in ($sources + $soakSources + $botShared + $botSources)) {
         $p = Join-Path $addons $s
         if (Test-Path $p) { Remove-Item $p -Force; "removed $s" }
     }
@@ -116,6 +121,14 @@ foreach ($s in $sources) {
     Copy-Item (Join-Path $repo "nt\addon\$s") (Join-Path $addons $s) -Force
     $copied += $s
     "copied $s"
+}
+if ($WithSoak -or $WithBots) {
+    # The shared pair goes in for either switch, once.
+    foreach ($s in $botShared) {
+        Copy-Item (Join-Path $repo "nt\bots\$s") (Join-Path $addons $s) -Force
+        $copied += $s
+        "copied $s  (shared: account rail + guardrails)"
+    }
 }
 if ($WithSoak) {
     foreach ($s in $soakSources) {
@@ -150,8 +163,10 @@ if ($anchorMatch.Success) { $indent = $anchorMatch.Groups[1].Value }
 $toAdd = ""
 $added = @()
 $allSources = $sources
+if ($WithSoak -or $WithBots) { $allSources += $botShared }
 if ($WithSoak) { $allSources += $soakSources }
 if ($WithBots) { $allSources += $botSources }
+$allSources = $allSources | Select-Object -Unique   # a file listed twice would get two <Compile> entries
 foreach ($s in $allSources) {
     $entry = '<Compile Include="AddOns\' + $s + '" />'
     if ($xml -notmatch [regex]::Escape($entry)) { $toAdd += "$indent$entry`r`n"; $added += $s }

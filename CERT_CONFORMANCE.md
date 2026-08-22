@@ -150,7 +150,7 @@ sin base instalada, sin certificados de terceros en circulación.
 
 ```
 cd deadman          && python -m pytest tests/test_c_certificate.py -q    # 42
-cd deadman-guardian && dotnet test                                        # 175 (29 del emisor)
+cd deadman-guardian && dotnet test                                        # 192 (29 del emisor, 17 del riel de cuenta)
 ```
 
 Y el certificado real, contradecible por cualquiera con el paquete público:

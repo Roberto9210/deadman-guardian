@@ -65,45 +65,91 @@ namespace NinjaTrader.NinjaScript.AddOns.DeadmanGuardian
     {
         public const string TargetAccount = "Sim101";
 
-        /// <summary>Nothing runs until the account is PROVEN to be the simulator. Copied in shape from
-        /// DeadmanGuardianSoak.VerifyAccount - the bots send orders that can fill, so if anything the
-        /// bar is higher here, never lower.</summary>
-        public static Account VerifyAccount(Action<string> note)
+        /// <summary>THE MAPPING, and it is now the only untested part of this rail.
+        ///
+        /// Extracting the decision into BotAccountRule made the decision testable and moved the blind
+        /// spot here: read the wrong property and the pure rule stays green while the product fails.
+        /// The verification is the soak's Account.All line, which prints exactly these three fields on
+        /// every run - so a mapping change collides with a real, dated run rather than with nobody.
+        ///
+        /// Connection follows NtAccountFeed.GetState verbatim rather than inventing a second dialect:
+        /// a null Connection is "present, not yet connected" = Disconnected (established at runtime,
+        /// nt/STEP3_FINDINGS.md), and only a THROW is Unknown. Unknown is never collapsed into
+        /// Disconnected, because that would be the optimistic default.</summary>
+        public static AccountFacts FactsOf(Account a)
         {
-            var all = new List<Account>();
-            try { all = Account.All.ToList(); }
-            catch (Exception ex) { note("ABORT: Account.All threw: " + ex.Message); return null; }
+            if (a == null) return new AccountFacts("?", "?", ConnState.Unknown);
 
-            note("Account.All = [" + string.Join(", ", all.Select(a => a.Name + "/" + SafeProvider(a))) + "]");
+            string name;
+            try { name = a.Name; } catch { name = null; }
 
-            var matches = all.Where(a => string.Equals(a.Name, TargetAccount, StringComparison.Ordinal)).ToList();
-            if (matches.Count != 1)
-            {
-                note("ABORT: expected exactly one '" + TargetAccount + "', found " + matches.Count);
-                return null;
-            }
+            var provider = SafeProvider(a);
 
-            var account = matches[0];
-
-            var provider = SafeProvider(account);
-            if (provider != Provider.Simulator.ToString())
-            {
-                note("ABORT: Provider=" + provider + ", not Simulator");
-                return null;
-            }
-
+            ConnState conn;
             try
             {
-                if (account.Connection == null || account.ConnectionStatus != ConnectionStatus.Connected)
-                {
-                    note("ABORT: account not connected (" + SafeConnection(account) + ")");
-                    return null;
-                }
+                if (a.Connection == null) conn = ConnState.Disconnected;
+                else if (a.ConnectionStatus == ConnectionStatus.Connected) conn = ConnState.Connected;
+                else conn = ConnState.Disconnected;
             }
-            catch (Exception ex) { note("ABORT: connection check threw: " + ex.Message); return null; }
+            catch { conn = ConnState.Unknown; }
 
-            note("verified " + TargetAccount + " Provider=Simulator, Connected");
-            return account;
+            return new AccountFacts(name, provider, conn);
+        }
+
+        /// <summary>Every account the platform knows about, projected. Returns null - not an empty
+        /// list - when the platform itself cannot be asked, so "nothing is there" and "we could not
+        /// look" stay different answers.</summary>
+        public static List<AccountFacts> Snapshot(Action<string> note)
+        {
+            try { return Account.All.Select(FactsOf).ToList(); }
+            catch (Exception ex)
+            {
+                if (note != null) note("ABORT: Account.All threw: " + ex.Message);
+                return null;
+            }
+        }
+
+        /// <summary>Nothing runs until the whole session is proven safe - not just the target account.
+        /// A thin adapter over BotAccountRule.Decide: it reads the world, prints what it saw, and
+        /// returns the real Account only if the rule allowed it. No decision of its own.</summary>
+        public static Account VerifyAccount(Action<string> note)
+        {
+            var facts = Snapshot(note);
+            if (facts == null) return null;
+
+            note(BotAccountRule.Describe(facts));
+
+            var verdict = BotAccountRule.Decide(facts, TargetAccount);
+            if (!verdict.Allowed)
+            {
+                note("ABORT: " + verdict.Reason);
+                return null;
+            }
+
+            Account chosen = null;
+            try
+            {
+                chosen = Account.All.FirstOrDefault(a =>
+                    string.Equals(SafeName(a), verdict.Chosen, StringComparison.Ordinal));
+            }
+            catch (Exception ex) { note("ABORT: re-reading Account.All threw: " + ex.Message); return null; }
+
+            if (chosen == null)
+            {
+                // The list changed between the snapshot and now. Refuse rather than re-decide on a
+                // world we did not evaluate.
+                note("ABORT: '" + verdict.Chosen + "' disappeared between the check and the pick");
+                return null;
+            }
+
+            note("verified " + verdict.Chosen + " Provider=" + SafeProvider(chosen) + ", Connected");
+            return chosen;
+        }
+
+        private static string SafeName(Account a)
+        {
+            try { return a.Name; } catch { return null; }
         }
 
         /// <summary>An instrument the feed actually serves. Nothing is assumed to exist by name.</summary>

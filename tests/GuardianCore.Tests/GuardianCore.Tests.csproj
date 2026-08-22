@@ -24,4 +24,11 @@
     <ProjectReference Include="..\..\src\GuardianCore\GuardianCore.csproj" />
   </ItemGroup>
 
+  <!-- The bots' account rule, compiled in by link. It is pure C# with no NinjaTrader reference (that
+       is the whole reason it was extracted), so it can be tested here with no platform, no account
+       and no connection - the same terms as every other test in this project. -->
+  <ItemGroup>
+    <Compile Include="..\..\nt\bots\BotAccountRule.cs" Link="Bots\BotAccountRule.cs" />
+  </ItemGroup>
+
 </Project>

@@ -145,7 +145,12 @@ namespace NinjaTrader.NinjaScript.AddOns
         private Account VerifyAccount()
         {
             var matches = Account.All.Where(a => string.Equals(a.Name, TargetAccount, StringComparison.Ordinal)).ToList();
-            Note("Account.All = [" + string.Join(", ", Account.All.Select(a => a.Name + "/" + SafeProvider(a))) + "]");
+            // ONE formatter and ONE mapping, shared with the bots' rail (BotAccountRule.Describe /
+            // BotSafety.FactsOf). Until 2026-08-22 this line printed Name/Provider only, so it read the
+            // same whether or not the funded account was reachable - and it was being used to answer
+            // exactly that question. The third field is the connection state.
+            var facts = BotSafety.Snapshot(Note);
+            Note(BotAccountRule.Describe(facts));
 
             if (matches.Count != 1) { Note("ABORT: expected exactly one '" + TargetAccount + "', found " + matches.Count); return null; }
             var a2 = matches[0];

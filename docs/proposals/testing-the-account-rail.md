@@ -1,6 +1,11 @@
 # Propuesta — probar que el riel de cuenta rechaza la cuenta fondeada, sin conectarla
 
-**Estado: propuesta. Nada implementado.** Pedido explícito: una **prueba**, no un argumento, de que
+**Estado: IMPLEMENTADO el 2026-08-22.** Queda como registro de por qué la forma es ésta.
+Lo que sigue describe lo que existe: `nt/bots/BotAccountRule.cs` (puro), `BotSafety.FactsOf` +
+`BotSafety.Snapshot` (el adaptador), `tests/GuardianCore.Tests/Bots_AccountRuleTests.cs` (17
+aserciones dentro de las **192** que corren sin plataforma).
+
+**Original:** Pedido explícito: una **prueba**, no un argumento, de que
 `BotSafety.VerifyAccount` rechaza `2127534`. Y sin ponerla en línea para averiguarlo.
 
 ## Por qué hoy no se puede probar
@@ -171,16 +176,33 @@ sea visible contra una corrida real:
 |---|---|---|
 | nombre | `Account.Name`, comparado con `StringComparison.Ordinal` | **sí** — lo que va antes de la `/` |
 | proveedor | `Account.Provider.ToString()` (vía `SafeProvider`) | **sí** — lo que va después de la `/` |
-| conexión | `Account.Connection == null` y `Account.ConnectionStatus != Connected` | **NO** |
+| conexión | `Account.Connection == null` ⇒ `Disconnected`; `ConnectionStatus == Connected` ⇒ `Connected`; **una excepción ⇒ `Unknown`** | **sí, desde 2026-08-22** |
 
-**Y ahí está el hueco que este mismo análisis destapa:** de los tres campos que deciden, la línea sólo
-publica dos. El estado de conexión se lee y no se imprime, así que un error de mapeo *en ese campo* no
-sería visible en ninguna corrida pasada ni futura. Es medio adaptador probado, presentado como
-adaptador probado.
+**El hueco que este análisis destapó, ya cerrado.** Hasta el 2026-08-22 la línea publicaba sólo dos de
+los tres campos: el estado de conexión se leía y no se imprimía, así que un error de mapeo *en ese
+campo* no habría sido visible en ninguna corrida, pasada ni futura. Medio adaptador probado,
+presentado como adaptador probado — y peor: **la línea se estaba usando para decidir si arrancaba un
+bot que pierde a propósito, y devolvía lo mismo estuviera la cuenta fondeada conectada o no.**
 
-Se arregla con un carácter por cuenta: que la línea pase a
-`Sim101/Simulator/Connected`. Entonces la evidencia que ya se genera sola cubre **los tres**, y
-cualquier cambio de mapeo choca contra 16 corridas de historia.
+Ahora imprime los tres:
+
+```
+Account.All = [Backtest/Simulator/Disconnected, Playback101/Playback/Disconnected,
+               Sim101/Simulator/Connected, 2127534/Provider31/Disconnected]
+```
+
+Un solo formateador (`BotAccountRule.Describe`) y un solo mapeo (`BotSafety.FactsOf`), compartidos por
+el soak y por los bots: por eso `install.ps1 -WithSoak` ahora también instala los dos archivos
+compartidos. Un segundo dialecto de esta línea sería una segunda cosa que puede equivocarse, y esta
+línea es toda la verificación que el mapeo tiene.
+
+El formato está fijado por un test (`The_printed_line_carries_all_three_fields_including_connection`),
+así que cambiarlo tiene que pasar por delante de una aserción en vez de por delante de nadie.
+
+**Lo que sigue sin unificarse, dicho para que no sorprenda:** el soak conserva su propio
+`VerifyAccount` para su propia cuenta. No usa `BotAccountRule`, y es deliberado: el soak sólo envía
+órdenes inllenables, así que su vara es más baja a propósito. Si alguna vez el soak enviara algo
+llenable, esa excepción deja de valer.
 
 ## Por qué no una prueba de integración
 
