@@ -133,6 +133,38 @@ print("chain OK")
 
 ---
 
+## Verifying the install actually took
+
+Two checks, and they do **different** jobs. Reading only the first one is how you end up confidently
+running the old binary.
+
+**1. Did it load, and did it compile?** In the Control Center Log after pressing F5:
+
+```
+Vendor assembly 'GuardianCore' version='0.1.0.0' loaded.
+```
+
+That line, plus the absence of NinjaScript compile errors, tells you **that something loaded**. It does
+**not** tell you *which* build: `0.1.0.0` is the `AssemblyVersion`, and it is **identical in every build
+of GuardianCore ever made**. It does not move when the code changes. A reader who stops here has
+verified nothing about the version they are running.
+
+**2. Which build is it?** Compare the deployed file against the one you meant to deploy:
+
+```
+sha256sum "$USERPROFILE/Documents/NinjaTrader 8/bin/Custom/GuardianCore.dll" | cut -c1-16
+sha256sum src/GuardianCore/bin/Release/net48/GuardianCore.dll                | cut -c1-16
+```
+
+Equal means the deployed binary is the one you built. **This is the only check that discriminates**,
+and it is the same 16 characters that appear as `issuer.buildHash` in a certificate
+([`CERT_CONFORMANCE.md`](../CERT_CONFORMANCE.md)).
+
+The distinction is worth stating plainly because it is the defect this project keeps finding in other
+places: *a check that returns the same answer whether or not the thing under test changed is not a
+check.* A soak that passed with an impossible reference price, a gate file that reported "clean"
+without reading anything, and `version='0.1.0.0'` are the same animal.
+
 ## What the installer changes on your machine
 
 Everything, in one list, so uninstalling is not an act of faith:

@@ -91,6 +91,36 @@ Las condiciones, porque un seam nuevo es superficie nueva:
   lockout. Es *best-effort* y nunca portante — escribirlo en el contrato, no confiarlo al llamador;
 - §14 de la SPEC (la lista de seams) pasa a nombrarlo.
 
+### Best-effort no puede significar invisible
+
+Tragarse la excepción y seguir es **la misma forma otra vez**: un camino que falla sin dejar rastro. Y
+ahora hay una afirmación de producto encima — *"el guardián te explica lo que pasó"* — sostenida por un
+callback que puede no haber corrido nunca sin que nadie se entere. **Cero fallas de notificación tiene
+que ser un hecho comprobable, no una suposición.**
+
+Y hay una trampa propia: si el manejador de la falla appendeara al ledger para dejar constancia,
+estaría appendeando **desde adentro del append**, con recursión en la ruta crítica del lockout. La
+solución no puede vivir en el mismo lugar que el problema. Entonces:
+
+1. **La falla se cuenta, no se registra en el momento.** El `Ledger` incrementa un contador y no hace
+   nada más dentro de la notificación. Sin I/O, sin recursión, sin demora.
+2. **Guarda de reentrada de todos modos**, no sólo por este camino: un flag por hilo que salte la
+   notificación si ya estamos dentro de una. Un observador que appendea es un bug del observador, pero
+   el ledger no puede recursar por culpa de un bug ajeno.
+3. **El `Tick` siguiente publica el conteo**, fuera de la ruta del append: si el contador es mayor que
+   cero, se escribe un evento `NOTIFY_FAILED` con `count` y se resetea. Es una línea más del ledger, con
+   su hash, encadenada como todo lo demás.
+4. **El reporte del día lo muestra** aunque sea cero, porque un cero que sólo aparece cuando hay algo
+   que contar no es un cero verificado.
+5. **El certificado no gana ningún campo nuevo.** `NOTIFY_FAILED` es un evento del ledger, así que el
+   verificador lo cuenta como cuenta todo lo demás — misma regla que la cobertura de continuidad: si lo
+   computa el verificador es una cantidad verificada; si lo publica el emisor es una cantidad afirmada.
+   Lo único que cambia es §12, el catálogo de eventos, que gana una fila.
+
+Nada de esto vuelve portante al observador. Un lockout con las tres notificaciones fallidas sigue
+cancelando, aplanando y quedando `LOCKED`: lo único que se pierde es la explicación — y esa pérdida
+queda escrita, fechada y encadenada, en vez de desaparecer.
+
 **Alternativa sin tocar Core**, por si el costo no se acepta: el mensaje 1 en la primera línea de
 `CancelAllOrders`, en futuro. Es igual de honesto — ahí tampoco se canceló nada todavía — y precede al
 mensaje de NinjaTrader, sólo que con menos margen. Lo que **no** funciona es el mensaje 2 desde ahí: el

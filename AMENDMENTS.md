@@ -126,6 +126,33 @@ into something that keeps a trader in a trade past their own limit — the exact
 to remove. Kept as a v2 candidate with both objections attached, so whoever picks it up inherits the reasons
 instead of rediscovering them.
 
+## A10 — user-facing text is single-source, like the hash function
+
+**What the spec did not settle:** nothing about wording. It is about code, and this looked like an
+editorial matter until it produced a defect.
+
+**What happened.** The lockout explanation was drafted for the Log. Further down the same document, an
+older draft of the same explanation survived for the status window — and it still contained an
+overclaim that had been corrected one paragraph above it: a promise that the trader *"cannot trade
+again until 17:00"*, which §17 explicitly denies. Two versions of one sentence, in one file, and the
+wrong one had outlived its own correction because nobody re-read the paragraph below.
+
+**Decision: the strings a user reads are a single source, consumed by every surface that shows them.**
+The Log and the status window take the *same two strings*. Not similar ones, not adapted ones — the
+same. A surface that needs different wording is a signal that the wording is wrong, not that it needs
+a variant.
+
+**Why, in one line:** it is exactly the rule already applied to `Hashing.Sha256Hex`, where the string
+overload delegates to the byte overload so the assembly keeps **one** SHA-256 implementation, because
+a second one is a second thing that can drift. Prose drifts faster than code and nothing compiles it,
+so it needs the rule *more*, not less. The version that drifts will be the one a user reads on the
+worst day they will have with this product.
+
+**How it fails if ignored:** silently, and asymmetrically. Two copies do not diverge all at once — one
+gets corrected and the other does not, so the surviving copy is by construction the *stale* one. The
+next person who wants to "adapt the message a little for the window" reintroduces the defect without
+knowing, which is why this is written as a rule rather than left as an anecdote about one commit.
+
 ## Where each one landed in v0.4
 
 *A9 is applied directly to §17.5 of v0.4 and will be folded into the version history at v0.5.*
@@ -140,5 +167,6 @@ instead of rediscovering them.
 | A6 clock unknown may not self-clear | §10 | — |
 | A7 `MaxFlattenAttempts` = 3, retry on the tick | §9 step 4 | — |
 | A8 `LOCKED` outranks `FAIL_CLOSED` | §8 | — |
+| A10 single-source user-facing text | **pending** — raised after v0.4, alongside the lockout message work | yes: the failure mode is that the *stale* copy is the survivor |
 
 *Written during Step 2, 19 August 2026, against SPEC v0.3. Absorbed into SPEC v0.4 on 20 August 2026.*
