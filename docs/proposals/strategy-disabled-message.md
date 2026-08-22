@@ -48,6 +48,65 @@ de un fallo de producto, aunque el mecanismo sea perfecto.
 Y hay un matiz peor: el mensaje **no es un error**. Es informativo, categoría `Default`. O sea que
 tampoco va a estar destacado entre los errores rojos que un usuario mira cuando algo sale mal.
 
+## El orden importa más que el texto
+
+**El Log se lee de arriba hacia abajo.** Si `Disabling NinjaScript strategy` aparece primero, el usuario
+ya sacó su conclusión antes de llegar a la explicación; una aclaración que llega después no corrige
+nada, porque nadie sigue leyendo después de entender.
+
+El guardián sabe que va a aplanar **un instante antes** de aplanar, así que la ventana existe. Los
+llamados de cuenta entera salen del adaptador — `NtBrokerActions.CancelAllOrders` y `.Flatten`
+(`nt/addon/GuardianPorts.cs`) — y el guardián sólo los invoca durante un lockout. **La primera línea de
+`CancelAllOrders` es el punto más temprano que garantiza preceder al mensaje de NinjaTrader**, porque
+la secuencia del lockout cancela antes de aplanar (`ORDERS_CANCELLED` → `FLATTEN_REQUESTED` en el
+ledger). Con un flag para anunciar una vez por lockout y no una vez por llamado.
+
+Antes de anunciar, el adaptador puede **enumerar las estrategias que están por caer**: `Account.Strategies`
+existe (verificado por reflexión sobre `NinjaTrader.Core`). Nombrarlas es la diferencia entre una
+explicación genérica y una que el usuario reconoce como suya.
+
+## Dónde escribirlo para que no se pierda
+
+`NinjaScript.Log(string, LogLevel)` y `Cbi.Log.Process(Type, string, object[], LogLevel, LogCategories)`
+existen (verificado por reflexión). Los valores disponibles:
+
+- `LogLevel`: **Alert**, Information, Warning, Error
+- `LogCategories`: Ati, Connection, **Default**, Execution, NinjaScript, Order, Position, Strategy,
+  **Account**, LicenseManagement, DB, System, User
+
+El mensaje de NinjaTrader sale como `LogLevel` informativo y `Category = "Default"`. Para no quedar
+enterrado al lado, el del guardián va con **`LogLevel.Alert`** — el nivel más alto y el más raro, o sea
+el que sobrevive a cualquier filtro que alguien ponga cuando algo sale mal — y **`LogCategories.Account`**,
+que es lo que la acción realmente es: algo que le pasó a la cuenta entera, no a una estrategia.
+
+*No verificado*: cómo se renderiza exactamente esa combinación en la pestaña Log. La API existe; su
+apariencia hay que mirarla en pantalla antes de darla por buena.
+
+## El texto exacto
+
+En castellano llano, sin una sola palabra de jerga del producto — ni "lockout", ni "sello", ni "fail
+closed", ni números de secuencia:
+
+> **LÍMITE DIARIO ALCANZADO. El guardián cerró tu día.**
+> Perdiste $612.40 hoy y tu límite era $600. Cancelé 3 órdenes y cerré tus posiciones.
+> NinjaTrader va a apagar solo las estrategias que tenías corriendo (MiEstrategia en MES 09-26). Eso lo
+> hace NinjaTrader por consecuencia de haber cerrado las posiciones: **no es un error, no se rompió
+> nada, y no es un problema de la plataforma.**
+> No vas a poder volver a operar en esta cuenta hasta las 17:00. Esto es lo que pediste que pasara.
+
+Cinco cosas y ninguna de más: qué pasó, con qué números, qué hizo el guardián, qué va a hacer
+NinjaTrader y por qué no es un fallo, y hasta cuándo. La última línea es la más importante de todas:
+le recuerda que esto lo eligió él, en un momento en que va a estar buscando a quién culpar.
+
+Equivalente en inglés, que es el idioma en el que NinjaTrader escribe el resto del Log:
+
+> **DAILY LOSS LIMIT REACHED. The guardian has closed your day.**
+> You are down $612.40 today and your limit was $600. I cancelled 3 orders and closed your positions.
+> NinjaTrader will now switch off the strategies you had running (MyStrategy on MES 09-26). It does
+> that because the positions were closed from outside them: **this is not an error, nothing is broken,
+> and it is not a platform problem.**
+> You cannot trade this account again until 17:00. This is what you asked for.
+
 ## Qué haría, sin implementarlo todavía
 
 El guardián ya tiene una ventana de estado propia, que es la única superficie donde puede hablar en su

@@ -118,6 +118,34 @@ before an order object exists, and the guardian's config does not watch that acc
 the account rail to get market data would be trading the safety property for convenience, which is the
 one trade this repository does not make.
 
+## What you will see when it fires — read this BEFORE it happens
+
+The lockout is the one moment this product exists for, and on screen it looks alarming if nobody
+warned you. Here is the whole thing, in order.
+
+**1. Your orders get cancelled and your positions get closed.** That is the guardian. Expected.
+
+**2. NinjaTrader switches off every strategy you had running on that account**, and writes this in the
+Control Center Log:
+
+```
+Category = "Default"     Message = "Disabling NinjaScript strategy"
+```
+
+Your strategy flips from **Enabled** to **Disabled** on its own. **This is not an error and nothing is
+broken.** NinjaTrader disables any strategy whose position was closed from outside it, deliberately, so
+the strategy's idea of its position cannot drift from the account's. The guardian closing your
+positions triggers exactly that rule. It is the platform behaving correctly in response to the guardian
+behaving correctly — and today neither of them says so, which is why this paragraph exists.
+
+**3. You cannot enter again until the session reset**, 17:00 in the configured time zone. Re-enabling
+the strategy will not help: the guardian is still `LOCKED` and will cancel and flatten again. That
+repetition is the point — a flatten is one action, a lockout is a standing state.
+
+**What would be a real problem**, as opposed to the above: the guardian NOT locking after the limit was
+breached, a position still open minutes after the lockout, or the state leaving `LOCKED` before the
+session reset. Those are failures. A strategy switching itself off is not.
+
 ## Running them
 
 Both bots compile as NinjaScript AddOns. `dotnet build` of the repo does **not** cover them — they

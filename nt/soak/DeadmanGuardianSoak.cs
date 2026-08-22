@@ -46,6 +46,33 @@ namespace NinjaTrader.NinjaScript.AddOns
         private static readonly string GatePath = Path.Combine(SoakDir, "soak.GO");
         private static readonly string ReportPath = Path.Combine(SoakDir, "REMOJO_REPORT.md");
 
+        /// <summary>Plausibility band for the reference price, by instrument root.
+        ///
+        /// This is NOT a default and it never substitutes a missing value: a reference outside the
+        /// band is replaced by nothing at all. It makes the scenario INVALID, which is a third
+        /// outcome next to PASS and FAIL, and an invalid result is not evidence about the guardian
+        /// in either direction.
+        ///
+        /// It exists because on 2026-08-21 this suite reported 6 of 6 PASS twice in a row with MES
+        /// referenced at 250 while the real level was ~7690. Every assertion held. None of them
+        /// touched the world they claimed to be measuring - the same shape as a gate file that read
+        /// zero characters and reported "clean". A green that depends on nothing is worse than a
+        /// red, because a red gets investigated.
+        ///
+        /// An instrument root that is not listed here is ALSO invalid: plausibility we never
+        /// declared is not plausibility we can judge.</summary>
+        private static readonly Dictionary<string, double[]> ReferenceBands =
+            new Dictionary<string, double[]>(StringComparer.OrdinalIgnoreCase)
+            {
+                { "MES", new[] { 2000.0, 20000.0 } },
+                { "ES",  new[] { 2000.0, 20000.0 } },
+                { "MNQ", new[] { 5000.0, 60000.0 } },
+                { "NQ",  new[] { 5000.0, 60000.0 } },
+            };
+
+        private double _referencePrice;
+        private string _referenceInstrument;
+
         private readonly object _gate = new object();
         private readonly List<Scenario> _results = new List<Scenario>();
         private readonly List<string> _log = new List<string>();
@@ -57,6 +84,7 @@ namespace NinjaTrader.NinjaScript.AddOns
         {
             public string Name;
             public bool Passed;
+            public bool Invalid;
             public string Expected;
             public string Observed;
             public string LedgerChain;
@@ -164,7 +192,10 @@ namespace NinjaTrader.NinjaScript.AddOns
             if (sb.Guardian.Status.Kind != StateKind.Locked)
             { Record("order while locked is cancelled", "guardian LOCKED first", "guardian was " + sb.Guardian.Status.Kind, false, sb.VerifyChain()); return; }
 
-            var order = PlaceUnfillableLimit(account);
+            string invalidReason;
+            var order = PlaceUnfillableLimit(account, out invalidReason);
+            if (invalidReason != null)
+            { RecordInvalid("order while locked is cancelled", "ORDER_REJECTED_LOCKED logged and the order no longer working", invalidReason, sb.VerifyChain()); return; }
             if (order == null)
             { Record("order while locked is cancelled", "one resting limit order", "could not place one - see log", false, sb.VerifyChain()); return; }
 
@@ -260,8 +291,9 @@ namespace NinjaTrader.NinjaScript.AddOns
 
         // ---------------- real orders on Sim101 ----------------
 
-        private Order PlaceUnfillableLimit(Account account)
+        private Order PlaceUnfillableLimit(Account account, out string invalidReason)
         {
+            invalidReason = null;
             try
             {
                 Instrument instrument = null;
@@ -279,6 +311,27 @@ namespace NinjaTrader.NinjaScript.AddOns
                     if (reference <= 0 && instrument.MarketData?.LastClose != null) reference = instrument.MarketData.LastClose.Price;
                 }
                 catch { }
+
+                // ---- the reference has to be a price this instrument could actually have ----
+                _referenceInstrument = SafeRoot(instrument);
+                _referencePrice = reference;
+                Note("reference price for " + _referenceInstrument + " = " + reference.ToString(CultureInfo.InvariantCulture));
+
+                double[] band;
+                if (!ReferenceBands.TryGetValue(_referenceInstrument ?? "", out band))
+                {
+                    invalidReason = "no plausibility band declared for '" + (_referenceInstrument ?? "?") +
+                                    "' - refusing to judge a price we cannot judge";
+                    return null;
+                }
+                if (reference < band[0] || reference > band[1])
+                {
+                    invalidReason = "reference price " + reference.ToString(CultureInfo.InvariantCulture) +
+                                    " is outside the plausible band [" + band[0].ToString(CultureInfo.InvariantCulture) +
+                                    ", " + band[1].ToString(CultureInfo.InvariantCulture) + "] for " + _referenceInstrument +
+                                    " - the feed is not serving this instrument, so this scenario would test nothing";
+                    return null;
+                }
 
                 var tick = instrument.MasterInstrument.TickSize;
                 var limit = instrument.MasterInstrument.RoundToTickSize(reference > 0 ? reference * 0.10 : tick * 100.0);
@@ -309,6 +362,11 @@ namespace NinjaTrader.NinjaScript.AddOns
 
         // ---------------- sandbox ----------------
 
+        private static string SafeRoot(Instrument i)
+        {
+            try { return i.MasterInstrument.Name; } catch { return null; }
+        }
+
         private Sandbox NewSandbox(string name) => new Sandbox(name, SoakDir, Note);
 
         private void Record(string name, string expected, string observed, bool passed, string chain)
@@ -316,6 +374,17 @@ namespace NinjaTrader.NinjaScript.AddOns
             lock (_gate)
                 _results.Add(new Scenario { Name = name, Expected = expected, Observed = observed, Passed = passed, LedgerChain = chain });
             Note((passed ? "PASS  " : "FAIL  ") + name + "  ->  " + observed);
+        }
+
+        /// <summary>Neither PASS nor FAIL: the scenario could not be run against a world it trusts,
+        /// so it produced no evidence about the guardian. Reported in its own category on purpose -
+        /// folding it into FAIL would blame the guardian for a broken input, and folding it into PASS
+        /// is what this suite did on 2026-08-21.</summary>
+        private void RecordInvalid(string name, string expected, string reason, string chain)
+        {
+            lock (_gate)
+                _results.Add(new Scenario { Name = name, Expected = expected, Observed = reason, Passed = false, Invalid = true, LedgerChain = chain });
+            Note("INVALID  " + name + "  ->  " + reason);
         }
 
         // ---------------- report ----------------
@@ -326,6 +395,8 @@ namespace NinjaTrader.NinjaScript.AddOns
             {
                 Directory.CreateDirectory(SoakDir);
                 var sb = new StringBuilder();
+                var invalid = _results.Count(r => r.Invalid);
+                var judged = _results.Count - invalid;
                 var passed = _results.Count(r => r.Passed);
 
                 sb.AppendLine();
@@ -337,7 +408,14 @@ namespace NinjaTrader.NinjaScript.AddOns
                 sb.AppendLine("- account: `" + TargetAccount + "` (Provider must be `Simulator`, verified before anything is sent)");
                 sb.AppendLine("- orders placed this session: **" + _ordersPlaced + "** of " + MaxOrdersPerSession +
                               " allowed, all LIMIT, all priced below any possible fill, all cancelled");
-                sb.AppendLine("- scenarios: **" + passed + " of " + _results.Count + " passed**");
+                sb.AppendLine("- reference price observed: **" +
+                              (_referencePrice > 0
+                                  ? _referenceInstrument + " " + _referencePrice.ToString(CultureInfo.InvariantCulture)
+                                  : "none - no order was priced this run") + "**");
+                sb.AppendLine("- scenarios: **" + passed + " of " + judged + " passed**" +
+                              (invalid > 0
+                                  ? ", **" + invalid + " INVALID** (produced no evidence either way, and are not counted as passed or failed)"
+                                  : ""));
                 sb.AppendLine();
 
                 if (_results.Count > 0)
@@ -346,7 +424,7 @@ namespace NinjaTrader.NinjaScript.AddOns
                     sb.AppendLine("|---|---|---|---|---|");
                     foreach (var r in _results)
                         sb.AppendLine("| " + r.Name + " | " + r.Expected + " | " + r.Observed + " | " +
-                                      r.LedgerChain + " | " + (r.Passed ? "PASS" : "**FAIL**") + " |");
+                                      r.LedgerChain + " | " + (r.Invalid ? "**INVALID**" : r.Passed ? "PASS" : "**FAIL**") + " |");
                     sb.AppendLine();
                 }
 
