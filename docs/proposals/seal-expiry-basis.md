@@ -44,6 +44,7 @@ evento si el día sigue abierto:
 | `processRestarts` | pares `GUARDIAN_STOPPED` → `GUARDIAN_STARTED` dentro del período armado |
 | `continuityCoverage` | fracción del período armado cubierta por continuidad monotónica |
 | `unmonitoredMs` | suma de los intervalos `GUARDIAN_STOPPED` → `GUARDIAN_STARTED`: tiempo en que no había guardián corriendo |
+| `longestGapMs` | el **más largo** de esos intervalos, por separado |
 
 `continuityCoverage` no es "el período menos los huecos", y la diferencia importa.
 `HasMonotonicContinuity` compara `seal.runId == runId` del proceso actual (`Guardian.cs:107`), así que
@@ -62,6 +63,17 @@ mirando, pero desde ese momento su medida del tiempo dependía del reloj de la m
 
 `unmonitoredMs` es la otra pregunta, y por eso va aparte: cuánto tiempo no hubo nadie mirando.
 
+Y `longestGapMs` va aparte de `unmonitoredMs` porque **el total esconde la forma**. Cuatro horas en
+un solo hueco y veinte huecos de dos segundos dan cifras parecidas y significan cosas opuestas. Un
+reinicio legítimo — una actualización, un cierre y reapertura, un cuelgue — se mide en segundos o
+en un par de minutos. Un hueco de horas en mitad de una sesión armada es la **forma exacta** que el
+ataque de §17.2 necesita: cerrar, mover el reloj, abrir.
+
+El campo sigue sin acusar: no dice cuál de las dos cosas pasó, dice cuánto duró el hueco más largo.
+Es lo que vuelve ruidoso el movimiento sin señalar a nadie — y a diferencia de un conteo de
+reinicios, un valor alto acá es raro entre los inocentes, que es lo que hace que valga la pena
+mirarlo.
+
 ## Qué muestra
 
 Una línea en el render, junto a las demás afirmaciones:
@@ -72,14 +84,15 @@ Una línea en el render, junto a las demás afirmaciones:
 o, en el caso incómodo:
 
 > **Continuidad del sello:** 41% del período armado · 2 reinicios de proceso · el día cerró por reloj
-> de pared · 6 min sin guardián corriendo
+> de pared · 4 h 12 min sin guardián corriendo, **el hueco más largo de 4 h 09 min**
 
 Y el texto fijo que la acompaña, que es la mitad del trabajo:
 
 > Un reinicio del proceso ocurre por actualizaciones, cierres y reinicios normales. Esta línea declara
 > qué evidencia decidió el final del día, no que alguien haya hecho algo. Con continuidad al 100% el
 > final del día se midió en un contador que nadie puede ajustar; por debajo de eso, se midió contra el
-> reloj del sistema (SPEC §17.2).
+> reloj del sistema (SPEC §17.2). La duración del hueco más largo se informa porque un reinicio
+> ordinario dura segundos; nada más se afirma sobre él.
 
 ## Lo que esta cantidad NO prueba — va en el certificado, no en una nota al pie
 
@@ -91,13 +104,18 @@ publicado la condición bajo la cual el hueco de §17.2 es explotable, en vez de
 Lo que sí es difícil de fabricar: un reloj movido y devuelto deja una secuencia de `tsUtc` **no
 monotónica dentro de un archivo encadenado por hashes**, que no se puede reparar en silencio. Si el
 verificador ya recorre la cadena, detectar `tsUtc` que retrocede entre `seq` consecutivos es gratis y
-es una señal independiente. Eso sí vale reportarlo.
+es una señal independiente.
+
+**Aprobado (Roberto, 21-ago-2026) y asignado a Ventana B.** El blanco es el viaje de vuelta: mover el
+reloj hacia adelante no deja un `tsUtc` que retroceda, pero **devolverlo sí** — y el atacante tiene
+que devolverlo si quiere seguir operando con datos de mercado coherentes. Es el tramo que no puede
+evitar.
 
 ## Reparto del trabajo
 
 | lado | qué le toca |
 |---|---|
-| **`deadman` — Ventana B** | todo el cálculo y la presentación: derivar las cuatro cantidades en `verify_certificate`, imprimirlas, agregar el texto fijo, y —si se acepta— el chequeo de `tsUtc` no monotónico. Es el verificador el que convierte esto en verificado |
+| **`deadman` — Ventana B** | todo el cálculo y la presentación: derivar las cinco cantidades en `verify_certificate`, imprimirlas, agregar el texto fijo, y el chequeo de `tsUtc` no monotónico **ya aprobado**. Es el verificador el que convierte esto en verificado |
 | **`deadman-guardian` — Ventana A** | ninguna implementación en el emisor, que es el punto. Sólo dos obligaciones defensivas: que `GUARDIAN_STOPPED`/`GUARDIAN_STARTED` y el `basis` de `SEAL_EXPIRED` **nunca** se omitan de un segmento rotado, y una nota en SPEC §11/§12 diciendo que estos eventos son la fuente de derivación y por eso no son opcionales |
 
 No hay cambio de esquema, no hay campo nuevo en el JSON del certificado, y no hay nada que el emisor
