@@ -204,6 +204,44 @@ el Log, y que el bloqueo sea visible sin tener que ir a buscarlo.
 Sin eso, el evento más importante que el producto produce en toda su vida —el único momento en que
 realmente salva a alguien— se le presenta al usuario como si el software se hubiera roto.
 
+## `LOCKOUT_INCOMPLETE` no es un fracaso, y la primera corrida real lo demostró
+
+**Corrección urgente a este documento.** El mensaje 2 estaba redactado para disparar en
+`LOCKOUT_INCOMPLETE` con un texto de fracaso — *"No pude cerrar todo. Cerrala vos."*. La primera
+corrida de BOT A contra fills reales, el 2026-08-22, probó que eso habría sido **falso en el caso
+normal**:
+
+```
+19:20:42.637  LIMIT_BREACHED        dayLoss=50.00
+19:20:42.706  FLATTEN_REQUESTED
+19:20:42.706  LOCKOUT_INCOMPLETE    <- el mensaje habria salido ACA
+19:20:43.203  ORDERS_CANCELLED      (reintento sobre el tick, A7)
+19:20:43.208  FLATTEN_VERIFIED      <- 502 ms despues, todo cerrado
+```
+
+El flatten es una orden market real y tarda en llenarse, así que en la primera evaluación la posición
+todavía no estaba plana. **`LOCKOUT_INCOMPLETE` es un estado intermedio TRANSITORIO de un lockout que
+está saliendo bien.** Con el diseño de ayer, ese texto habría aparecido en pantalla **medio segundo
+antes de que el guardián cerrara todo correctamente, en CADA lockout normal**, mandando al usuario a
+cerrar a mano una posición que estaba por cerrarse sola. Peor que no decir nada: un aviso que produce
+una acción innecesaria en el peor momento del día de alguien.
+
+**La regla, entonces:** el mensaje sólo puede dispararse en un `LOCKOUT_INCOMPLETE` **TERMINAL**. El
+evento ya trae con qué distinguirlo — `Guardian.cs:615-618` escribe `attempts` y
+`exhausted = FlattenAttempts >= MaxFlattenAttempts`. **Sólo `exhausted: true` es un resultado.**
+Cualquier otro es ruido de reintento y no debe llegar a un ser humano.
+
+(Ojo también: hay tres sitios que emiten `LOCKOUT_INCOMPLETE`. Los de `Guardian.cs:572` y `:590` son
+excepciones por paso — `step: cancel` / `step: flatten` — y **no llevan `exhausted`**. Ausencia de
+`exhausted` no es `exhausted: false`: es otro evento. El consumidor tiene que exigir el campo, no
+inferirlo.)
+
+**Llegamos a esto por dos caminos independientes.** Ventana B lo predijo leyendo el código media hora
+antes de esta corrida — *"sólo el último es el resultado, y la spec tiene que decirlo o dos
+implementaciones van a discrepar"* — y la corrida lo produjo en vivo sin saber de esa predicción. Una
+lectura estática y una ejecución real coincidiendo es lo que separa un hecho de una opinión, y es la
+razón por la que esto se escribe como regla y no como anécdota.
+
 ## El hermano: el titular de la ventana dice lo mismo para dos estados opuestos
 
 **Mismo patrón, otra superficie, y este ya le pasó a un humano real.** El 22-ago Roberto vio

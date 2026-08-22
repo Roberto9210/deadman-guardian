@@ -36,14 +36,50 @@ alternates two probe kinds and reports them in separate columns:
 
 - **a resting LIMIT**, far from the market. The guardian *can* cancel this before it fills. Reported:
   how many were cancelled, and the submit→cancelled latency.
-- **a MARKET order**, which on a simulator fills at once. The guardian *cannot* stop it. Reported: how
-  many filled anyway, how long until the position was flattened, and whether the guardian stayed
-  `LOCKED` and flattened it again on the next attempt.
+- **a MARKET order**, which was expected to fill before anything could stop it. Reported: how many
+  filled anyway, how long until the position was flattened, and whether the guardian stayed `LOCKED`
+  and flattened it again on the next attempt.
+
+  **The first real run contradicted that expectation, and the expectation was mine.** On 2026-08-22
+  all four market probes went `Submitted -> Accepted -> Cancel submitted -> Working -> Cancelled`
+  with `Filled=0`: the guardian, already `LOCKED`, issued the cancel inside the same event dispatch
+  that observed the order, before the simulation engine had a trade to fill against. **Four of four
+  stopped, zero fills.** The window that detect-and-cancel leaves open is real in principle and was
+  not observed here - which is a statement about this environment, not a guarantee about a venue with
+  real latency.
 
 A market order reaching a fill after the lockout is **not** a guardian failure. It is the documented
 consequence of detect-and-cancel, and pretending otherwise would make the certificate claim something
 false. What is under test is the next column: **the exposure did not survive**, repeatedly, and the
 state never left `LOCKED`.
+
+## What the first run measured, and how far it is allowed to travel
+
+Run of 2026-08-22, and **every number below is n = 1**:
+
+| | |
+|---|---|
+| breach at | `dayLoss 50.00`, after 32 round trips / 66 orders / 2 min 25 s |
+| breach -> `FLATTEN_VERIFIED` | **502 ms**, in two attempts (`LOCKOUT_INCOMPLETE` then verified) |
+| post-lockout LIMIT probes | 4 of 4 cancelled, submit -> `Cancelled` min 232 / median 241 / max 248 ms |
+| post-lockout MARKET probes | 4 of 4 cancelled, **0 filled** |
+| account gate | 72 evaluations, min 25 / median 66 / max 232 **microseconds** |
+
+**The ceiling on all of it: the prices came from NinjaTrader's Simulated Data Feed**, which its own
+documentation says has no correlation to real market data. Fill latency on an invented market is not
+fill latency at a venue, and every timing above inherits that. One run, one machine, one feed, one
+market session, no contention.
+
+**These are not spec numbers and must not be quoted as product claims.** For the flatten latency to
+mean anything it needs, at minimum: **30 or more lockouts** to give a median with a usable spread
+(the distribution is bounded below by one tick of the guardian's 1-second evaluation, so it is not
+normal and a handful of samples says nothing about its tail), across **several sessions and market
+conditions**, and **on a real data feed** - because the quantity being measured is how long a real
+venue takes to fill a flatten, and that is the one thing this feed cannot tell us.
+
+The gate cost is the exception that survives: 66 microseconds median, on a path that runs once per
+order. Even a hundredfold error in that measurement leaves it irrelevant. **The continuous check is
+free, and that question is closed.**
 
 ## The rails, all of them refusing in code
 

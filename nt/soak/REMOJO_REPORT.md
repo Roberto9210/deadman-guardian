@@ -9,6 +9,31 @@ NinjaTrader ports. The production guardian's files are never touched. Orders, wh
 scenario needs one, are LIMIT only, priced where they cannot fill, capped per session, and
 cancelled by the run. `Sim101` is verified to be the simulator before anything is sent.
 
+## What this suite CANNOT prove — read this before reading "6 of 6"
+
+Its P&L is synthetic: fills are injected as `ExecutionRecord`s, because making a simulated account
+lose exactly $600 needs fillable orders and fillable orders are what this suite refuses to send. That
+choice is right, and it puts entire code paths permanently out of reach. **A green here is silent
+about them, not favourable.**
+
+**The lockout retry path.** With synthetic P&L the flatten is instantaneous, so the guardian's
+position check always succeeds on the first attempt and `LOCKOUT_INCOMPLETE` never occurs. Sixteen
+consecutive 6-of-6 runs never once executed the retry — **structurally could not**. Bot A hit it on
+its first run against real fills (2026-08-22): the flatten is a real market order, the first check
+found the position still open, and the guardian retried on the next tick and verified 502 ms later.
+That path is the most safety-critical in the product and this suite cannot reach it.
+
+**Anything that depends on real execution latency.** Time-to-fill, time-to-cancel, the window between
+a post-lockout order being submitted and being stopped, partial fills, and the §5.4 cross-check
+between Core's arithmetic and NinjaTrader's own `GrossRealizedProfitLoss` — all of them need orders
+that actually fill. None of them is exercised here.
+
+**What it does prove**, precisely: that GuardianCore's RULES are right — the state machine, the seal,
+the tamper detection, the clock defences, the ledger chain — over inputs the suite controls. That is
+worth having and it is not the same claim.
+
+The bots in [`nt/bots/`](../bots/) exist for the other half.
+
 ---
 
 ## Soak run 2026-08-21 12:13:46Z
