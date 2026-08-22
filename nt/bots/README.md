@@ -86,6 +86,38 @@ A session is **clean** only if all five hold, and they were fixed before the fir
 be relaxed afterwards: the guardian never left `ARMED`; no intervention event in the ledger; every
 cancel was the bot's own; the chain verifies; it shut down holding nothing.
 
+## Market data: without it, none of this happens
+
+**The simulation engine needs fresh `Last` prices to fill anything.** Without updates from a real-time
+source it fills nothing, and the order comes back `Rejected` with
+`There is no market data available to drive the simulation engine`. No fills means no losses, no losses
+means the guardian never reaches its limit, and the whole demonstration does not occur.
+
+The free path, and the one these bots are meant to run on, is NinjaTrader's built-in **Simulated Data
+Feed**: Tools > Options > General > Preferences > **Multi-provider** checkbox, then Control Center >
+Connections > **Simulated Data Feed** > Connect. No download, no subscription, no account. For Bot A
+also turn on Control Center > Tools > Options > Trading > Simulator > **Enforce immediate fills**,
+which bypasses the fill-probability model so "it did not fill" stops being a failure mode.
+
+> ### The Simulated Data Feed is useless for validating a real signal
+>
+> NinjaTrader's own documentation says it plainly: this connection *"is a random internally generated
+> market and has **NO correlation to real market data**"*. For Bot A and Bot B that is fine, and for
+> Bot A it is arguably better — a bot built to lose by paying the spread cannot be rescued by a real
+> trend it never sees.
+>
+> **But it means no forward test of a real strategy can ever run on it.** In particular the
+> turn-of-month candidate in `honest-strategy-search` (`factory/botc_potencia_f4.md`) proposes running
+> F4 forward on `Sim101` as slow, clean evidence. On invented prices that evidence is worth exactly
+> nothing, and it would look identical to the real thing in every report. Anyone doing that walk-forward
+> needs real market data, and needs to say which feed produced it.
+
+Market Replay is **not** an alternative here. Its data is real, but the Playback connection trades the
+**`Playback101`** account (`Provider = Playback`), not `Sim101` — `BotSafety.VerifyAccount` aborts
+before an order object exists, and the guardian's config does not watch that account either. Widening
+the account rail to get market data would be trading the safety property for convenience, which is the
+one trade this repository does not make.
+
 ## Running them
 
 Both bots compile as NinjaScript AddOns. `dotnet build` of the repo does **not** cover them — they
