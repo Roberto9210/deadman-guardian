@@ -163,7 +163,21 @@ and it is the same 16 characters that appear as `issuer.buildHash` in a certific
 The distinction is worth stating plainly because it is the defect this project keeps finding in other
 places: *a check that returns the same answer whether or not the thing under test changed is not a
 check.* A soak that passed with an impossible reference price, a gate file that reported "clean"
-without reading anything, and `version='0.1.0.0'` are the same animal.
+without reading anything, `version='0.1.0.0'`, an installer whose failure looked like its success, and
+the one below are the same animal.
+
+**The most expensive instance so far, and it was ours.** For a week every report here said "compiles
+against the real NinjaTrader assemblies, 0 errors" — over a compile set that **did not include
+`DeadmanGuardianAddOn.cs`**, the single file the user actually sees. The build was green because it
+never touched the thing being claimed for. Adding the file on 2026-08-22 produced an error
+immediately: inside `namespace NinjaTrader.NinjaScript.AddOns` a bare `NinjaScript.Log` resolves to
+the enclosing *namespace*, not the class, so it must be fully qualified. That would have failed in a
+human's F5, not in our build.
+
+It is worse than the others because the claim was repeated. A green that never covered the artifact is
+not a weaker verification, it is a **false statement made confidently and often** — and the fix is
+mechanical: a verification set has to be checked against the artifact list it claims to cover, not
+assumed to have grown with it.
 
 ## What the installer changes on your machine
 
