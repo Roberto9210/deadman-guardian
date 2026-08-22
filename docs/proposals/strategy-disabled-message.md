@@ -204,6 +204,75 @@ el Log, y que el bloqueo sea visible sin tener que ir a buscarlo.
 Sin eso, el evento más importante que el producto produce en toda su vida —el único momento en que
 realmente salva a alguien— se le presenta al usuario como si el software se hubiera roto.
 
+## El hermano: el titular de la ventana dice lo mismo para dos estados opuestos
+
+**Mismo patrón, otra superficie, y este ya le pasó a un humano real.** El 22-ago Roberto vio
+`NOT PROTECTED`, buscó el botón Arm, no lo encontró, y nada en pantalla le dijo por qué. El guardián
+estaba haciendo exactamente lo correcto.
+
+Verificado en `nt/addon/DeadmanGuardianAddOn.cs:512-549`, el mapeo actual:
+
+| estado | color | titular | detalle | botón Arm |
+|---|---|---|---|---|
+| `Armed` | verde | `ARMED` | Watching {cuenta}. Entries allowed. | oculto |
+| `Locked` | rojo | `LOCKED` | Daily limit reached. No new entries. | oculto |
+| `FailClosed` | naranja | **`NOT PROTECTED`** | Blocked, state unknown: {motivo} | **oculto** |
+| `Disarmed` | gris | **`NOT PROTECTED`** | Disarmed. Nothing is being watched. | visible |
+
+**El mismo titular para dos situaciones que no se parecen en nada:**
+
+- **fail-closed**: el sello está **vivo**, el guardián está armado, está bloqueando entradas, y lo
+  único que le falta es poder ver la cuenta. Está protegiendo todo lo que puede proteger.
+- **disarmed**: no hay nada armado, no hay sello, nadie está mirando nada.
+
+El color los distingue y el detalle también, pero **el titular es lo que se lee**, y dice lo mismo.
+
+### Titulares propuestos
+
+| estado | titular propuesto |
+|---|---|
+| `FailClosed` | **`NO PUEDO VER TU CUENTA`** / *`CANNOT SEE YOUR ACCOUNT`* |
+| `Disarmed` | **`SIN ARMAR`** / *`NOT ARMED`* |
+
+`NOT PROTECTED` desaparece de los dos, porque en fail-closed es directamente engañoso hacia el lado
+peligroso: sugiere que no hay nada operando cuando sí lo hay.
+
+### El detalle tiene que decir QUÉ HACER
+
+*"Blocked, state unknown: AccountUnknown on Sim101: account is Disconnected"* es exacto y es inútil:
+describe el estado interno y no da un paso siguiente. Lo accionable:
+
+> **NO PUEDO VER TU CUENTA**
+> NinjaTrader no tiene ninguna conexión abierta, así que no puedo leer tu P&L y no puedo garantizar
+> tu límite. Mientras tanto no dejo abrir posiciones nuevas.
+> **Conectá el feed en Connections y el guardián vuelve solo** — no hay que reiniciar nada.
+> Seguís armado: tu límite de $600 vale hasta las 17:00 (America/Chicago).
+
+### Y el botón que falta hay que explicarlo, no sólo omitirlo
+
+**Un botón ausente sin motivo se lee como un bug.** En fail-closed está oculto por una razón buena: si
+el sello sigue vigente, **el usuario ya está armado** y no hay nada que armar; lo que falta es
+reconectar.
+
+Cuidado con el tiempo verbal, que es la misma trampa de este documento: `FailClosed` **no siempre**
+tiene sello — `StartCorrupt` entra en fail-closed sin ninguno. Así que el texto no puede afirmar
+"seguís armado" sin mirar. Dos variantes, cada una verdadera cuando se escribe:
+
+| condición | última línea |
+|---|---|
+| hay sello vigente | *Seguís armado: tu límite vale hasta las {hora} ({zona}). Por eso no aparece el botón Arm — no hay nada que armar, hay que reconectar.* |
+| no hay sello | *No hay nada armado todavía. Cuando pueda ver la cuenta va a aparecer el botón Arm.* |
+
+La hora **con su zona**, siempre: "hasta las 17:00" no significa nada para alguien en otro huso, y el
+guardián conoce la zona configurada.
+
+### Esto obedece A10
+
+El titular y las dos variantes del detalle son **cadenas únicas**, consumidas por la ventana y por
+cualquier otra superficie que las muestre. No una versión para la ventana y otra para el Log:
+[`AMENDMENTS.md` A10](../../AMENDMENTS.md) existe porque ya encontramos una sobreafirmación viviendo
+un párrafo debajo de su propia corrección.
+
 ## Fuentes
 
 - [Strategy disables — NinjaTrader Support Forum](https://forum.ninjatrader.com/forum/ninjatrader-8/platform-technical-support-aa/93519-strategy-disables)
