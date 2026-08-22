@@ -205,11 +205,58 @@ Three experiments settled it, after the file and its `<Compile>` entry were both
 |---|---|
 | restart NT8 normally, wait 4 minutes | `NinjaTrader.Custom.dll` untouched (still the 21:38 build), new AddOn absent, **no compile attempted** — nothing about compilation appears in the log at all |
 | delete `NinjaTrader.Custom.dll` and restart | NT8 **restored a stock copy dated 10 August**, 1,283,072 bytes, rather than building one. The previously working probe disappeared with it, confirming the restored assembly is the shipped default |
-| build `NinjaTrader.Custom.csproj` from the command line | impossible as written: its three `<ProjectReference>` targets (`NinjaTrader.Core`, `NinjaTrader.Gui`, `Infralution.Localization.Wpf`) **do not exist on disk**. The editor substitutes the loaded assemblies at compile time, in process |
+| build `NinjaTrader.Custom.csproj` from the command line | impossible as written *in August 2026 as this project file then stood*: its three `<ProjectReference>` targets (`NinjaTrader.Core`, `NinjaTrader.Gui`, `Infralution.Localization.Wpf`) **did not exist on disk**. **SUPERSEDED - see §6b: the project file no longer has any `<ProjectReference>`, and the external build now succeeds** |
 
 So the install procedure is: **copy the files, add the `<Compile>` entries, then compile once from the
-NinjaScript Editor.** [`install.ps1`](install.ps1) does the first two and now says so for the third; the
-compile is a human action by construction, and no amount of scripting removes it.
+NinjaScript Editor.** [`install.ps1`](install.ps1) does the first two and now says so for the third. That
+remains the procedure today - but "the compile is a human action **by construction**" was too strong, and
+§6b is the correction.
+
+## 6b. CORRECTION (2026-08-22): the external build is no longer blocked
+
+**A finding that keeps asserting a blocker the world no longer has is the same defect this project keeps
+catching elsewhere: it says the same thing whether or not anything changed.** §6's third experiment was
+true when it was run and is not true now, and it sat here unqualified for two days.
+
+Re-verified against the project file NinjaTrader 8.1.8.2 keeps at
+`Documents\NinjaTrader 8\bin\Custom\NinjaTrader.Custom.csproj`:
+
+| | then (§6) | now (2026-08-22) |
+|---|---|---|
+| `<ProjectReference>` entries | 3, none resolvable | **0** |
+| `<Reference>` entries | - | **23** |
+| `<HintPath>` files present on disk | - | **13 of 13** |
+
+The build was then run for real, with `OutputPath`, `BaseIntermediateOutputPath` and
+`MSBuildProjectExtensionsPath` all redirected out of NinjaTrader's folder:
+
+1. First attempt: **one** error, `CS1617: Invalid option '13.0' for /langversion`. No `CS0246` - every
+   reference resolved.
+2. With `-p:LangVersion=latest`: **build succeeded, 0 errors**, 581 warnings (all `CS0436`, pre-existing
+   duplicate types between `NinjaTrader.Vendor` and NT8's own `@*.cs`). Output: a 1,396,224-byte
+   `NinjaTrader.Custom.dll`.
+
+**The language version, stated so it is not rediscovered.** The project asks for `LangVersion 13.0`.
+The installed .NET SDK (8.0.424) tops out at C# 12, so an external build must lower it. Today that is
+harmless *only because nothing in the tree uses a C# 13 feature* - the moment someone writes one, an
+external C# 12 build stops matching what NinjaTrader itself compiles. Installing .NET SDK 9 removes the
+mismatch entirely and is the right fix if this is ever pursued.
+
+**What is still unverified, and it is the half that matters:** whether NinjaTrader *accepts* a
+`NinjaTrader.Custom.dll` it did not build. §6's second experiment showed that deleting that file made
+NT8 restore a stock copy rather than build one, so the platform clearly has an opinion about it -
+possibly a signature, a hash, a timestamp, or an internal index.
+
+**How to price that experiment, because "unverified" was making it sound more expensive than it is.**
+If NinjaTrader's way of rejecting a foreign assembly is to *replace* it - which is precisely what §6
+observed it doing - then the worst case of trying is that the custom assembly reverts and **someone has
+to press F5**. That is exactly the cost we pay today, every time, on purpose. The experiment does not
+open a new risk; it risks landing on the status quo. It should be evaluated as "costs at most what we
+already pay", not as an open-ended danger.
+
+The one genuine precaution: back up the existing `NinjaTrader.Custom.dll` first, which §6 already learned
+the hard way - *on someone else's trading platform, the artifact you delete to force a rebuild may be the
+one the vendor simply hands back.*
 
 This also explains run 1 of the earlier table, which had looked inexplicable: that session compiled
 because something triggered a compile in it, not because a restart is enough. Restarts are not enough.
