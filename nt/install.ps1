@@ -224,9 +224,9 @@ $state   = (Join-Path $home8 "state.json")   -replace '\\', '\\\\'
 
 # Deliberately NOT writing config.json. SPEC section 4 forbids defaults, and a limit somebody else
 # typed is a default. Until you copy the example to config.json and put your own two numbers in it,
-# the guardian shows NOT PROTECTED and refuses to arm - which is the correct state, not a fault.
+# the guardian shows NOT ARMED and refuses to arm - which is the correct state, not a fault.
 if (Test-Path (Join-Path $home8 "config.json")) { "config.json already exists, left untouched" }
-else { "no config.json: the guardian will start NOT PROTECTED until you write one" }
+else { "no config.json: the guardian will start NOT ARMED until you write one" }
 
 # ---------------------------------------------------------------- what actually changed
 # The confirmation belongs on THIS screen. Requiring a second command to find out whether the first
@@ -263,8 +263,9 @@ if ($deployedHash -ne $builtHash) { exit 3 }
 "a restart does not compile, and deleting NinjaTrader.Custom.dll makes NT8 restore a"
 "stock copy instead of building one (STEP3_FINDINGS.md section 6)."
 ""
-"After that compile, the status window appears top-right saying NOT PROTECTED"
-"until you press Arm."
+"After that compile, the status window appears top-right. Until you press Arm it"
+"says NOT ARMED; if it says CANNOT SEE YOUR ACCOUNT, NinjaTrader has no data"
+"connection open and the window tells you what to do about it."
 ""
 "If NinjaTrader reports a NinjaScript compile error, undo everything with:"
 "    .\install.ps1 -Uninstall"

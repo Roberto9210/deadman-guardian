@@ -623,7 +623,7 @@ namespace NinjaTrader.NinjaScript.AddOns
                     break;
 
                 case StateKind.FailClosed:
-                    // Was "NOT PROTECTED", which was the same headline Disarmed used - and they are
+                    // Used to share its headline with Disarmed (see Messages.Retired) - and they are
                     // opposites. Here the seal is alive, the guardian IS armed and IS blocking new
                     // entries, and only sight of the account is missing. The old wording misled toward
                     // the dangerous side, and on 2026-08-22 a real person went looking for an Arm

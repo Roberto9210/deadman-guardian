@@ -36,6 +36,18 @@ namespace GuardianCore
         public const string HeadlineCannotSee = "CANNOT SEE YOUR ACCOUNT";
         public const string HeadlineNotArmed = "NOT ARMED";
 
+        /// <summary>Wording this product used to put in front of a user and no longer does.
+        ///
+        /// A10 says user-facing text is single-source - but some surfaces CANNOT import this file.
+        /// install.ps1 is PowerShell; it cannot reference GuardianCore, so its copy of any sentence is
+        /// unavoidable. A rule that cannot be obeyed protects nothing, so those surfaces are covered by
+        /// a CHECK instead: a test scans every script and source file for these phrases and goes red if
+        /// a retired one is still sitting somewhere. Retiring wording means adding it here.
+        ///
+        /// "NOT PROTECTED" is first because it survived its own removal: it had been taken out of the
+        /// status window and was still greeting the reader from the installer's closing text.</summary>
+        public static readonly string[] Retired = { "NOT PROTECTED" };
+
         public static string Headline(StateKind kind)
         {
             switch (kind)

@@ -148,6 +148,20 @@ a second one is a second thing that can drift. Prose drifts faster than code and
 so it needs the rule *more*, not less. The version that drifts will be the one a user reads on the
 worst day they will have with this product.
 
+**The surfaces that cannot obey it, declared rather than left tacit.** `install.ps1` is PowerShell:
+it cannot reference `GuardianCore`, so its copy of any sentence is unavoidable. **A rule that cannot
+be obeyed protects nothing** - it only moves the failure somewhere nobody is looking, which is exactly
+what happened: wording removed from the status window went on greeting the reader from the installer's
+closing text, the first thing anyone installing this reads.
+
+So those surfaces are covered by a **check** instead of the rule. `Messages.Retired` lists wording this
+product no longer shows, and a test walks every `.cs` and `.ps1` in the repository and goes red if one
+survives. Documentation is exempt on purpose - SPEC, this file and the READMEs *discuss* retired
+wording, and forbidding that would delete the record of the correction.
+
+Retiring a phrase now means adding it to that list. The check found two live instances in
+`install.ps1` on its very first run, one of them still being printed to a user.
+
 **How it fails if ignored:** silently, and asymmetrically. Two copies do not diverge all at once — one
 gets corrected and the other does not, so the surviving copy is by construction the *stale* one. The
 next person who wants to "adapt the message a little for the window" reintroduces the defect without

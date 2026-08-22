@@ -28,16 +28,19 @@ namespace GuardianCore.Tests
             Assert.NotEqual(Messages.Headline(StateKind.FailClosed), Messages.Headline(StateKind.Disarmed));
         }
 
-        /// <summary>"NOT PROTECTED" is gone everywhere. In fail-closed it misled toward the dangerous
-        /// side: it suggested nothing was operating when something was.</summary>
+        /// <summary>Retired wording is gone everywhere. The one this list starts with misled toward
+        /// the dangerous side in fail-closed: it suggested nothing was operating when something was.</summary>
         [Theory]
         [InlineData(StateKind.Armed)]
         [InlineData(StateKind.Locked)]
         [InlineData(StateKind.FailClosed)]
         [InlineData(StateKind.Disarmed)]
-        public void No_headline_says_NOT_PROTECTED_any_more(StateKind kind)
+        public void No_headline_uses_retired_wording_any_more(StateKind kind)
         {
-            Assert.DoesNotContain("NOT PROTECTED", Messages.Headline(kind), StringComparison.Ordinal);
+            // Read from Messages.Retired rather than spelled here: a test that hard-codes the phrase
+            // contains the string it forbids, and then has to exempt itself from the repository scan.
+            foreach (var retired in Messages.Retired)
+                Assert.DoesNotContain(retired, Messages.Headline(kind), StringComparison.Ordinal);
         }
 
         // ---------------------------------------------------------------- the actionable detail
