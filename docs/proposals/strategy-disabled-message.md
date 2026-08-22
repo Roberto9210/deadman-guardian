@@ -48,22 +48,53 @@ de un fallo de producto, aunque el mecanismo sea perfecto.
 Y hay un matiz peor: el mensaje **no es un error**. Es informativo, categoría `Default`. O sea que
 tampoco va a estar destacado entre los errores rojos que un usuario mira cuando algo sale mal.
 
-## El orden importa más que el texto
+## El orden importa más que el texto — y el tiempo verbal más que el orden
 
 **El Log se lee de arriba hacia abajo.** Si `Disabling NinjaScript strategy` aparece primero, el usuario
 ya sacó su conclusión antes de llegar a la explicación; una aclaración que llega después no corrige
 nada, porque nadie sigue leyendo después de entender.
 
-El guardián sabe que va a aplanar **un instante antes** de aplanar, así que la ventana existe. Los
-llamados de cuenta entera salen del adaptador — `NtBrokerActions.CancelAllOrders` y `.Flatten`
-(`nt/addon/GuardianPorts.cs`) — y el guardián sólo los invoca durante un lockout. **La primera línea de
-`CancelAllOrders` es el punto más temprano que garantiza preceder al mensaje de NinjaTrader**, porque
-la secuencia del lockout cancela antes de aplanar (`ORDERS_CANCELLED` → `FLATTEN_REQUESTED` en el
-ledger). Con un flag para anunciar una vez por lockout y no una vez por llamado.
+Pero adelantar el mensaje crea un problema peor que el que resuelve. Un mensaje escrito **antes** de
+cancelar y aplanar no puede decir *"cancelé 3 órdenes y cerré tus posiciones"*: en ese instante no
+canceló nada. Si la cancelación falla parcialmente, o si el flatten necesita tres intentos y no lo
+consigue, el registro queda **afirmando algo falso en un archivo que vendemos como evidencia**.
 
-Antes de anunciar, el adaptador puede **enumerar las estrategias que están por caer**: `Account.Strategies`
-existe (verificado por reflexión sobre `NinjaTrader.Core`). Nombrarlas es la diferencia entre una
-explicación genérica y una que el usuario reconoce como suya.
+No se resuelve redactando con cuidado. Se resuelve con **dos mensajes**, cada uno verdadero en el
+instante en que se escribe — la misma disciplina del ledger aplicada a la prosa.
+
+| | cuándo | tiempo verbal | qué puede afirmar |
+|---|---|---|---|
+| **1. el aviso** | al escribirse `LIMIT_BREACHED` | **futuro** | la brecha, los números, lo que está por hacer |
+| **2. el resultado** | después de `FLATTEN_VERIFIED` (o de `LOCKOUT_INCOMPLETE`) | **pasado** | qué pasó realmente, con las cifras reales |
+
+`LIMIT_BREACHED` es más temprano que la primera llamada al broker y precede al mensaje de NinjaTrader
+con margen de sobra. Y en ese punto la brecha ya se conoce y todavía no se tocó nada, que es
+exactamente la condición que hace honesto el futuro.
+
+## El enganche que falta, y lo que cuesta
+
+Hoy no hay forma de que el adaptador actúe **en** `LIMIT_BREACHED`: ese evento lo escribe GuardianCore,
+que por G22 no puede referenciar NinjaTrader, y sus únicos seams son los cuatro puertos inyectados. Lo
+más temprano que el adaptador controla es la primera línea de `NtBrokerActions.CancelAllOrders`, que
+llega microsegundos después.
+
+**Lo que propongo, y es un cambio a la superficie de Core:** un observador opcional en el `Ledger`,
+`Action<LedgerEntry>`, invocado después de cada append exitoso. El adaptador se suscribe y reacciona a
+`LIMIT_BREACHED` y a `FLATTEN_VERIFIED` / `LOCKOUT_INCOMPLETE`. **Un solo seam para los dos mensajes**,
+en vez de un "anunciador" a medida, y el patrón ya existe en la librería hermana — el `publisher` de
+anclas de `deadman` tiene esa forma.
+
+Las condiciones, porque un seam nuevo es superficie nueva:
+
+- el callback recibe un `LedgerEntry`, tipos de Core solamente: **G22 se mantiene**;
+- se invoca **envuelto en try/catch**, y una excepción suya no puede romper el append ni frenar el
+  lockout. Es *best-effort* y nunca portante — escribirlo en el contrato, no confiarlo al llamador;
+- §14 de la SPEC (la lista de seams) pasa a nombrarlo.
+
+**Alternativa sin tocar Core**, por si el costo no se acepta: el mensaje 1 en la primera línea de
+`CancelAllOrders`, en futuro. Es igual de honesto — ahí tampoco se canceló nada todavía — y precede al
+mensaje de NinjaTrader, sólo que con menos margen. Lo que **no** funciona es el mensaje 2 desde ahí: el
+resultado del flatten no se conoce hasta después.
 
 ## Dónde escribirlo para que no se pierda
 
@@ -74,53 +105,71 @@ existen (verificado por reflexión). Los valores disponibles:
 - `LogCategories`: Ati, Connection, **Default**, Execution, NinjaScript, Order, Position, Strategy,
   **Account**, LicenseManagement, DB, System, User
 
-El mensaje de NinjaTrader sale como `LogLevel` informativo y `Category = "Default"`. Para no quedar
-enterrado al lado, el del guardián va con **`LogLevel.Alert`** — el nivel más alto y el más raro, o sea
-el que sobrevive a cualquier filtro que alguien ponga cuando algo sale mal — y **`LogCategories.Account`**,
-que es lo que la acción realmente es: algo que le pasó a la cuenta entera, no a una estrategia.
+El mensaje de NinjaTrader sale informativo y con `Category = "Default"`. Para no quedar enterrado al
+lado, el del guardián va con **`LogLevel.Alert`** — el nivel más alto y el más raro, o sea el que
+sobrevive a cualquier filtro que alguien ponga cuando algo sale mal — y **`LogCategories.Account`**, que
+es lo que la acción realmente es: algo que le pasó a la cuenta entera, no a una estrategia.
 
 *No verificado*: cómo se renderiza exactamente esa combinación en la pestaña Log. La API existe; su
 apariencia hay que mirarla en pantalla antes de darla por buena.
 
-## El texto exacto
+## Mensaje 1 — el aviso, en futuro
 
-En castellano llano, sin una sola palabra de jerga del producto — ni "lockout", ni "sello", ni "fail
-closed", ni números de secuencia:
+> **LÍMITE DIARIO ALCANZADO. El guardián está cerrando tu día.**
+> Perdiste $612.40 hoy y tu límite era $600.
+> Ahora voy a cancelar tus órdenes activas y cerrar tus posiciones en esta cuenta.
+> Tenés estrategias corriendo acá (MiEstrategia en MES 09-26). NinjaTrader apaga sola cualquier
+> estrategia cuya posición se cierre desde afuera, así que es probable que veas alguna pasar a
+> **Disabled** con el mensaje `Disabling NinjaScript strategy`. **No es un error, no se rompió nada, y
+> no es un problema de la plataforma.**
+> Esto es lo que pediste que pasara.
 
-> **LÍMITE DIARIO ALCANZADO. El guardián cerró tu día.**
-> Perdiste $612.40 hoy y tu límite era $600. Cancelé 3 órdenes y cerré tus posiciones.
-> NinjaTrader va a apagar solo las estrategias que tenías corriendo (MiEstrategia en MES 09-26). Eso lo
-> hace NinjaTrader por consecuencia de haber cerrado las posiciones: **no es un error, no se rompió
-> nada, y no es un problema de la plataforma.**
-> No vas a poder volver a operar en esta cuenta hasta las 17:00. Esto es lo que pediste que pasara.
+Sobre las estrategias: se **nombra lo que está corriendo** (`Account.Strategies`, que existe) y se
+**describe la regla**, sin prometer cuáles van a caer. NinjaTrader deshabilita las de esa cuenta e
+instrumento cuya posición se cerró desde afuera; nombrar una que después no se apague sería
+sobreafirmar otra vez, en el mismo mensaje que existe para no sobreafirmar.
 
-Cinco cosas y ninguna de más: qué pasó, con qué números, qué hizo el guardián, qué va a hacer
-NinjaTrader y por qué no es un fallo, y hasta cuándo. La última línea es la más importante de todas:
-le recuerda que esto lo eligió él, en un momento en que va a estar buscando a quién culpar.
+## Mensaje 2 — el resultado, en pasado
 
-Equivalente en inglés, que es el idioma en el que NinjaTrader escribe el resto del Log:
+Cuando el flatten se verificó:
 
-> **DAILY LOSS LIMIT REACHED. The guardian has closed your day.**
-> You are down $612.40 today and your limit was $600. I cancelled 3 orders and closed your positions.
-> NinjaTrader will now switch off the strategies you had running (MyStrategy on MES 09-26). It does
-> that because the positions were closed from outside them: **this is not an error, nothing is broken,
-> and it is not a platform problem.**
-> You cannot trade this account again until 17:00. This is what you asked for.
+> **Día cerrado.** Cancelé 3 órdenes y cerré 1 posición. Quedaste plano.
+> Hasta las 17:00 (America/Chicago) voy a cancelar cualquier orden nueva en esta cuenta. No puedo
+> impedir que la mandes: la detecto y la cancelo, y si alguna llega a ejecutarse, cierro la posición.
 
-## Qué haría, sin implementarlo todavía
+Cuando **no** se verificó — `LOCKOUT_INCOMPLETE`, que existe en el catálogo y hoy no se le dice a nadie:
 
-El guardián ya tiene una ventana de estado propia, que es la única superficie donde puede hablar en su
-propia voz. La corrección no es técnica: es **decir en voz alta, en el momento exacto, lo que acaba de
-hacer y por qué**. Algo del orden de:
+> **No pude cerrar todo.** Cancelé 3 órdenes, pero quedó 1 posición abierta en MES 09-26 después de 3
+> intentos. **Cerrala vos.** Hasta las 17:00 (America/Chicago) voy a seguir cancelando cualquier orden
+> nueva en esta cuenta.
 
-> **BLOQUEADO — límite diario alcanzado.** Se cancelaron N órdenes, se aplanó la cuenta y NinjaTrader
-> deshabilitó M estrategias como consecuencia. Esto es el guardián haciendo su trabajo, no un fallo de
-> la plataforma. No se puede volver a operar hasta las 17:00.
+Dos correcciones que este par incorpora y que la versión anterior de este documento hacía mal:
 
-Tres cosas hacen falta y ninguna existe hoy: que la ventana anuncie el bloqueo cuando ocurre (no sólo
-que muestre el estado), que **nombre las estrategias deshabilitadas** —el guardián puede enumerarlas
-antes de aplanar—, y que diga explícitamente que el apagado lo hizo NinjaTrader por consecuencia y no
-es un error.
+**La promesa que §17 desmiente.** *"No vas a poder volver a operar hasta las 17:00"* afirma una
+prevención que el producto no tiene. El guardián **no impide** colocar una orden: la detecta y la
+cancela, y una orden a mercado puede llenarse antes de que el cancel llegue — por eso existe el
+flatten. Escribir una garantía de prevención en el único mensaje que el usuario va a leer de verdad,
+cuando el modelo de amenazas la desmiente dos documentos más allá, es exactamente la clase de
+sobreafirmación que este proyecto no comete en el código y no puede cometer en la prosa.
+
+**La hora sin zona.** *"hasta las 17:00"* no significa nada para alguien fuera de ese huso, y el
+guardián **conoce** la zona: está en el snapshot sellado (`sessionResetTimeZone`). Se imprime.
+
+## La ventana de estado: la misma pareja, no una tercera redacción
+
+El guardián tiene una ventana propia, que es la otra superficie donde puede hablar con su voz. Hoy
+**muestra un estado**; lo que falta es que **anuncie el cambio** cuando ocurre.
+
+Debe llevar exactamente los dos mensajes de arriba, con el mismo texto y el mismo reparto de tiempos
+verbales — mensaje 1 al escribirse `LIMIT_BREACHED`, mensaje 2 al conocerse el resultado. **Una tercera
+redacción propia de la ventana sería una tercera cosa que puede contradecir a las otras dos**, y la
+versión anterior de este documento ya cometió ese error: proponía para la ventana un texto que prometía
+*"no se puede volver a operar hasta las 17:00"*, la misma sobreafirmación corregida arriba, sobreviviendo
+en el párrafo siguiente porque nadie la volvió a leer. Un solo par de cadenas, consumido por las dos
+superficies.
+
+Lo que falta, entonces, es sólo mecánica: que la ventana se suscriba al mismo observador del ledger que
+el Log, y que el bloqueo sea visible sin tener que ir a buscarlo.
 
 Sin eso, el evento más importante que el producto produce en toda su vida —el único momento en que
 realmente salva a alguien— se le presenta al usuario como si el software se hubiera roto.
