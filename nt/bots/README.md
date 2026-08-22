@@ -213,6 +213,28 @@ one trade this repository does not make.
 The lockout is the one moment this product exists for, and on screen it looks alarming if nobody
 warned you. Here is the whole thing, in order.
 
+**0. The guardian speaks first, twice.** In the Control Center Log, at `LogLevel.Alert`:
+
+> **DAILY LOSS LIMIT REACHED.** The guardian is closing your day on Sim101. You are down $x and your
+> limit is $y. **I am about to cancel** your working orders and close your positions. NinjaTrader will
+> switch off any strategy running on this account as a result - that is NinjaTrader reacting to the
+> positions being closed, not an error, and nothing is broken.
+
+and then, once it is actually done:
+
+> **LOCKED.** N orders cancelled and positions closed on Sim101, at $x against a $y limit. Any new
+> order will be cancelled until 17:00 (America/Chicago). **This is what you asked for.**
+
+Two messages rather than one, because the first is written before the broker has been touched and may
+not claim anything was done, and the second cannot exist until it is true. The first deliberately
+arrives before NinjaTrader's own line below - the Log is read downwards.
+
+**A third message exists and you should almost never see it.** *"COULD NOT CLOSE EVERYTHING ... CLOSE
+IT YOURSELF NOW"* fires only on a lockout that gave up after exhausting its retries. It is NOT the
+same as the `LOCKOUT_INCOMPLETE` you may spot in the ledger: in a normal successful lockout that event
+appears about half a second before the flatten is verified, because the flatten is a real market order
+and takes time to fill. Measured on the first real run, 2026-08-22.
+
 **1. Your orders get cancelled and your positions get closed.** That is the guardian. Expected.
 
 **2. NinjaTrader switches off every strategy you had running on that account**, and writes this in the

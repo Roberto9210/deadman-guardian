@@ -53,6 +53,11 @@ namespace GuardianCore
         /// <summary>Identifies this process run. Monotonic continuity exists only within one run
         /// (SPEC 6.4, 17.2).</summary>
         public string RunId { get; set; }
+
+        /// <summary>Optional observer for ledger appends (SPEC section 14). Best-effort and never
+        /// load-bearing: an exception from it cannot break an append or stop a lockout, and its
+        /// failures are counted and published rather than swallowed.</summary>
+        public Action<LedgerEntry> LedgerObserver { get; set; }
         public Func<string, TimeZoneInfo> ZoneLookup { get; set; }
     }
 
@@ -83,6 +88,7 @@ namespace GuardianCore
         /// Amendment A6.</summary>
         private bool _clockIncoherent;
         private bool _ledgerUsable = true;
+        private readonly Action<LedgerEntry> _ledgerObserver;
 
         public Guardian(GuardianOptions options)
         {
@@ -95,6 +101,7 @@ namespace GuardianCore
             _ledgerPath = options.LedgerPath ?? throw new ArgumentNullException(nameof(options.LedgerPath));
             _runId = options.RunId ?? Guid.NewGuid().ToString("N");
             _zoneLookup = options.ZoneLookup;
+            _ledgerObserver = options.LedgerObserver;
         }
 
         public GuardianStatus Status =>
@@ -112,7 +119,7 @@ namespace GuardianCore
         /// each step's trust depends on the previous one.</summary>
         public void Start()
         {
-            _ledger = new Ledger(_store, _ledgerPath);
+            _ledger = new Ledger(_store, _ledgerPath) { Observer = _ledgerObserver };
 
             // 1. state
             if (!_store.Exists(_statePath))
@@ -363,6 +370,12 @@ namespace GuardianCore
         {
             EnsureStarted();
 
+            // Published OUTSIDE the append path, on the tick after the failure, so that recording a
+            // notification failure never appends from inside an append.
+            var notifyFailures = _ledger.TakeObserverFailures();
+            if (notifyFailures > 0)
+                Log(Ev.NotifyFailed, JsonValue.Obj().Set("count", notifyFailures));
+
             CheckClock(startup: false);
             if (CheckExpiry()) return;
             if (_state.Kind == StateKind.Disarmed) { Persist(); return; }
@@ -434,7 +447,15 @@ namespace GuardianCore
         public void Stop()
         {
             if (_state == null) return;
-            Log(Ev.GuardianStopped, JsonValue.Obj().Set("state", _state.Kind.ToString().ToUpperInvariant()));
+
+            // Drain into GUARDIAN_STOPPED as well as on the tick. The window that matters is exactly
+            // the one a tick can miss: a trader who closes the platform seconds after a lockout, which
+            // is when a notification failure would be both most likely and most worth knowing about.
+            var pending = _ledger != null ? _ledger.TakeObserverFailures() : 0;
+
+            Log(Ev.GuardianStopped, JsonValue.Obj()
+                .Set("state", _state.Kind.ToString().ToUpperInvariant())
+                .Set("notifyFailures", pending));
             Persist();
         }
 

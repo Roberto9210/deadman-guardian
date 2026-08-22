@@ -120,6 +120,11 @@ namespace GuardianCore
 
         public string GetString(string key) => this[key] is JsonString s ? s.Value : null;
         public long? GetInt(string key) => this[key] is JsonNumber n ? n.Value : (long?)null;
+        /// <summary>Null when the key is ABSENT, which is not the same as false. A consumer that
+        /// treats a missing flag as false turns 'this event never carried the field' into a
+        /// positive claim - the exact trap LOCKOUT_INCOMPLETE sets, since two of its three
+        /// emitters do not write `exhausted` at all.</summary>
+        public bool? GetBool(string key) => this[key] is JsonBool b ? b.Value : (bool?)null;
 
         internal override void Write(StringBuilder sb)
         {

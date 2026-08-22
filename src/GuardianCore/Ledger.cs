@@ -40,6 +40,7 @@ namespace GuardianCore
         public const string LockoutCleared = "LOCKOUT_CLEARED";
         public const string Disarmed = "DISARMED";
         public const string LedgerVerifyFailed = "LEDGER_VERIFY_FAILED";
+        public const string NotifyFailed = "NOTIFY_FAILED";
     }
 
     public sealed class LedgerEntry
@@ -93,6 +94,42 @@ namespace GuardianCore
         public string Head => _head;
         public long LastSeq => _seq;
 
+        /// <summary>Optional, best-effort, NEVER load-bearing: called after each successful append so
+        /// an adapter can react to an event (the lockout messages are the reason it exists). It
+        /// receives Core types only, so G22 holds.
+        ///
+        /// Best-effort must not mean invisible, which is why failures are COUNTED rather than
+        /// swallowed - a path that fails without leaving a trace is the defect this project keeps
+        /// finding, and "the guardian explains what happened" is a product claim resting on this
+        /// callback having run.</summary>
+        public Action<LedgerEntry> Observer { get; set; }
+
+        /// <summary>Failures since the last read. Never recorded from inside the notification: doing
+        /// that would append from inside the append, putting recursion in the lockout's critical
+        /// path. The Guardian drains this on its next tick and on Stop().</summary>
+        public int ObserverFailures { get; private set; }
+
+        public int TakeObserverFailures()
+        {
+            var n = ObserverFailures;
+            ObserverFailures = 0;
+            return n;
+        }
+
+        /// <summary>Per-thread, so an observer that appends cannot recurse. That is a bug in the
+        /// observer, but the ledger must not break its own chain because of someone else's bug.</summary>
+        [ThreadStatic] private static bool _notifying;
+
+        private void Notify(LedgerEntry entry)
+        {
+            var observer = Observer;
+            if (observer == null || _notifying) return;
+            _notifying = true;
+            try { observer(entry); }
+            catch { ObserverFailures++; }   // the append already succeeded; this cannot undo it
+            finally { _notifying = false; }
+        }
+
         private void LoadHead()
         {
             if (!_store.Exists(_path)) { _seq = 0; _head = Hashing.Genesis; return; }
@@ -129,7 +166,9 @@ namespace GuardianCore
             _store.AppendLine(_path, full.ToCanonical());
             _seq = seq;
             _head = hash;
-            return new LedgerEntry(seq, tsUtc, ev, SchemaVersion, payload, unhashed.GetString("prev"), hash);
+            var entry = new LedgerEntry(seq, tsUtc, ev, SchemaVersion, payload, unhashed.GetString("prev"), hash);
+            Notify(entry);
+            return entry;
         }
 
         /// <summary>SPEC 11.3: Ok, or the seq of the first broken link.</summary>

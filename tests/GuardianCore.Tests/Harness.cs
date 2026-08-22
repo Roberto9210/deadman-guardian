@@ -43,6 +43,11 @@ namespace GuardianCore.Tests
                    "\"pnlToleranceUsd\":\"5.00\"}";
         }
 
+        /// <summary>Settable at any point in a test, so a test can make the observer start or stop
+        /// throwing mid-run - which is the only way to check that a failure is counted and then
+        /// published by a LATER append that must itself succeed.</summary>
+        public Action<LedgerEntry> Observer;
+
         public Guardian NewGuardian(string runId = null)
         {
             RunId = runId ?? RunId;
@@ -54,7 +59,8 @@ namespace GuardianCore.Tests
                 Feed = Feed,
                 StatePath = StatePath,
                 LedgerPath = LedgerPath,
-                RunId = RunId
+                RunId = RunId,
+                LedgerObserver = e => { var o = Observer; if (o != null) o(e); }
             });
             Guardian.Start();
             return Guardian;

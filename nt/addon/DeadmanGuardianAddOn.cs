@@ -40,6 +40,11 @@ namespace NinjaTrader.NinjaScript.AddOns
         private GuardianStatusWindow _window;
         private Account _subscribed;
         private string _guardedAccount = "Sim101";     // overwritten by config on arm
+        private string _resetLocalTime;                // "17:00", from the sealed config
+        private string _zoneId;                        // "America/Chicago" - never dropped from a time
+        private decimal _personalLimit;
+        private int _lastCancelCount;                  // what ORDERS_CANCELLED reported, for message 2
+        private decimal _breachDayLoss;                // the figure LIMIT_BREACHED itself carried
         private string _lastConfigText;
 
         protected override void OnStateChange()
@@ -77,7 +82,8 @@ namespace NinjaTrader.NinjaScript.AddOns
                 StatePath = StatePath,
                 LedgerPath = LedgerPath,
                 // One run id per process: monotonic continuity exists only inside it (SPEC §6.4, §17.2).
-                RunId = Guid.NewGuid().ToString("N")
+                RunId = Guid.NewGuid().ToString("N"),
+                LedgerObserver = OnLedgerEntry
             });
 
             lock (_gate) _guardian.Start();
@@ -226,6 +232,9 @@ namespace NinjaTrader.NinjaScript.AddOns
                     if (parsed.Ok && parsed.Config.Accounts.Count > 0)
                     {
                         _guardedAccount = parsed.Config.Accounts[0];
+                        _resetLocalTime = parsed.Config.SessionResetLocalTime.ToString(@"hh\:mm");
+                        _zoneId = parsed.Config.SessionResetTimeZone;
+                        _personalLimit = parsed.Config.PersonalDailyLossLimit;
                         SubscribeToAccount();
                     }
                     AdapterLog("ARMED");
@@ -355,6 +364,81 @@ namespace NinjaTrader.NinjaScript.AddOns
             RunOnUi(() => { try { _window?.Close(); } catch { } _window = null; });
         }
 
+        /// <summary>The two lockout messages, and the only place the platform is told anything.
+        ///
+        /// Best-effort by contract: an exception here cannot break the append or stop the lockout, and
+        /// Core counts the failure and publishes it (NOTIFY_FAILED, and again in GUARDIAN_STOPPED) so
+        /// that "the guardian explains what happened" is a checkable claim rather than a hope.
+        ///
+        /// The strings come from GuardianCore.Messages - the same ones the status window renders, per
+        /// AMENDMENTS A10. Not a version for the log and a version for the window.</summary>
+        private void OnLedgerEntry(LedgerEntry entry)
+        {
+            if (entry == null) return;
+
+            var until = Messages.Until(_resetLocalTime, _zoneId);
+
+            switch (entry.Event)
+            {
+                case Ev.LimitBreached:
+                    // FIRST message: written before the broker has been touched, so it speaks in the
+                    // future and claims nothing was done. It also warns about NinjaTrader's own
+                    // "Disabling NinjaScript strategy" BEFORE NinjaTrader writes it - the Log is read
+                    // downwards, and an explanation arriving afterwards corrects nothing.
+                    _breachDayLoss = MoneyOf(entry, "dayLoss");
+                    Announce(Messages.LockoutImminent(_guardedAccount, _breachDayLoss, _personalLimit));
+                    break;
+
+                case Ev.OrdersCancelled:
+                    _lastCancelCount = (int)(entry.Payload?.GetInt("count") ?? 0);
+                    break;
+
+                case Ev.FlattenVerified:
+                    // SECOND message: past tense, real figures, only now that they are true.
+                    // The figure LIMIT_BREACHED carried, not a fresh read: message 2 reports the loss
+                    // that caused the lockout, and a re-read could show a different number for a
+                    // reason the reader has no way to see.
+                    Announce(Messages.LockoutComplete(_guardedAccount, _breachDayLoss, _personalLimit,
+                                                      _lastCancelCount, until));
+                    break;
+
+                case Ev.LockoutIncomplete:
+                    // ONLY when the event says it is terminal. The first real run (2026-08-22) showed
+                    // the transient one appearing ~500 ms BEFORE a successful FLATTEN_VERIFIED: firing
+                    // here unconditionally would tell every user, in every ordinary lockout, to go and
+                    // hand-close a position that is closing itself.
+                    //
+                    // And the field must be PRESENT and true. Two other sites emit this event for
+                    // per-step exceptions and carry no `exhausted` at all; absence is not false, it is
+                    // a different event, so it is required rather than inferred.
+                    var exhausted = entry.Payload?.GetBool("exhausted");
+                    if (exhausted == true)
+                        Announce(Messages.LockoutStillOpen(_guardedAccount,
+                                                           (int)(entry.Payload.GetInt("attempts") ?? 0)));
+                    break;
+            }
+        }
+
+        /// <summary>One line, at the loudest level NinjaTrader has, in a category that is not the
+        /// `Default` its own strategy-disabling message uses - so the guardian's explanation is not
+        /// buried beside it.</summary>
+        private void Announce(string message)
+        {
+            // Fully qualified: inside namespace NinjaTrader.NinjaScript.AddOns, a bare `NinjaScript`
+            // resolves to the enclosing NAMESPACE, not to the class of the same name.
+            // LogLevel.Alert is the loudest NinjaTrader has and the rarest, so the guardian's
+            // explanation is not buried next to its own informational messages.
+            try { global::NinjaTrader.NinjaScript.NinjaScript.Log(message, global::NinjaTrader.Cbi.LogLevel.Alert); }
+            catch (Exception ex) { AdapterLog("announce failed: " + ex.Message); throw; }
+        }
+
+        private static decimal MoneyOf(LedgerEntry entry, string key)
+        {
+            decimal v;
+            var raw = entry.Payload?.GetString(key);
+            return raw != null && Money.TryParse(raw, out v) ? v : 0m;
+        }
+
         private void RefreshWindow()
         {
             var snap = Snapshot();
@@ -372,6 +456,8 @@ namespace NinjaTrader.NinjaScript.AddOns
                     Reason = s.Reason,
                     Account = _guardedAccount,
                     SecondsToExpiry = SecondsToExpiry(),
+                    HasSeal = s.Sealed,
+                    Until = Messages.Until(_resetLocalTime, _zoneId),
                     ConfigPath = ConfigPath
                 };
             }
@@ -429,6 +515,8 @@ namespace NinjaTrader.NinjaScript.AddOns
             public string Reason;
             public string Account;
             public long SecondsToExpiry;
+            public bool HasSeal;
+            public string Until;
             public string ConfigPath;
         }
 
@@ -515,34 +603,42 @@ namespace NinjaTrader.NinjaScript.AddOns
 
             switch (v.Kind)
             {
+                // Every string below comes from GuardianCore.Messages, which the NinjaTrader Log also
+                // consumes (AMENDMENTS A10). Not a version for the window and a version for the log:
+                // two copies of a sentence never diverge together - one gets corrected and the other
+                // does not, so the survivor is by construction the stale one.
+
                 case StateKind.Armed:
                     _root.Background = new SolidColorBrush(Color.FromRgb(0x1B, 0x5E, 0x20));   // green
-                    _headline.Text = "ARMED";
-                    _detail.Text = "Watching " + v.Account + ". Entries allowed.";
+                    _headline.Text = Messages.Headline(StateKind.Armed);
+                    _detail.Text = Messages.DetailArmed(v.Account);
                     _armButton.Visibility = Visibility.Collapsed;
                     break;
 
                 case StateKind.Locked:
                     _root.Background = new SolidColorBrush(Color.FromRgb(0xB7, 0x1C, 0x1C));   // red
-                    _headline.Text = "LOCKED";
-                    _detail.Text = string.IsNullOrEmpty(v.Reason)
-                        ? "Daily limit reached. No new entries."
-                        : v.Reason;
+                    _headline.Text = Messages.Headline(StateKind.Locked);
+                    _detail.Text = Messages.DetailLocked(v.Account, v.Until);
                     _armButton.Visibility = Visibility.Collapsed;
                     break;
 
                 case StateKind.FailClosed:
+                    // Was "NOT PROTECTED", which was the same headline Disarmed used - and they are
+                    // opposites. Here the seal is alive, the guardian IS armed and IS blocking new
+                    // entries, and only sight of the account is missing. The old wording misled toward
+                    // the dangerous side, and on 2026-08-22 a real person went looking for an Arm
+                    // button that is hidden precisely because there is nothing to arm.
                     _root.Background = new SolidColorBrush(Color.FromRgb(0xE6, 0x51, 0x00));   // orange
-                    _headline.Text = "NOT PROTECTED";
-                    _detail.Text = "Blocked, state unknown: " + (v.Reason ?? "unknown");
+                    _headline.Text = Messages.Headline(StateKind.FailClosed);
+                    _detail.Text = Messages.DetailCannotSee(v.Reason, v.HasSeal, v.Until);
                     _armButton.Visibility = Visibility.Collapsed;
                     break;
 
                 default:
                     _root.Background = new SolidColorBrush(Color.FromRgb(0x42, 0x42, 0x42));   // grey
-                    _headline.Text = "NOT PROTECTED";
+                    _headline.Text = Messages.Headline(StateKind.Disarmed);
                     _detail.Text = string.IsNullOrEmpty(v.Reason)
-                        ? "Disarmed. Nothing is being watched. Config: " + v.ConfigPath
+                        ? Messages.DetailNotArmed(v.ConfigPath)
                         : v.Reason;
                     _armButton.Visibility = Visibility.Visible;
                     break;
