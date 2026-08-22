@@ -60,8 +60,43 @@ is bigger:
   `Flatten` and `CancelAllOrders`, and both are **account-wide** — they do not know who placed what. B
   running at that moment would record an intervention its own guardian never made, forging a false
   positive in the one number B exists to produce. Each bot aborts if the other's gate exists.
-- **Automatic shutdown**: at the session boundary (the same `SessionCalendar` the guardian uses, so
-  they cannot drift), and on `State.Terminated`. Own orders cancelled, own position flattened.
+- **Automatic shutdown** on `State.Terminated`, which cancels the bot's own orders and flattens its
+  own position. **Bot B additionally stops at the session boundary**, using the same `SessionCalendar`
+  the guardian uses so the two cannot drift. **Bot A does not** - it has no `SessionCalendar` at all,
+  and is bounded instead by its order budget and a 45-minute loss phase. An earlier version of this
+  line claimed the session boundary for both; it was true of one. Corrected 2026-08-22, before the
+  first run, while checking what could stop Bot A once started.
+
+## How to stop Bot A once it is running - read this BEFORE creating the gate
+
+The gate file is burned before the first send, so deleting it stops nothing. Bot A is an AddOn, so it
+has no button in any list. Everything that can end it, in the order it is likely to happen:
+
+| what | when | who does it |
+|---|---|---|
+| **`PostLockoutProbes`** | after 8 post-lockout entry attempts, the run ends on its own | nobody - this is the normal ending |
+| **`LossPhaseMaxMinutes`** | 45 minutes without reaching the limit | nobody |
+| **`MaxOrdersPerSession`** | 200 orders reserved, refused thereafter | nobody |
+| **the continuous account gate** | any order, if a non-simulator account becomes connected or any state turns unknown | nobody - automatic |
+| **F5 in the NinjaScript Editor** | **immediately** | **the operator** |
+
+**F5 is the off switch.** Recompiling unloads every AddOn, which raises `State.Terminated`, which runs
+`Shutdown()`: timers disposed, event handlers detached, the bot's own working orders cancelled, its own
+position flattened. The instance NinjaTrader creates afterwards finds no gate file - it was burned -
+so it does nothing. Pressing F5 with no source change is harmless and is the intended emergency stop.
+
+**What does NOT stop it**, said explicitly because both are easy to assume:
+
+- **Deleting `botA.GO`.** It is read once, at `State.Configure`, and burned before the first order.
+- **The guardian's lockout.** It stops the *exposure* - cancels, flattens, stays `LOCKED` - and Bot A
+  goes on trying to enter, deliberately. That is the entire experiment. The lockout is not a brake on
+  the bot; it is the thing the bot is measuring.
+
+There is **no stop file and no kill switch** in this guardian. `KillSwitch` is a primitive of the
+sibling Python library, not of the NinjaTrader add-on. If F5 is unavailable for any reason, the only
+remaining stop is **killing the NinjaTrader process** - said in those words so nobody has to discover
+it. On a simulated account that is acceptable; it costs the guardian its `GUARDIAN_STOPPED` event and
+leaves whatever Bot A was holding to be cleaned up by hand on the next start.
 - **Its own guardian, over its own state and ledger**, with a small limit — production's files are
   never opened for writing. The ports underneath are the **real** ones.
 - Orders are filed as `OrderEntry.Automated` through the non-obsolete `CreateOrder` overload: a bot
