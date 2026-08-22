@@ -66,22 +66,76 @@ directo, sin tocar el resto de `nt/`:
 
 Queda dentro de `dotnet test`, con los otros 175. Sin plataforma, sin cuenta, sin conexión, en CI.
 
+## El riel no elige: se niega
+
+*"Un chequeo la habría atajado" es una garantía más débil que "no estaba"* — y esa frase, llevada hasta
+el final, cambia la regla. **Elegir bien entre `Sim101` y una cuenta fondeada sigue siendo un chequeo.**
+Lo que corresponde a un bot que existe para perder plata a propósito es **no arrancar** mientras haya en
+la sesión una cuenta que pueda mover dinero real.
+
+### La contra que hay que resolver primero, porque la regla literal se rompe sola
+
+"Rechazar si hay alguna cuenta que no sea `Simulator`" **rechazaría siempre**. En las 16 corridas del
+soak, sin excepción:
+
+```
+Account.All = [Backtest/Simulator, Playback101/Playback, Sim101/Simulator, 2127534/Provider31]
+```
+
+**`Playback101` tiene `Provider = Playback`, que no es `Simulator`, y está presente en toda máquina con
+playback configurado — o sea, siempre.** Un riel que nunca deja correr no es un riel: es un bot
+apagado, y a la semana alguien lo saca "porque no anda".
+
+### La forma correcta: lista blanca de proveedores, y lo desconocido rechaza
+
+```
+SafeProviders = { Simulator, Playback }
+```
+
+**Se niega si CUALQUIER cuenta de la sesión tiene un proveedor fuera de esa lista** — sin necesidad de
+saber qué es. `Provider31` rechaza hoy; un broker nuevo el año que viene rechaza también, sin que nadie
+tenga que acordarse de agregarlo a una lista negra. Es la misma forma que el resto del proyecto:
+**lista blanca declarada, y lo que no está declarado falla cerrado.**
+
+Consecuencia deliberada, dicha para que nadie la reporte como bug: **en la máquina de un trader real
+con su broker configurado, los bots no arrancan nunca.** Correcto. Son instrumentos de prueba nuestros,
+no software para terceros.
+
+### La asimetría, escrita para que nadie la "unifique"
+
+**Esta regla es SÓLO para los bots. El guardián NO la lleva, y no puede llevarla.**
+
+| | los bots | el guardián |
+|---|---|---|
+| qué son | instrumentos de prueba nuestros, uno de ellos diseñado para perder | el producto |
+| su mercado | ninguno | **cuentas fondeadas** |
+| con una cuenta fondeada presente | **no arrancan** | **trabaja, que es exactamente su razón de existir** |
+
+Un guardián que se negara a funcionar con una cuenta fondeada en la sesión sería absurdo: es el
+producto cuyo único cliente es alguien con una cuenta fondeada. La asimetría no es una inconsistencia
+que alguien deba venir a resolver — es la diferencia entre una herramienta de prueba y un producto, y
+**unificarlas rompería el producto o desprotegería la prueba, según hacia qué lado se unifique.**
+
 ## Los casos, y el que pediste primero
 
 | caso | cuentas presentes | esperado |
 |---|---|---|
-| **la cuenta fondeada sola** | `9999999/Provider31` (conectada) | **DENY** — no hay ninguna llamada `Sim101` |
-| **la fondeada junto a la buena** | `Sim101/Simulator`, `9999999/Provider31` | **ALLOW, y elige `Sim101`** — el caso real de esta máquina |
-| nombre correcto, proveedor real | `Sim101/Provider31` | DENY — `Provider != Simulator` |
-| nombre parecido | `Sim1010/Simulator`, `sim101/Simulator` | DENY — la comparación es ordinal y exacta |
+| **la fondeada junto a la buena** | `Sim101/Simulator`, `9999999/Provider31` | **DENY** — hay una cuenta con proveedor fuera de la lista blanca. **NO elige `Sim101`: no arranca** |
+| **la sesión sana de esta máquina** | `Backtest/Simulator`, `Playback101/Playback`, `Sim101/Simulator` | **ALLOW**, elige `Sim101` — y prueba que `Playback` no bloquea |
+| la cuenta fondeada sola | `9999999/Provider31` | DENY |
+| proveedor desconocido, no fondeado | `Sim101/Simulator`, `Algo/Provider99` | DENY — lo no declarado rechaza, sin saber qué es |
+| nombre correcto, proveedor real | `Sim101/Provider31` | DENY |
+| nombre parecido | `Sim1010/Simulator`, `sim101/Simulator` | DENY — comparación ordinal y exacta |
 | dos con el mismo nombre | `Sim101/Simulator` ×2 | DENY — `matches.Count != 1` |
 | la buena, desconectada | `Sim101/Simulator` (desconectada) | DENY |
 | lista vacía | — | DENY |
 
-El segundo es el que importa de verdad: **no alcanza con que rechace una lista que sólo tiene la
-cuenta mala.** Hay que probar que con las dos delante elige la correcta, porque ése es el estado real
-de la plataforma hoy — las 16 corridas del soak registran
-`[Backtest/Simulator, Playback101/Playback, Sim101/Simulator, 2127534/Provider31]`.
+El primero es el que cambió de signo y es el que importa: **antes decía "permitir y elegir `Sim101`",
+ahora dice RECHAZAR.** Elegir correctamente era el chequeo; no arrancar es "no estaba". Ése es el
+estado real de esta máquina hoy, así que es el caso que decide si el riel sirve.
+
+El segundo es su par obligatorio: sin él, la regla nueva pasaría igual estando rota de la forma que
+la haría inútil — rechazando siempre.
 
 ## El número real NO va en el test
 
@@ -94,6 +148,39 @@ El test usa `9999999` con `Provider31`. **Lo que se prueba es la forma** — un 
 `Sim101` con un proveedor que no es `Simulator` — y esa forma es idéntica. El valor de regresión es el
 mismo y no se filtra nada. Si alguien alguna vez quiere el número real en la prueba, la respuesta es
 no, y la razón está acá escrita.
+
+## El seam mueve el punto ciego, y hay que decir dónde queda
+
+Sacar la decisión a un archivo puro deja probado lo que decide — y **convierte al adaptador de cinco
+líneas en la parte no probada**. Si mapea mal (lee `DisplayName` en vez de `Name`, o saca el proveedor
+de otro campo, o se olvida de la conexión), la regla pura queda impecable, sus nueve casos en verde, y
+el producto falla igual. Es la lección del seam de siempre: mover el límite no borra el riesgo, lo
+reubica — y hay que decir adónde.
+
+**La verificación ya existe y es gratis.** El soak imprime, en cada corrida, exactamente la forma que
+el adaptador consume:
+
+```
+Account.All = [Backtest/Simulator, Playback101/Playback, Sim101/Simulator, 2127534/Provider31]
+```
+
+**Esa línea es la prueba del adaptador.** Los campos exactos que se leen, para que un cambio de mapeo
+sea visible contra una corrida real:
+
+| campo | de dónde sale | ¿aparece en la línea del soak? |
+|---|---|---|
+| nombre | `Account.Name`, comparado con `StringComparison.Ordinal` | **sí** — lo que va antes de la `/` |
+| proveedor | `Account.Provider.ToString()` (vía `SafeProvider`) | **sí** — lo que va después de la `/` |
+| conexión | `Account.Connection == null` y `Account.ConnectionStatus != Connected` | **NO** |
+
+**Y ahí está el hueco que este mismo análisis destapa:** de los tres campos que deciden, la línea sólo
+publica dos. El estado de conexión se lee y no se imprime, así que un error de mapeo *en ese campo* no
+sería visible en ninguna corrida pasada ni futura. Es medio adaptador probado, presentado como
+adaptador probado.
+
+Se arregla con un carácter por cuenta: que la línea pase a
+`Sim101/Simulator/Connected`. Entonces la evidencia que ya se genera sola cubre **los tres**, y
+cualquier cambio de mapeo choca contra 16 corridas de historia.
 
 ## Por qué no una prueba de integración
 
