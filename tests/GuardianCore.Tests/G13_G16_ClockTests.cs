@@ -230,8 +230,10 @@ namespace GuardianCore.Tests
         [Fact]
         public void G16_arming_with_an_account_the_platform_does_not_know_is_rejected()
         {
+            // Single account since M16: multi-account configs are refused outright, so the
+            // unknown-account rule has to be provoked with one account the platform cannot see.
             NewGuardian();
-            var result = Guardian.Arm(Config(accounts: "[\"Sim101\",\"Ghost\"]"));
+            var result = Guardian.Arm(Config(accounts: "[\"Ghost\"]"));
 
             Assert.False(result.Ok);
             Assert.Contains(result.Reasons, r => r.Contains("Ghost") && r.Contains("not known"));

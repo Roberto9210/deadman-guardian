@@ -78,6 +78,16 @@ namespace GuardianCore
                 }
                 if (names.Count == 0) reasons.Add("'accounts' must not be empty");
                 if (names.Count != names.Distinct(StringComparer.Ordinal).Count()) reasons.Add("'accounts' contains duplicates");
+                // M16, and it is a REFUSAL rather than a limitation quietly honoured by half. The
+                // adapter subscribes to one account, so a second one would have its post-lockout
+                // orders left uncancelled and an open position invisible until something realises.
+                // Accepting the config and keeping half the promise is the worst of the options;
+                // refusing is reversible the day multi-account is actually supported, and Core's
+                // own plural handling is left in place for that day (see OnOrderObserved).
+                if (names.Count > 1)
+                    reasons.Add("'accounts' lists " + names.Count + " accounts and only one is supported: " +
+                                "the platform adapter watches a single account, so the others would be guarded " +
+                                "only in part. This refusal is deliberate, not a bug");
                 cfg.Accounts = names;
             }
             else if (o.Has("accounts")) reasons.Add("'accounts' must be an array");

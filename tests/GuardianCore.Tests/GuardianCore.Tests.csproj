@@ -29,6 +29,7 @@
        and no connection - the same terms as every other test in this project. -->
   <ItemGroup>
     <Compile Include="..\..\nt\bots\BotAccountRule.cs" Link="Bots\BotAccountRule.cs" />
+    <Compile Include="..\..\nt\addon\GuardedAccountRule.cs" Link="Addon\GuardedAccountRule.cs" />
   </ItemGroup>
 
 </Project>

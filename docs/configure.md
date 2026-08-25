@@ -60,7 +60,15 @@ That is the whole product. If that sounds like too much, it is doing what it is 
 }
 ```
 
-**`accounts`** — one or more. Losses are **summed** across them and never netted: if one account is up $500
+**`accounts`** — exactly **one**. A config listing more than one account is refused at arm, with the
+reason in the rejection: the platform adapter watches a single account, so a second one would be
+guarded only in part — its post-lockout orders never cancelled, an open position invisible until
+something is realised. Accepting that config and honouring half of it would be worse than refusing.
+The refusal is deliberate and reversible if multi-account support is ever actually built
+(2026-08-22, M16 in [error_espejo.md](error_espejo.md)).
+
+The sum-across-accounts rule below still describes Core's internal arithmetic, which handles the
+plural on purpose — defence in depth for that future day. Losses are **summed** and never netted: if one account is up $500
 and another down $700, your day's loss is $700, not $200. Your firm fails each account on its own number,
 so the guardian counts them that way.
 

@@ -39,7 +39,14 @@ namespace NinjaTrader.NinjaScript.AddOns
         private Timer _timer;
         private GuardianStatusWindow _window;
         private Account _subscribed;
-        private string _guardedAccount = "Sim101";     // overwritten by config on arm
+        /// <summary>Null until resolved from the SEALED config - never a hardcoded default.
+        ///
+        /// M15: this used to be "Sim101", overwritten only inside the arm path. A restart with a
+        /// restored ARMED seal never arms, so the adapter watched Sim101 whatever the seal said.
+        /// Resolution now happens through GuardedAccountRule at boot (after Core restores) and again
+        /// on arm, and its outcome is logged every time so an auditor can see which account each
+        /// session actually watched - or why it watched none.</summary>
+        private string _guardedAccount;
         private string _resetLocalTime;                // "17:00", from the sealed config
         private string _zoneId;                        // "America/Chicago" - never dropped from a time
         private decimal _personalLimit;
@@ -89,11 +96,15 @@ namespace NinjaTrader.NinjaScript.AddOns
             lock (_gate) _guardian.Start();
             AdapterLog("Core started; state=" + _guardian.Status.Kind);
 
+            // M15: the guarded account comes from the restored seal or it does not exist. This runs
+            // BEFORE SubscribeToAccount, which used to act on a hardcoded default at this exact point.
+            ResolveGuardedAccount("boot");
+
             // Only now. Account.AccountStatusUpdate is a STATIC event (found by compiling against the
             // real assemblies) and NinjaTrader fires it immediately: registering it before Core exists
             // made the handler run twice against a null guardian on the very first real startup.
             Account.AccountStatusUpdate += OnAccountStatusUpdate;
-            SubscribeToAccount();
+            // SubscribeToAccount already ran inside ResolveGuardedAccount("boot") above.
             ShowWindow();
 
             // SPEC §5.6: the evaluation floor. Everything else is event-driven.
@@ -113,9 +124,29 @@ namespace NinjaTrader.NinjaScript.AddOns
 
         // ---------------- NT8 events in ----------------
 
+        /// <summary>One resolver for boot and arm. Reads Core's sealed config, decides through
+        /// GuardedAccountRule (pure, tested without the platform), logs the outcome either way, and
+        /// only then touches the subscription.</summary>
+        private void ResolveGuardedAccount(string when)
+        {
+            GuardedAccountDecision decision;
+            lock (_gate) decision = GuardedAccountRule.Decide(_guardian.GuardedAccounts);
+
+            _guardedAccount = decision.Account;
+            AdapterLog("guarded account (" + when + "): " + decision);
+            SubscribeToAccount();
+        }
+
         private void SubscribeToAccount()
         {
             UnsubscribeFromAccount();
+            if (_guardedAccount == null)
+            {
+                // Not an oversight: no configuration is in force, so there is nothing safe to watch.
+                // Core reports the truth through the feed on its next tick (SPEC §10).
+                AdapterLog("no subscription: no guarded account is resolved");
+                return;
+            }
             var a = Accounts.Find(_guardedAccount);
             if (a == null)
             {
@@ -227,16 +258,16 @@ namespace NinjaTrader.NinjaScript.AddOns
 
                 if (result.Ok)
                 {
-                    // The guarded account may have changed with the config; re-resolve.
+                    // The guarded account may have changed with the config; same resolver as boot,
+                    // so there is exactly one dialect of this decision.
                     var parsed = GuardianConfig.Parse(text);
-                    if (parsed.Ok && parsed.Config.Accounts.Count > 0)
+                    if (parsed.Ok)
                     {
-                        _guardedAccount = parsed.Config.Accounts[0];
                         _resetLocalTime = parsed.Config.SessionResetLocalTime.ToString(@"hh\:mm");
                         _zoneId = parsed.Config.SessionResetTimeZone;
                         _personalLimit = parsed.Config.PersonalDailyLossLimit;
-                        SubscribeToAccount();
                     }
+                    ResolveGuardedAccount("arm");
                     AdapterLog("ARMED");
                     return null;
                 }

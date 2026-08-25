@@ -107,6 +107,18 @@ namespace GuardianCore
         public GuardianStatus Status =>
             new GuardianStatus(_state?.Kind ?? StateKind.Disarmed, _state?.DayKey, _state?.Seal?.SealHash, _state?.Reason);
 
+        /// <summary>The accounts this session is actually guarding, taken from the SEALED config -
+        /// so it is right after a restore, when nobody re-armed and there is no other place to learn it
+        /// from. Null until a config is in force, which is a real answer and not an empty list: "we do
+        /// not know yet" and "we guard nothing" are different, and an adapter must not subscribe on the
+        /// strength of the second when it means the first.
+        ///
+        /// M15: the adapter used to default to a hardcoded "Sim101" and only overwrite it inside Arm().
+        /// A restart with a restored ARMED seal never runs Arm, so it watched Sim101 whatever the seal
+        /// said - invisible on a machine whose account IS Sim101, broken from the first restart for
+        /// anybody else.</summary>
+        public IReadOnlyList<string> GuardedAccounts => _config?.Accounts;
+
         public LedgerVerifyResult VerifyLedger() => _ledger?.Verify() ?? LedgerVerifyResult.Good();
 
         /// <summary>True only inside the run that armed: monotonic counters restart with the process

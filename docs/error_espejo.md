@@ -70,7 +70,7 @@ enteramente en quien lo llama. Volvemos sobre esto: es el peor de la tabla.
 
 | # | escenario | clase | argumento en una línea | costo si ocurre |
 |---|---|---|---|---|
-| **M1** | `OnOrderObserved` cancela en una cuenta que el guardián no guarda | **PLAUSIBLE** | Core no valida `order.Account` contra `_config.Accounts`; hoy sólo lo contiene que el adaptador se suscriba a una sola cuenta | **cancela un stop de protección en una cuenta ajena — dinero real** |
+| **M1** | `OnOrderObserved` cancela en una cuenta que el guardián no guarda | **ARREGLADO `aa2f32a`** | Core no valida `order.Account` contra `_config.Accounts`; hoy sólo lo contiene que el adaptador se suscriba a una sola cuenta | **cancela un stop de protección en una cuenta ajena — dinero real** |
 | **M2** | Reinicio tras haber realizado P&L ⇒ `SourcesDisagree` ⇒ bloqueo hasta que ruede el día | **PLAUSIBLE — OCURRIÓ HOY** | `_book` es memoria pura; sólo `ResetDay()` la limpia. Al reiniciar Core arranca en 0 y la plataforma sigue reportando lo realizado de la sesión | sin protección y sin poder entrar toda la tarde |
 | **M3** | Reinicio con posición ABIERTA ⇒ Core no la ve ⇒ el no realizado se ignora | **PLAUSIBLE** | `HasOpenPosition` mira el libro de Core, vacío tras reiniciar ⇒ `unrealized = 0` ⇒ `DayLoss` = 0 con una posición sangrando | el guardián informa cero pérdida mientras el trader pierde: **cree estar protegido y no lo está** |
 | **M4** | Suspensión/hibernación de la máquina ⇒ salto de reloj hacia adelante ⇒ bloqueo | **PLAUSIBLE** | tapa de la notebook cerrada: el reloj de pared avanza y el monotónico no lo sigue; `wallDelta - monoDelta > 120 s` | bloqueo de entradas al despertar, sin causa real |
@@ -91,7 +91,7 @@ enteramente en quien lo llama. Volvemos sobre esto: es el peor de la tabla.
 
 ## 2b. Dos preguntas del adaptador — una es nada, la otra es un defecto nuevo
 
-### M15 — al reiniciar, el adaptador vigila `Sim101` diga lo que diga el sello. **PLAUSIBLE, y peor que M3.**
+### M15 — al reiniciar, el adaptador vigilaba `Sim101` dijera lo que dijera el sello. **ARREGLADO (ver abajo).**
 
 `_guardedAccount = "Sim101"` (`DeadmanGuardianAddOn.cs:42`) es un default cableado, y **el único lugar
 que lo cambia es la ruta de armado** (`:234`). Pero `SubscribeToAccount()` corre en el arranque
@@ -116,7 +116,7 @@ durante toda la sesión.
 literal. El default cableado debería ser `null`, y sin cuenta resuelta no hay suscripción — que es
 ruidoso y correcto, en vez de silencioso y equivocado.
 
-### M16 — una config con más de una cuenta deja las demás sin suscripción. **PLAUSIBLE, acotado.**
+### M16 — una config con más de una cuenta dejaba las demás sin suscripción. **ARREGLADO: se rechaza en el armado.**
 
 `GuardianConfig` **permite** más de una cuenta: sólo rechaza lista vacía y duplicados
 (`GuardianConfig.cs:79-80`). El adaptador toma `Accounts[0]` y nada más.
