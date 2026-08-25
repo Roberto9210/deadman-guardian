@@ -90,6 +90,14 @@ namespace GuardianCore
         private bool _ledgerUsable = true;
         private readonly Action<LedgerEntry> _ledgerObserver;
 
+        /// <summary>Restart baseline (Option A). Set at Start when a same-day seal was restored: the
+        /// book is empty but the platform remembers the session, so before ANY snapshot is evaluated
+        /// the day's figures must be re-adopted - or refused, loudly. While pending, entries stay
+        /// blocked; nothing is evaluated against half a picture.</summary>
+        private bool _baselinePending;
+        private Dictionary<string, decimal> _checkpointGross;   // last same-day checkpointed realised, per account
+        private bool _baselineRefusalLogged;
+
         public Guardian(GuardianOptions options)
         {
             if (options == null) throw new ArgumentNullException(nameof(options));
@@ -216,7 +224,170 @@ namespace GuardianCore
 
             // 5. a lockout that was interrupted resumes here (SPEC 9, G7).
             if (_state.Kind == StateKind.Locked && !_state.LockoutVerified) RunLockoutSteps();
+
+            // 6. restart baseline (Option A, M2/M3). A same-day seal means the platform remembers a
+            // session this process has no memory of. The book must be re-seeded from a corroborated
+            // figure before any snapshot is trusted - and until that happens, entries stay blocked.
+            //
+            // NT8 exposes NOTHING that states the period of its GrossRealizedProfitLoss (verified by
+            // reflection over Account and AccountItem: bare numbers, no "since when"). The only
+            // corroboration available is this guardian's own last PNL_CHECKPOINT for the same dayKey,
+            // which is why the checkpoint now records the per-account realised figure.
+            if (_state.Kind != StateKind.Disarmed && _state.Kind != StateKind.Locked &&
+                _state.Seal != null && _config != null && _calendar != null &&
+                _calendar.DayKey(_clock.UtcNow) == _state.DayKey)
+            {
+                _baselinePending = true;
+                _checkpointGross = LoadSameDayCheckpointGross();
+            }
+
             Persist();
+        }
+
+        /// <summary>The per-account realised figure from the last PNL_CHECKPOINT of the CURRENT day,
+        /// read from this guardian's own ledger. Null when no such checkpoint exists - including
+        /// ledgers written before the field existed, which then refuse to corroborate rather than
+        /// pretend (SPEC 10: no plausible substitute).</summary>
+        private Dictionary<string, decimal> LoadSameDayCheckpointGross()
+        {
+            try
+            {
+                Dictionary<string, decimal> result = null;
+                var inCurrentDay = false;
+                foreach (var entry in _ledger.ReadAll())
+                {
+                    var ev = entry.GetString("event");
+                    if (ev == Ev.DayOpened)
+                    {
+                        var payload = entry["payload"] as JsonObject;
+                        inCurrentDay = payload != null && payload.GetString("dayKey") == _state.DayKey;
+                        if (inCurrentDay) result = null;   // a fresh DAY_OPENED restarts the search
+                    }
+                    else if (ev == Ev.PnlCheckpoint && inCurrentDay)
+                    {
+                        var payload = entry["payload"] as JsonObject;
+                        var gross = payload?["grossRealizedPerAccount"] as JsonObject;
+                        if (gross == null) continue;       // older schema: no corroboration available
+                        var map = new Dictionary<string, decimal>(StringComparer.Ordinal);
+                        foreach (var key in gross.Keys)
+                        {
+                            decimal v;
+                            if (Money.TryParse(gross.GetString(key), out v)) map[key] = v;
+                        }
+                        result = map;
+                    }
+                }
+                return result;
+            }
+            catch { return null; }
+        }
+
+        /// <summary>Attempts the adoption. On success clears _baselinePending; on refusal enters
+        /// fail-closed with the reason and logs PNL_BASELINE_REFUSED once; while simply unreadable
+        /// (account not yet connected) it stays pending quietly.</summary>
+        private void TryAdoptBaseline()
+        {
+            foreach (var account in _config.Accounts)
+            {
+                var state = _feed.GetState(account);
+                if (state == null || !state.Known || state.Connection != ConnectionState.Connected)
+                    return;                                    // not readable yet; stay pending
+
+                var platform = _feed.GetPlatformPnl(account) ?? PlatformPnl.Unknown();
+                if (!platform.GrossRealized.HasValue)
+                    return;                                    // platform not reporting yet
+
+                var p = platform.GrossRealized.Value;
+                decimal? c = null;
+                decimal cv;
+                if (_checkpointGross != null && _checkpointGross.TryGetValue(account, out cv)) c = cv;
+
+                // CONDITION 3: the period. NT8 does not say what period its figure covers, so the only
+                // establishment is agreement with our own same-day record. No record, or a figure that
+                // moved beyond tolerance while we were dead, cannot be told apart from a platform
+                // session reset - so nothing is adopted and the reason says why.
+                decimal adopted;
+                if (c == null && p == 0m)
+                {
+                    adopted = 0m;                              // nothing happened; trivially established
+                }
+                else if (c == null)
+                {
+                    RefuseBaseline(account, null, p,
+                        "the platform reports realised P&L but no same-day checkpoint exists to corroborate its period");
+                    return;
+                }
+                else if (Math.Abs(p - c.Value) > _config.PnlToleranceUsd)
+                {
+                    RefuseBaseline(account, c, p,
+                        "platform and last same-day checkpoint differ beyond tolerance; fills while this " +
+                        "guardian was not running and a platform session reset are indistinguishable");
+                    return;
+                }
+                else
+                {
+                    // CONDITION 2: within tolerance they may still differ - adopt whichever leaves the
+                    // trader CLOSER to the limit, and both figures go to the ledger with their source.
+                    adopted = Math.Min(p, c.Value);
+                }
+
+                // Open positions (M3). Every position needs its entry price, or later realised P&L is
+                // garbage; a position the platform cannot price refuses the whole adoption.
+                IReadOnlyList<PositionSnapshot> positions;
+                try { positions = _broker.GetPositions(account); }
+                catch (Exception ex)
+                {
+                    RefuseBaseline(account, c, p, "open positions could not be read: " + ex.Message);
+                    return;
+                }
+                var open = new List<PositionSnapshot>();
+                foreach (var pos in positions)
+                {
+                    if (pos == null || pos.Quantity == 0) continue;
+                    if (!pos.AveragePrice.HasValue || pos.AveragePrice.Value <= 0m)
+                    {
+                        RefuseBaseline(account, c, p,
+                            "open position on '" + pos.Instrument + "' has no usable average price");
+                        return;
+                    }
+                    open.Add(pos);
+                }
+
+                // Commit: figures first, then positions, then the trace.
+                _book.AdoptBaseline(account, adopted);
+                foreach (var pos in open)
+                    _book.AdoptPosition(account, pos.Instrument, pos.Quantity, pos.AveragePrice.Value);
+
+                Log(Ev.PnlBaselineAdopted, JsonValue.Obj()
+                    .Set("account", account)
+                    .Set("dayKey", _state.DayKey ?? "")
+                    .Set("coreCheckpoint", c.HasValue ? Money.Format(c.Value) : "none")
+                    .SetMoney("platform", p)
+                    .SetMoney("adopted", adopted)
+                    .Set("why", c.HasValue && adopted != p
+                        ? "checkpoint is the more conservative of the two"
+                        : c.HasValue && adopted != c.Value
+                            ? "platform is the more conservative of the two"
+                            : "sources agree")
+                    .Set("source", "min(platform, same-day checkpoint), both recorded")
+                    .Set("positionsAdopted", open.Count));
+            }
+            _baselinePending = false;
+        }
+
+        private void RefuseBaseline(string account, decimal? core, decimal platform, string why)
+        {
+            if (!_baselineRefusalLogged)
+            {
+                _baselineRefusalLogged = true;
+                Log(Ev.PnlBaselineRefused, JsonValue.Obj()
+                    .Set("account", account)
+                    .Set("dayKey", _state.DayKey ?? "")
+                    .Set("coreCheckpoint", core.HasValue ? Money.Format(core.Value) : "none")
+                    .SetMoney("platform", platform)
+                    .Set("why", why));
+            }
+            EnterFailClosed("restart baseline refused on " + account + ": " + why);
         }
 
         private void StartCorrupt(string reason)
@@ -427,6 +598,21 @@ namespace GuardianCore
 
             if (_config == null) { Persist(); return; }
 
+            // Restart baseline: nothing is evaluated against half a picture. While pending, entries
+            // stay blocked; a refusal keeps its own reason, a mere can't-read-yet gets a generic one.
+            if (_baselinePending)
+            {
+                TryAdoptBaseline();
+                if (_baselinePending)
+                {
+                    if (_state.Kind != StateKind.FailClosed)
+                        EnterFailClosed("restart baseline not yet corroborated: waiting to read the platform's session figures");
+                    else
+                        Persist();
+                    return;
+                }
+            }
+
             var snapshot = _book.Snapshot(_config.Accounts, _feed, _config.PnlToleranceUsd);
             if (!snapshot.Ok)
             {
@@ -454,6 +640,28 @@ namespace GuardianCore
                 return;
             }
 
+            // CONDITION 1 of the restart baseline, checked BEFORE the clear branch so a standing
+            // baseline-only breach cannot flap between cleared and re-entered. An adopted figure may
+            // BLOCK entries but may never FLATTEN: a flatten needs at least one fill this guardian
+            // observed itself. Blocking over-costs opportunity; flattening over-costs money.
+            if (snapshot.TotalDayLoss >= _config.PersonalDailyLossLimit && !_book.HasObservedFill)
+            {
+                var reason = "daily loss limit reached on adopted figures alone; entries blocked, " +
+                             "nothing flattened (no fill observed this session)";
+                var alreadyThis = _state.Kind == StateKind.FailClosed &&
+                                  _state.Reason != null &&
+                                  _state.Reason.StartsWith("daily loss limit reached on adopted", StringComparison.Ordinal);
+                if (!alreadyThis)
+                    Log(Ev.LimitBreachedBaselineOnly, JsonValue.Obj()
+                        .SetMoney("dayLoss", snapshot.TotalDayLoss)
+                        .SetMoney("limit", _config.PersonalDailyLossLimit)
+                        .Set("perAccount", PerAccount(snapshot))
+                        .Set("flattened", false)
+                        .Set("why", "no fill observed this session; adopted figures may block but never flatten"));
+                EnterFailClosed(reason);
+                return;
+            }
+
             // SPEC 10: an unknown clears by re-computation, never by assumption.
             if (_state.Kind == StateKind.FailClosed && !_clockIncoherent)
             {
@@ -463,7 +671,9 @@ namespace GuardianCore
                 Checkpoint(snapshot, "transition");
             }
 
-            // SPEC 8: >= , not > . Landing exactly on the limit is a breach.
+            // SPEC 8: >= , not > . Landing exactly on the limit is a breach. Reaching here implies
+            // HasObservedFill: the baseline-only case returned above, so this lockout - the only path
+            // that flattens - always rests on at least one fill this guardian saw itself.
             if (snapshot.TotalDayLoss >= _config.PersonalDailyLossLimit)
             {
                 Log(Ev.LimitBreached, JsonValue.Obj()
@@ -591,6 +801,10 @@ namespace GuardianCore
             Log(Ev.DayOpened, JsonValue.Obj().Set("dayKey", key));
             _state.DayKey = key;
             _book.ResetDay();
+            // A fresh day has nothing to re-adopt: the platform's figure belongs to the old one.
+            _baselinePending = false;
+            _checkpointGross = null;
+            _baselineRefusalLogged = false;
         }
 
         // ---------------- lockout ----------------
@@ -733,10 +947,17 @@ namespace GuardianCore
 
         private void Checkpoint(DayPnlSnapshot snapshot, string trigger)
         {
+            var grossPerAccount = JsonValue.Obj();
+            foreach (var a in snapshot.Accounts) grossPerAccount.SetMoney(a.Account, a.GrossRealized);
             Log(Ev.PnlCheckpoint, JsonValue.Obj()
                 .SetMoney("dayLoss", snapshot.TotalDayLoss)
                 .Set("trigger", trigger)
-                .Set("perAccount", PerAccount(snapshot)));
+                .Set("perAccount", PerAccount(snapshot))
+                // The restart baseline corroborates against THIS field (per-account realised, gross).
+                // perAccount above is DayPnl - it includes unrealised - and cannot serve: the platform
+                // figure being corroborated is realised-only. Removing this field silently disables
+                // every future restart adoption, so it is not optional.
+                .Set("grossRealizedPerAccount", grossPerAccount));
             _lastCheckpointMono = _clock.MonotonicMs;
         }
 

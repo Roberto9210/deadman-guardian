@@ -18,7 +18,7 @@ ocurrieron hoy**, en esta máquina, sin que nadie los estuviera buscando.
 
 | | |
 |---|---|
-| **disparo** | `Guardian.cs:429` — `if (snapshot.TotalDayLoss >= _config.PersonalDailyLossLimit)` |
+| **disparo** | `Guardian.cs` — `snapshot.TotalDayLoss >= _config.PersonalDailyLossLimit` **y además, desde Option A, `_book.HasObservedFill`**: un aplanamiento sólo puede descansar en al menos un fill que este guardián observó en esta sesión. El breach sin fill observado escribe `LIMIT_BREACHED_BASELINE_ONLY` y **bloquea sin aplanar** (condición 1) |
 | **camino** | `EnterLockout` (`:563`) → `RunLockoutSteps` (`:575`) → `_broker.CancelAllOrders` (`:585`) → `_broker.Flatten` (`:602`) |
 | **condición exacta** | la pérdida del día, **sumada sobre las cuentas cuyo estado es `Ok`**, alcanza o supera el límite personal. `>=`, no `>` |
 
@@ -71,8 +71,8 @@ enteramente en quien lo llama. Volvemos sobre esto: es el peor de la tabla.
 | # | escenario | clase | argumento en una línea | costo si ocurre |
 |---|---|---|---|---|
 | **M1** | `OnOrderObserved` cancela en una cuenta que el guardián no guarda | **ARREGLADO `aa2f32a`** | Core no valida `order.Account` contra `_config.Accounts`; hoy sólo lo contiene que el adaptador se suscriba a una sola cuenta | **cancela un stop de protección en una cuenta ajena — dinero real** |
-| **M2** | Reinicio tras haber realizado P&L ⇒ `SourcesDisagree` ⇒ bloqueo hasta que ruede el día | **PLAUSIBLE — OCURRIÓ HOY** | `_book` es memoria pura; sólo `ResetDay()` la limpia. Al reiniciar Core arranca en 0 y la plataforma sigue reportando lo realizado de la sesión | sin protección y sin poder entrar toda la tarde |
-| **M3** | Reinicio con posición ABIERTA ⇒ Core no la ve ⇒ el no realizado se ignora | **PLAUSIBLE** | `HasOpenPosition` mira el libro de Core, vacío tras reiniciar ⇒ `unrealized = 0` ⇒ `DayLoss` = 0 con una posición sangrando | el guardián informa cero pérdida mientras el trader pierde: **cree estar protegido y no lo está** |
+| **M2** | Reinicio tras haber realizado P&L ⇒ `SourcesDisagree` ⇒ bloqueo hasta que ruede el día | **ARREGLADO (Option A)** — el baseline se readopta corroborado contra el checkpoint del mismo día; test `M2_A_restart_after_a_realised_loss_readopts_the_loss_and_returns_to_armed` pasó de afirmar el defecto a afirmar el arreglo | `_book` es memoria pura; sólo `ResetDay()` la limpia. Al reiniciar Core arranca en 0 y la plataforma sigue reportando lo realizado de la sesión | sin protección y sin poder entrar toda la tarde |
+| **M3** | Reinicio con posición ABIERTA ⇒ Core no la ve ⇒ el no realizado se ignora | **ARREGLADO (Option A)** — las posiciones se adoptan del broker con su precio promedio; sin precio, se rehúsa. El test original modelaba un mundo inconsistente (feed con no-realizado sin posición en el broker) y no viró: fue reescrito con el mundo real y la corrección quedó anotada en el propio test | `HasOpenPosition` mira el libro de Core, vacío tras reiniciar ⇒ `unrealized = 0` ⇒ `DayLoss` = 0 con una posición sangrando | el guardián informa cero pérdida mientras el trader pierde: **cree estar protegido y no lo está** |
 | **M4** | Suspensión/hibernación de la máquina ⇒ salto de reloj hacia adelante ⇒ bloqueo | **PLAUSIBLE** | tapa de la notebook cerrada: el reloj de pared avanza y el monotónico no lo sigue; `wallDelta - monoDelta > 120 s` | bloqueo de entradas al despertar, sin causa real |
 | **M5** | Caída momentánea del feed con posición abierta ⇒ `NoPriceForOpenPosition` ⇒ bloqueo | **PLAUSIBLE** | basta un tick sin `platform.Unrealized` teniendo posición | no puede entrar justo cuando podría necesitar cubrirse |
 | **M6** | Desconexión de la cuenta ⇒ `AccountUnknown` ⇒ bloqueo | **PLAUSIBLE — OCURRIÓ HOY, VARIAS VECES** | cualquier corte de conexión; visto repetidamente el 21 y 22 de agosto | bloqueo mientras dure |
@@ -85,7 +85,17 @@ enteramente en quien lo llama. Volvemos sobre esto: es el peor de la tabla.
 | M13 | Ejecución CON id entregada dos veces ⇒ doble conteo | **IMPOSIBLE** | deduplicada por `cuenta\|executionId` (`:117`) | — |
 | M14 | El corte de las 17:00 mueve por horario de verano | **IMPOSIBLE** | el día se calcula sobre `UtcNow` con `SessionCalendar`; el verano no mueve UTC | — |
 
-**Seis plausibles. Dos ya ocurrieron.**
+**Seis plausibles. Dos ya ocurrieron. M1, M2 y M3 arreglados el 2026-08-22.**
+
+Escenarios nuevos que el arreglo introduce, clasificados con el mismo criterio:
+
+| # | escenario | clase | argumento |
+|---|---|---|---|
+| M17 | El baseline adoptado dispara un aplanamiento por sí solo | **IMPOSIBLE** | condición 1: la puerta del breach exige `HasObservedFill`, que sólo enciende un fill real aplicado; probado por `C1_...` de punta a punta |
+| M18 | Se adopta la cifra más favorable de las dos | **IMPOSIBLE** | condición 2: `min(plataforma, checkpoint)`, probado en ambas direcciones (`C2`, `C2b`) |
+| M19 | Se adopta una cifra cuyo período no se pudo corroborar | **IMPOSIBLE** | condición 3: sin checkpoint del día o fuera de tolerancia ⇒ `PNL_BASELINE_REFUSED` + fail-closed (`C3`, `C3b`) |
+| M20 | El feed reporta no-realizado ≠ 0 sin que el broker reporte posición alguna | IMPROBABLE, **residual** | dato de plataforma internamente inconsistente; el guardián sigue ciego a ese no-realizado (el snapshot sólo lo lee con posición conocida). Destapado al reescribir M3. Sin arreglar a propósito: exigiría tratar como señal un estado que la plataforma no debería poder producir |
+| M21 | Primer arranque de esta versión sobre un ledger viejo con realizado ≠ 0 ⇒ rehúsa hasta que ruede el día | PLAUSIBLE una sola vez por instalación | los checkpoints viejos no llevan `grossRealizedPerAccount`; sin productor no se confía en el consumidor. Se cura solo desde el primer día completo |
 
 ---
 

@@ -1,6 +1,31 @@
 # M2/M3 — de dónde sale la verdad al rearrancar
 
-**Estado: nota de diseño. Esperando OK. Ni una línea implementada.** 2026-08-22.
+**Estado: OPCIÓN A IMPLEMENTADA el 2026-08-22, con las tres condiciones de Roberto.** El resto del
+documento queda como registro de por qué la forma es ésta.
+
+Las condiciones, y dónde viven:
+
+1. **Un baseline adoptado puede bloquear, jamás aplanar.** `PnlBook.HasObservedFill` sólo lo enciende
+   un fill real aplicado; la puerta del breach exige ese flag antes de `EnterLockout`, y sin él escribe
+   `LIMIT_BREACHED_BASELINE_ONLY` (con `flattened: false`) y entra en fail-closed sin tocar al broker.
+   La puerta corre ANTES de la rama de clear para que un breach de baseline sostenido no oscile.
+2. **Discrepancia dentro de tolerancia ⇒ se adopta el más conservador** (`min(plataforma, checkpoint)`)
+   y los dos números van a `PNL_BASELINE_ADOPTED` con su fuente. Nunca el más amable.
+3. **El período.** Verificado por reflexión sobre `Account` y `AccountItem`: **NT8 no expone nada que
+   diga qué período cubre su `GrossRealizedProfitLoss`** — números pelados, sin “desde cuándo”. La
+   única corroboración disponible es el propio checkpoint del mismo `dayKey` en el ledger del guardián
+   (que ahora registra `grossRealizedPerAccount` para eso). Sin checkpoint del día, o con una cifra que
+   se movió más allá de la tolerancia mientras nadie corría, **no se adopta nada**: fills-en-ausencia y
+   un reset de sesión de la plataforma son indistinguibles, y el motivo queda en la razón del estado y
+   en `PNL_BASELINE_REFUSED` con los dos números.
+
+Consecuencia honesta del punto 3, dicha en vez de resuelta por analogía: **el primer arranque con esta
+versión sobre un ledger viejo no puede corroborar nada** (los checkpoints previos no llevan el campo) y
+va a rehusar si hay realizado ≠ 0. Desde el primer día completo con esta versión, los checkpoints
+llevan la cifra y la adopción funciona. Es el mismo principio de siempre: sin productor no se confía en
+el consumidor.
+
+2026-08-22.
 
 Con M15 resuelto, "¿de qué cuenta hablamos?" ya lo contesta el sello. Queda la pregunta de fondo: el
 libro de P&L de Core es memoria pura, y al rearrancar lee cero mientras la plataforma recuerda la

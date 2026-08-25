@@ -88,11 +88,11 @@ namespace GuardianCore.Tests
         /// <summary>When true, Flatten is accepted but the position never goes flat (G: LOCKOUT_INCOMPLETE).</summary>
         public bool FlattenSilentlyDoesNothing { get; set; }
 
-        public void SetPosition(string account, string instrument, int qty)
+        public void SetPosition(string account, string instrument, int qty, decimal? averagePrice = null)
         {
             if (!_positions.TryGetValue(account, out var list)) _positions[account] = list = new List<PositionSnapshot>();
             list.RemoveAll(p => p.Instrument == instrument);
-            if (qty != 0) list.Add(new PositionSnapshot(account, instrument, qty));
+            if (qty != 0) list.Add(new PositionSnapshot(account, instrument, qty, averagePrice));
         }
 
         public void SetWorkingOrder(string account, string orderId, string instrument, string action)

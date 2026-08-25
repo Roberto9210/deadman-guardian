@@ -42,6 +42,9 @@ namespace GuardianCore
         public const string LedgerVerifyFailed = "LEDGER_VERIFY_FAILED";
         public const string NotifyFailed = "NOTIFY_FAILED";
         public const string ForeignAccountOrderObserved = "FOREIGN_ACCOUNT_ORDER_OBSERVED";
+        public const string PnlBaselineAdopted = "PNL_BASELINE_ADOPTED";
+        public const string PnlBaselineRefused = "PNL_BASELINE_REFUSED";
+        public const string LimitBreachedBaselineOnly = "LIMIT_BREACHED_BASELINE_ONLY";
     }
 
     public sealed class LedgerEntry

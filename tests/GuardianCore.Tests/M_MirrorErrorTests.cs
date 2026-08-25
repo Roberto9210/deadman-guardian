@@ -121,28 +121,45 @@ namespace GuardianCore.Tests
         // Real instance: production guardian, 19:59Z, "core 0.00 vs platform -50.00 differ by 50.00,
         // tolerance 5.00", 103 consecutive PNL_DISAGREEMENT entries. The $50 was Bot A's.
 
+        /// <summary>FIXED (Option A). This test asserted the defect - FailClosed for the rest of the
+        /// session - and went RED on the first build with the restart baseline, exactly as the method
+        /// requires. It now asserts the corrected behaviour: the platform's figure, corroborated
+        /// against this guardian's own last same-day checkpoint, is adopted and the guardian returns
+        /// to ARMED with the day's loss intact - not reset, not forgotten.</summary>
         [Fact]
-        public void M2_A_restart_after_a_realised_loss_blocks_entries_for_the_rest_of_the_day()
+        public void M2_A_restart_after_a_realised_loss_readopts_the_loss_and_returns_to_armed()
         {
             var h = new Harness();
             h.Armed("600.00");
-            h.LoseExactly(50.00m);                    // Core sees the fills, platform agrees
+            h.LoseExactly(50.00m);
+            h.Clock.Advance(TimeSpan.FromMinutes(6));  // let the interval checkpoint record the -50
             h.Guardian.Tick();
             Assert.Equal(StateKind.Armed, h.Guardian.Status.Kind);
 
             // The process restarts. State and ledger survive on disk; the P&L book does not.
             h.Guardian.Stop();
             h.NewGuardian("run-2");
-            h.Guardian.Arm(Harness.Config("600.00"));
             h.Guardian.Tick();
 
-            Assert.Equal(StateKind.FailClosed, h.Guardian.Status.Kind);
-            Assert.Contains("SourcesDisagree", h.Guardian.Status.Reason, StringComparison.Ordinal);
-            Assert.False(h.Guardian.Status.EntriesAllowed);
+            Assert.Equal(StateKind.Armed, h.Guardian.Status.Kind);
+            Assert.True(h.Guardian.Status.EntriesAllowed);
 
-            // And nothing short of the day rolling clears it: the disagreement is still there.
+            var adopted = h.LastEvent(Ev.PnlBaselineAdopted);
+            Assert.NotNull(adopted);
+            var payload = (JsonObject)adopted["payload"];
+            Assert.Equal("-50.00", payload.GetString("platform"));
+            Assert.Equal("-50.00", payload.GetString("coreCheckpoint"));
+            Assert.Equal("-50.00", payload.GetString("adopted"));
+
+            // The loss is BACK in the day's arithmetic: another 550 must now reach the 600 limit.
+            // (A guardian that had quietly reset to zero would need the full 600 again.)
+            h.Guardian.OnExecution(new ExecutionRecord(Harness.Account, Harness.Instrument,
+                h.Clock.UtcNow, 5000m, 1, Side.Long, 0m, Harness.PointValue, "in-r2"));
+            h.Feed.SetPnl(Harness.Account, -600.00m, 0m);
+            h.Guardian.OnExecution(new ExecutionRecord(Harness.Account, Harness.Instrument,
+                h.Clock.UtcNow, 4890m, 1, Side.Short, 0m, Harness.PointValue, "out-r2"));
             h.Guardian.Tick();
-            Assert.Equal(StateKind.FailClosed, h.Guardian.Status.Kind);
+            Assert.Equal(StateKind.Locked, h.Guardian.Status.Kind);
         }
 
         // ================================================================ M3: the other direction
@@ -152,24 +169,206 @@ namespace GuardianCore.Tests
         // never read - and DayLoss comes out zero while a real position bleeds. The window says ARMED.
         // It does not fail. It lies.
 
+        /// <summary>FIXED (Option A) - with a correction to the test itself, on record. The original
+        /// version modelled an INCONSISTENT world: the feed reported -800 unrealised while the broker
+        /// held no position, so the fix - which adopts positions from the broker - correctly found
+        /// nothing to adopt and the test stayed green instead of flipping. The world below is the real
+        /// one: the broker holds the position, priced, and the feed prices its unrealised. Under the
+        /// old code this world produced ARMED with zero loss (the lie the original test pinned);
+        /// under the fix it produces a BLOCK and, per CONDITION 1, no flatten.</summary>
         [Fact]
-        public void M3_A_restart_with_an_open_position_reports_zero_loss_while_the_position_bleeds()
+        public void M3_A_restart_with_an_open_bleeding_position_blocks_but_does_not_flatten()
         {
             var h = new Harness();
             h.Armed("600.00");
+            h.Clock.Advance(TimeSpan.FromMinutes(6));
+            h.Guardian.Tick();                               // checkpoint: realised 0, on record
             h.Guardian.Stop();
 
-            // New process. Core's book is empty; the platform holds a position deep under water.
+            // New process. The platform still holds the position, deep under water.
+            h.Broker.SetPosition(Harness.Account, Harness.Instrument, 1, 5000m);
+            h.Feed.SetPnl(Harness.Account, 0m, -800.00m);
             h.NewGuardian("run-2");
-            h.Guardian.Arm(Harness.Config("600.00"));
-            h.Feed.SetPnl(Harness.Account, 0m, -800.00m);   // realised 0, unrealised -800
             h.Guardian.Tick();
 
-            // -800 is past a 600 limit. The guardian does not notice, because it does not believe
-            // there is a position to have unrealised P&L on.
-            Assert.Equal(StateKind.Armed, h.Guardian.Status.Kind);
-            Assert.True(h.Guardian.Status.EntriesAllowed);
+            // No longer ARMED-and-blind. But no flatten either: nothing here rests on a fill this
+            // guardian observed, and an adopted figure may block, never flatten.
+            Assert.Equal(StateKind.FailClosed, h.Guardian.Status.Kind);
+            Assert.False(h.Guardian.Status.EntriesAllowed);
+            Assert.DoesNotContain(h.Broker.Calls, c => c.StartsWith("flatten:", StringComparison.Ordinal));
             Assert.DoesNotContain(Ev.LimitBreached, h.Events());
+            Assert.Contains(Ev.LimitBreachedBaselineOnly, h.Events());
+
+            var adopted = h.LastEvent(Ev.PnlBaselineAdopted);
+            Assert.NotNull(adopted);
+            Assert.Equal(1, (int)(((JsonObject)adopted["payload"]).GetInt("positionsAdopted") ?? 0));
+
+            // And the block is proportionate, not a trap: if the position recovers, the guardian
+            // returns to ARMED on its own.
+            h.Feed.SetPnl(Harness.Account, 0m, -100.00m);
+            h.Guardian.Tick();
+            Assert.Equal(StateKind.Armed, h.Guardian.Status.Kind);
+        }
+
+        // ================================================================ the three conditions
+
+        /// <summary>CONDITION 1, end to end. A baseline adopted at the limit BLOCKS and does not
+        /// flatten - and the moment a real fill arrives, the same breach flattens for real. The two
+        /// halves in one test, because the boundary between them IS the condition.</summary>
+        [Fact]
+        public void C1_A_baseline_at_the_limit_blocks_without_flattening_until_a_real_fill_arrives()
+        {
+            var h = new Harness();
+            h.Armed("600.00");
+            h.LoseExactly(598.00m);
+            h.Clock.Advance(TimeSpan.FromMinutes(6));
+            h.Guardian.Tick();                               // checkpoint: -598
+            Assert.Equal(StateKind.Armed, h.Guardian.Status.Kind);
+            h.Guardian.Stop();
+
+            // While nobody was running, the platform figure moved to -602: past the limit, but within
+            // tolerance of the checkpoint, so the period is corroborated and the WORSE figure adopted.
+            h.Feed.SetPnl(Harness.Account, -602.00m, 0m);
+            h.NewGuardian("run-2");
+            h.Broker.Calls.Clear();
+            h.Guardian.Tick();
+
+            Assert.Equal(StateKind.FailClosed, h.Guardian.Status.Kind);
+            Assert.False(h.Guardian.Status.EntriesAllowed);
+            Assert.Empty(h.Broker.Calls);                    // no flatten, no cancel - NOTHING
+            Assert.Contains(Ev.LimitBreachedBaselineOnly, h.Events());
+            Assert.DoesNotContain(Ev.LimitBreached, h.Events());
+
+            // A second tick must not flap: still blocked, no second event.
+            h.Guardian.Tick();
+            Assert.Equal(1, h.Events().Count(e => e == Ev.LimitBreachedBaselineOnly));
+
+            // Now a REAL fill is observed. The same breach may now flatten - and does.
+            h.Guardian.OnExecution(new ExecutionRecord(Harness.Account, Harness.Instrument,
+                h.Clock.UtcNow, 5000m, 1, Side.Long, 0m, Harness.PointValue, "in-c1"));
+            h.Feed.SetPnl(Harness.Account, -612.00m, 0m);
+            h.Guardian.OnExecution(new ExecutionRecord(Harness.Account, Harness.Instrument,
+                h.Clock.UtcNow, 4950m, 1, Side.Short, 0m, Harness.PointValue, "out-c1"));
+            h.Guardian.Tick();
+
+            Assert.Equal(StateKind.Locked, h.Guardian.Status.Kind);
+            Assert.Contains(Ev.LimitBreached, h.Events());
+            Assert.Contains(h.Broker.Calls, c => c.StartsWith("flatten:", StringComparison.Ordinal));
+        }
+
+        /// <summary>CONDITION 2. Within tolerance the two figures may still differ; the one that
+        /// leaves the trader CLOSER to the limit is adopted, and both go to the ledger with their
+        /// source - never the friendlier number, never silently.</summary>
+        [Fact]
+        public void C2_When_the_figures_differ_the_more_conservative_is_adopted_and_both_are_recorded()
+        {
+            var h = new Harness();
+            h.Armed("600.00");
+            h.LoseExactly(50.00m);
+            h.Clock.Advance(TimeSpan.FromMinutes(6));
+            h.Guardian.Tick();                               // checkpoint: -50
+            h.Guardian.Stop();
+
+            h.Feed.SetPnl(Harness.Account, -52.00m, 0m);     // platform is worse, within tolerance
+            h.NewGuardian("run-2");
+            h.Guardian.Tick();
+
+            var payload = (JsonObject)h.LastEvent(Ev.PnlBaselineAdopted)["payload"];
+            Assert.Equal("-50.00", payload.GetString("coreCheckpoint"));
+            Assert.Equal("-52.00", payload.GetString("platform"));
+            Assert.Equal("-52.00", payload.GetString("adopted"));
+            Assert.Contains("conservative", payload.GetString("why"), StringComparison.Ordinal);
+            Assert.Equal(StateKind.Armed, h.Guardian.Status.Kind);
+        }
+
+        [Fact]
+        public void C2b_The_conservative_choice_works_in_the_other_direction_too()
+        {
+            var h = new Harness();
+            h.Armed("600.00");
+            h.LoseExactly(50.00m);
+            h.Clock.Advance(TimeSpan.FromMinutes(6));
+            h.Guardian.Tick();
+            h.Guardian.Stop();
+
+            h.Feed.SetPnl(Harness.Account, -47.00m, 0m);     // platform is FRIENDLIER - not adopted
+            h.NewGuardian("run-2");
+            h.Guardian.Tick();
+
+            var payload = (JsonObject)h.LastEvent(Ev.PnlBaselineAdopted)["payload"];
+            Assert.Equal("-50.00", payload.GetString("adopted"));
+            Assert.Equal(StateKind.Armed, h.Guardian.Status.Kind);
+        }
+
+        /// <summary>CONDITION 3. NT8 exposes nothing that states the period of its realised figure
+        /// (verified by reflection: bare numbers, no "since when"), so the only establishment is
+        /// agreement with this guardian's own same-day checkpoint. Beyond tolerance, fills-while-dead
+        /// and a platform session reset are indistinguishable - so nothing is adopted, and the reason
+        /// says exactly that.</summary>
+        [Fact]
+        public void C3_A_figure_that_moved_beyond_tolerance_while_dead_is_refused_not_adopted()
+        {
+            var h = new Harness();
+            h.Armed("600.00");
+            h.LoseExactly(50.00m);
+            h.Clock.Advance(TimeSpan.FromMinutes(6));
+            h.Guardian.Tick();                               // checkpoint: -50
+            h.Guardian.Stop();
+
+            h.Feed.SetPnl(Harness.Account, -80.00m, 0m);     // moved 30 while nobody was watching
+            h.NewGuardian("run-2");
+            h.Guardian.Tick();
+
+            Assert.Equal(StateKind.FailClosed, h.Guardian.Status.Kind);
+            Assert.Contains("indistinguishable", h.Guardian.Status.Reason, StringComparison.Ordinal);
+            Assert.DoesNotContain(Ev.PnlBaselineAdopted, h.Events());
+
+            var payload = (JsonObject)h.LastEvent(Ev.PnlBaselineRefused)["payload"];
+            Assert.Equal("-50.00", payload.GetString("coreCheckpoint"));
+            Assert.Equal("-80.00", payload.GetString("platform"));
+
+            // Still refused on the next tick, and the refusal is logged exactly once.
+            h.Guardian.Tick();
+            Assert.Equal(StateKind.FailClosed, h.Guardian.Status.Kind);
+            Assert.Equal(1, h.Events().Count(e => e == Ev.PnlBaselineRefused));
+        }
+
+        [Fact]
+        public void C3b_A_platform_figure_with_no_same_day_checkpoint_to_corroborate_is_refused()
+        {
+            var h = new Harness();
+            h.Armed("600.00");
+            h.LoseExactly(50.00m);
+            h.Guardian.Stop();                               // no 5-minute advance: no checkpoint
+
+            h.NewGuardian("run-2");
+            h.Guardian.Tick();
+
+            Assert.Equal(StateKind.FailClosed, h.Guardian.Status.Kind);
+            Assert.Contains("no same-day checkpoint", h.Guardian.Status.Reason, StringComparison.Ordinal);
+            Assert.DoesNotContain(Ev.PnlBaselineAdopted, h.Events());
+        }
+
+        /// <summary>An adopted position whose entry price the platform cannot state refuses the whole
+        /// adoption: every later closing fill's realised P&L would be garbage, and a guessed entry
+        /// price is the plausible default this project refuses everywhere.</summary>
+        [Fact]
+        public void C3c_A_position_without_an_average_price_refuses_the_adoption()
+        {
+            var h = new Harness();
+            h.Armed("600.00");
+            h.Clock.Advance(TimeSpan.FromMinutes(6));
+            h.Guardian.Tick();
+            h.Guardian.Stop();
+
+            h.Broker.SetPosition(Harness.Account, Harness.Instrument, 1);   // no average price
+            h.Feed.SetPnl(Harness.Account, 0m, -100.00m);
+            h.NewGuardian("run-2");
+            h.Guardian.Tick();
+
+            Assert.Equal(StateKind.FailClosed, h.Guardian.Status.Kind);
+            Assert.Contains("average price", h.Guardian.Status.Reason, StringComparison.Ordinal);
+            Assert.DoesNotContain(Ev.PnlBaselineAdopted, h.Events());
         }
 
         // ================================================================ M4: the laptop lid

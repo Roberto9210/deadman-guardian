@@ -166,8 +166,24 @@ namespace NinjaTrader.NinjaScript.AddOns.DeadmanGuardian
                 .Select(p => new PositionSnapshot(
                     account,
                     p.Instrument == null ? "?" : p.Instrument.FullName,
-                    p.MarketPosition == MarketPosition.Short ? -p.Quantity : p.Quantity))
+                    p.MarketPosition == MarketPosition.Short ? -p.Quantity : p.Quantity,
+                    SafeAveragePrice(p)))
                 .ToList();
+        }
+
+        /// <summary>NT8 hands AveragePrice back as double; the conversion to decimal happens here,
+        /// at the boundary (SPEC section 4 rule 7, G21). Unreadable comes back null - never zero -
+        /// and a null average price makes the restart baseline REFUSE the position rather than adopt
+        /// an entry price nobody stated.</summary>
+        private static decimal? SafeAveragePrice(Position p)
+        {
+            try
+            {
+                var v = p.AveragePrice;
+                if (double.IsNaN(v) || double.IsInfinity(v) || v <= 0) return null;
+                return (decimal)v;
+            }
+            catch { return null; }
         }
 
         public IReadOnlyList<OrderSnapshot> GetWorkingOrders(string account)

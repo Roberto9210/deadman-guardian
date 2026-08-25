@@ -33,9 +33,16 @@ namespace GuardianCore
         public string Account { get; }
         public string Instrument { get; }
         public int Quantity { get; }      // signed: positive long, negative short, 0 flat
-        public PositionSnapshot(string account, string instrument, int quantity)
+
+        /// <summary>The position's average entry price, when the platform can report one. Added for
+        /// the restart baseline (Option A): an adopted position whose entry price is unknown makes
+        /// every later closing fill's realised P&amp;L uncomputable, so adoption REFUSES rather than
+        /// guessing. Null means "the platform could not say", never zero.</summary>
+        public decimal? AveragePrice { get; }
+
+        public PositionSnapshot(string account, string instrument, int quantity, decimal? averagePrice = null)
         {
-            Account = account; Instrument = instrument; Quantity = quantity;
+            Account = account; Instrument = instrument; Quantity = quantity; AveragePrice = averagePrice;
         }
     }
 

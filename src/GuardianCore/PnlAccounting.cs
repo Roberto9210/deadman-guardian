@@ -85,6 +85,7 @@ namespace GuardianCore
         /// <summary>Start of a new trading day: everything resets (SPEC 5.1).</summary>
         public void ResetDay()
         {
+            HasObservedFill = false;
             _positions.Clear();
             _grossRealized.Clear();
             _commissions.Clear();
@@ -97,6 +98,31 @@ namespace GuardianCore
 
         public bool HasOpenPosition(string account) =>
             _positions.TryGetValue(account, out var byInstrument) && byInstrument.Values.Any(p => p.Qty != 0);
+
+        /// <summary>True once at least one REAL fill was applied since start (or since the day
+        /// rolled). Adopted baselines and adopted positions never set it. CONDITION 1 of the restart
+        /// baseline hangs off this: an adopted figure may block entries but may never flatten -
+        /// blocking over-costs opportunity, flattening over-costs money, and they are not
+        /// interchangeable.</summary>
+        public bool HasObservedFill { get; private set; }
+
+        /// <summary>Restart baseline (Option A): seed the day's realised P&amp;L with a figure adopted
+        /// from outside. Does NOT set HasObservedFill - that is the entire point.</summary>
+        public void AdoptBaseline(string account, decimal grossRealized)
+        {
+            _grossRealized[account] = grossRealized;
+        }
+
+        /// <summary>Adopt an open position the platform reports after a restart, so its unrealised
+        /// P&amp;L counts again (M3). The average price is REQUIRED by the caller before this is ever
+        /// invoked: without it, every later closing fill's realised P&amp;L would be garbage.
+        /// PointValue starts at 0 and is refreshed by the next real fill, which carries its own.</summary>
+        public void AdoptPosition(string account, string instrument, int quantity, decimal averagePrice)
+        {
+            if (!_positions.TryGetValue(account, out var byInstrument))
+                _positions[account] = byInstrument = new Dictionary<string, Pos>(StringComparer.Ordinal);
+            byInstrument[instrument] = new Pos { Qty = quantity, AvgPrice = averagePrice, PointValue = 0m };
+        }
 
         public int NetQuantity(string account, string instrument) =>
             _positions.TryGetValue(account, out var byInstrument) && byInstrument.TryGetValue(instrument, out var p) ? p.Qty : 0;
@@ -116,6 +142,8 @@ namespace GuardianCore
             }
             // Duplicate fills would double-count a loss; NT8 can raise the same execution more than once.
             if (ex.ExecutionId != null && !_seenExecutionIds.Add(ex.Account + "|" + ex.ExecutionId)) return true;
+
+            HasObservedFill = true;   // a real fill, this session - adopted figures never set this
 
             if (!_positions.TryGetValue(ex.Account, out var byInstrument))
                 _positions[ex.Account] = byInstrument = new Dictionary<string, Pos>(StringComparer.Ordinal);
