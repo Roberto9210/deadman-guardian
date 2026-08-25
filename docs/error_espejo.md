@@ -89,6 +89,56 @@ enteramente en quien lo llama. Volvemos sobre esto: es el peor de la tabla.
 
 ---
 
+## 2b. Dos preguntas del adaptador — una es nada, la otra es un defecto nuevo
+
+### M15 — al reiniciar, el adaptador vigila `Sim101` diga lo que diga el sello. **PLAUSIBLE, y peor que M3.**
+
+`_guardedAccount = "Sim101"` (`DeadmanGuardianAddOn.cs:42`) es un default cableado, y **el único lugar
+que lo cambia es la ruta de armado** (`:234`). Pero `SubscribeToAccount()` corre en el arranque
+(`:96`), **antes de cualquier armado** — y al reiniciar con un sello ARMED restaurado **la ruta de
+armado no se ejecuta**, porque no hace falta rearmar.
+
+Resultado: un trader que guarda `MiCuenta` reinicia NinjaTrader y **el adaptador queda suscripto a
+`Sim101`**, mientras Core está armado para `MiCuenta`. Las ejecuciones de `MiCuenta` no llegan nunca a
+Core. `OnAccountStatusUpdate` re-suscribe, pero al mismo `_guardedAccount` equivocado.
+
+Hoy es invisible porque en esta máquina la config **es** `Sim101`. Para cualquier otro trader está roto
+desde el primer reinicio.
+
+Qué pasa después, trazado: Core sigue leyendo el P&L de `MiCuenta` por el feed (`NtAccountFeed` puede
+leer cualquier cuenta, no depende de la suscripción), así que en cuanto haya realizado ≠ 0 la
+discrepancia dispara y **falla cerrado — el mecanismo de M2**. Pero antes de eso, con una posición
+abierta, Core no la ve y reporta cero pérdida: **M3, exactamente**. O sea que M15 es **la forma general
+de M3**: no es sólo que el libro esté vacío, es que la suscripción puede estar apuntando a otra cuenta
+durante toda la sesión.
+
+**Decisión pendiente:** `_guardedAccount` tiene que salir de la config sellada al arrancar, no de un
+literal. El default cableado debería ser `null`, y sin cuenta resuelta no hay suscripción — que es
+ruidoso y correcto, en vez de silencioso y equivocado.
+
+### M16 — una config con más de una cuenta deja las demás sin suscripción. **PLAUSIBLE, acotado.**
+
+`GuardianConfig` **permite** más de una cuenta: sólo rechaza lista vacía y duplicados
+(`GuardianConfig.cs:79-80`). El adaptador toma `Accounts[0]` y nada más.
+
+Lo que sí funciona, verificado: `Snapshot` recorre **todas** las configuradas y el lockout aplana
+**todas** (`Guardian.cs:576-580`). El feed lee cualquier cuenta sin suscripción. Así que la cuenta 2
+**no queda invisible**: en cuanto tenga realizado ≠ 0, Core tendrá 0 contra el valor de la plataforma y
+**fallará cerrado**. No miente.
+
+Los dos huecos reales, más chicos de lo que parecía:
+
+1. **Las órdenes post-lockout de la cuenta 2 no se cancelan** — sus `OrderUpdate` nunca llegan.
+2. Antes del primer realizado, una posición abierta en la cuenta 2 no cuenta (M3 otra vez).
+
+**Decisión pendiente, y las dos son defendibles:** o el adaptador se suscribe a **todas** las
+configuradas, o el armado **rechaza explícitamente** una config con más de una. Lo que no es defendible
+es el estado actual, que acepta la config y cumple a medias. Inclinación: rechazar en el armado, porque
+suscribirse a varias multiplica la superficie de un producto que hoy no tiene un solo usuario con dos
+cuentas — y rechazar es reversible el día que lo tenga.
+
+---
+
 ## 4. Pruebas
 
 Escritas en `tests/GuardianCore.Tests/M_MirrorErrorTests.cs`. Los seis plausibles son reproducibles

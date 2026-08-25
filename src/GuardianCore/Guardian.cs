@@ -358,6 +358,30 @@ namespace GuardianCore
             EnsureStarted();
             if (order == null || _state.Kind != StateKind.Locked) return;
 
+            // M1. The only place this library asks a broker to act on an account it was TOLD about
+            // rather than one it CHOSE, and until 2026-08-22 it never checked. Cancelling on
+            // order.Account meant that whatever the adapter forwarded got cancelled - and what a
+            // cancel destroys is a protective stop, on an account that may hold real money. The
+            // decision layer was trusting its caller, which is the inversion of how everything else
+            // here is built.
+            //
+            // Refusing SILENTLY would hide it. If a foreign order ever reaches this method the wiring
+            // changed underneath us, and that is precisely the thing worth seeing, so it costs one
+            // ledger line and zero broker calls.
+            //
+            // A null config cannot be verified against, so it is treated as foreign too: unable to
+            // confirm the account is ours is not permission to act on it.
+            var guarded = _config?.Accounts;
+            if (guarded == null || !guarded.Contains(order.Account, StringComparer.Ordinal))
+            {
+                Log(Ev.ForeignAccountOrderObserved, JsonValue.Obj()
+                    .Set("account", order.Account ?? "")
+                    .Set("instrument", order.Instrument ?? "")
+                    .Set("orderId", order.OrderId ?? "")
+                    .Set("guarded", guarded == null ? "<none>" : string.Join(",", guarded)));
+                return;
+            }
+
             _broker.CancelAllOrders(order.Account);
             Log(Ev.OrderRejectedLocked, JsonValue.Obj()
                 .Set("account", order.Account)

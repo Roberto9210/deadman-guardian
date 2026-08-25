@@ -28,8 +28,14 @@ namespace GuardianCore.Tests
         // Today the only thing preventing it is a property of the ADAPTER (it subscribes to one
         // account). That is not a rule, it is a coincidence of wiring.
 
+        /// <summary>FIXED 2026-08-22. This test asserted the defect until the fix landed, went red on
+        /// the first build with it, and now asserts the corrected behaviour: an order on an account
+        /// the guardian was not asked to guard produces ZERO broker calls and ONE ledger line.
+        ///
+        /// The ledger line is not decoration. Refusing in silence would hide that the wiring changed
+        /// underneath us, and a foreign order arriving here means exactly that.</summary>
         [Fact]
-        public void M1_A_lockout_cancels_orders_on_an_account_the_guardian_was_never_asked_to_guard()
+        public void M1_A_foreign_order_produces_no_broker_call_and_one_ledger_line()
         {
             var h = new Harness();
             h.Armed("600.00");                       // config guards Sim101 and nothing else
@@ -39,12 +45,57 @@ namespace GuardianCore.Tests
 
             h.Broker.Calls.Clear();
 
-            // An order on a DIFFERENT account is observed. Core is never told it is foreign.
             h.Guardian.OnOrderObserved(new OrderSnapshot("9999999", "o-1", "ES 09-26", "Buy"));
 
-            // This is the defect, asserted as it stands today so a fix has something to flip.
-            Assert.Contains(h.Broker.Calls, c => c.Contains("9999999"));
-            Assert.DoesNotContain(h.Guardian.Status.Kind, new[] { StateKind.Armed });
+            Assert.DoesNotContain(h.Broker.Calls, c => c.Contains("9999999"));
+            Assert.Empty(h.Broker.Calls);            // not "no cancel on that account" - NO call at all
+
+            var foreign = h.LastEvent(Ev.ForeignAccountOrderObserved);
+            Assert.NotNull(foreign);
+            var payload = (JsonObject)foreign["payload"];
+            Assert.Equal("9999999", payload.GetString("account"));
+            Assert.Equal("ES 09-26", payload.GetString("instrument"));
+            Assert.Contains("Sim101", payload.GetString("guarded"), StringComparison.Ordinal);
+        }
+
+        /// <summary>And the guarded account still gets cancelled - the fix must not have turned the
+        /// enforcement off along with the over-reach.</summary>
+        [Fact]
+        public void M1_A2_an_order_on_the_guarded_account_is_still_cancelled()
+        {
+            var h = new Harness();
+            h.Armed("600.00");
+            h.LoseExactly(600.00m);
+            h.Guardian.Tick();
+            h.Broker.Calls.Clear();
+
+            h.Guardian.OnOrderObserved(new OrderSnapshot(Harness.Account, "o-2", Harness.Instrument, "Buy"));
+
+            Assert.Contains(h.Broker.Calls, c => c.Contains(Harness.Account));
+            Assert.Contains(Ev.OrderRejectedLocked, h.Events());
+        }
+
+        /// <summary>A Locked state whose sealed config no longer parses leaves Core unable to verify
+        /// anything. Unable to confirm the account is ours is not permission to act on it.</summary>
+        [Fact]
+        public void M1_A3_with_no_config_to_check_against_nothing_reaches_the_broker()
+        {
+            var h = new Harness();
+            h.Armed("600.00");
+            h.LoseExactly(600.00m);
+            h.Guardian.Tick();
+
+            // A fresh process that restores LOCKED but cannot re-read the sealed config.
+            h.Guardian.Stop();
+            var corrupted = h.Store.ReadAllText(Harness.StatePath)
+                .Replace("\"configSnapshot\":\"", "\"configSnapshot\":\"not json ");
+            h.Store.WriteAtomic(Harness.StatePath, corrupted);
+            h.NewGuardian("run-2");
+            h.Broker.Calls.Clear();
+
+            h.Guardian.OnOrderObserved(new OrderSnapshot(Harness.Account, "o-3", Harness.Instrument, "Buy"));
+
+            Assert.Empty(h.Broker.Calls);
         }
 
         [Fact]

@@ -41,6 +41,7 @@ namespace GuardianCore
         public const string Disarmed = "DISARMED";
         public const string LedgerVerifyFailed = "LEDGER_VERIFY_FAILED";
         public const string NotifyFailed = "NOTIFY_FAILED";
+        public const string ForeignAccountOrderObserved = "FOREIGN_ACCOUNT_ORDER_OBSERVED";
     }
 
     public sealed class LedgerEntry
