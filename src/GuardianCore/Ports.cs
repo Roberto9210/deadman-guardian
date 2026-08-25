@@ -40,7 +40,15 @@ namespace GuardianCore
         /// guessing. Null means "the platform could not say", never zero.</summary>
         public decimal? AveragePrice { get; }
 
-        public PositionSnapshot(string account, string instrument, int quantity, decimal? averagePrice = null)
+        // TWO constructors, not one with an optional parameter, and the difference is binary
+        // compatibility: optional parameters are compile-time sugar, so replacing the 3-argument
+        // constructor would break every already-compiled caller (NinjaTrader.Custom.dll compiled
+        // against the previous GuardianCore) with MissingMethodException in the window between
+        // deploying the new DLL and the F5 that recompiles the adapter.
+        public PositionSnapshot(string account, string instrument, int quantity)
+            : this(account, instrument, quantity, null) { }
+
+        public PositionSnapshot(string account, string instrument, int quantity, decimal? averagePrice)
         {
             Account = account; Instrument = instrument; Quantity = quantity; AveragePrice = averagePrice;
         }
