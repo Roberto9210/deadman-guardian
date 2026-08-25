@@ -450,6 +450,14 @@ namespace GuardianCore
             Log(Ev.ConfigLoaded, JsonValue.Obj().Set("configHash", _config.Hash()));
 
             _book.ResetDay();
+            // A fresh arm has a fresh book: nothing to adopt, nothing pending. Without this, a
+            // baseline refused before an expiry HAUNTED the next arm - the expiry disarms without
+            // rolling the day, and Arm sets the new dayKey directly, so RollDayIfNeeded never fired
+            // and the stale pending re-evaluated a restart that never happened (found by the pre-F5
+            // contingency question, 2026-08-25).
+            _baselinePending = false;
+            _checkpointGross = null;
+            _baselineRefusalLogged = false;
             _state.Kind = StateKind.Armed;
             _state.DayKey = dayKey;
             _state.Reason = null;
@@ -788,6 +796,10 @@ namespace GuardianCore
             _state.FlattenAttempts = 0;
             _config = null;
             _book.ResetDay();
+            // The day this pending belonged to just ended; a Disarmed guardian has nothing to adopt.
+            _baselinePending = false;
+            _checkpointGross = null;
+            _baselineRefusalLogged = false;
             Persist();
             return true;
         }

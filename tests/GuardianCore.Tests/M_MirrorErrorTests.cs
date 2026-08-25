@@ -349,6 +349,42 @@ namespace GuardianCore.Tests
             Assert.DoesNotContain(Ev.PnlBaselineAdopted, h.Events());
         }
 
+        /// <summary>Surfaced by the pre-F5 contingency question on 2026-08-25: a refused baseline
+        /// must not HAUNT the next fresh arm. The pending flag was set at restore and cleared only by
+        /// the day ROLL - but an expiry does not roll the day: it disarms, and Arm() then sets the new
+        /// dayKey directly, so RollDayIfNeeded never fires and the stale pending re-evaluated a
+        /// baseline on a day that was never restored. A fresh arm has a fresh book; there is nothing
+        /// to adopt, and any disagreement with the platform belongs to the ordinary cross-check with
+        /// its own reason - not to a restart that did not happen.</summary>
+        [Fact]
+        public void C3d_A_refused_baseline_does_not_haunt_the_next_fresh_arm()
+        {
+            var h = new Harness();
+            h.Armed("600.00");
+            h.LoseExactly(50.00m);
+            h.Guardian.Stop();                        // no checkpoint written: restore will refuse
+
+            h.NewGuardian("run-2");
+            h.Guardian.Tick();
+            Assert.Equal(StateKind.FailClosed, h.Guardian.Status.Kind);
+            Assert.Contains("restart baseline refused", h.Guardian.Status.Reason, StringComparison.Ordinal);
+
+            // The day ends: the seal expires and the guardian disarms.
+            h.Clock.Advance(TimeSpan.FromHours(3));
+            h.Guardian.Tick();
+            Assert.Equal(StateKind.Disarmed, h.Guardian.Status.Kind);
+
+            // A fresh arm on the new day. The platform still reports the old figure - whether that is
+            // acceptable is the ordinary cross-check's question, with its own reason. What may NOT
+            // happen is a "restart baseline" verdict on a day that was never restored.
+            var result = h.Guardian.Arm(Harness.Config("600.00"));
+            Assert.True(result.Ok, result.ToString());
+            h.Guardian.Tick();
+
+            Assert.DoesNotContain("restart baseline refused", h.Guardian.Status.Reason ?? "", StringComparison.Ordinal);
+            Assert.Equal(1, h.Events().Count(e => e == Ev.PnlBaselineRefused));   // only the pre-arm one
+        }
+
         /// <summary>An adopted position whose entry price the platform cannot state refuses the whole
         /// adoption: every later closing fill's realised P&L would be garbage, and a guessed entry
         /// price is the plausible default this project refuses everywhere.</summary>

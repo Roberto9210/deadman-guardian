@@ -24,7 +24,11 @@ $csproj  = Join-Path $custom "NinjaTrader.Custom.csproj"
 $backup  = Join-Path $custom "NinjaTrader.Custom.csproj.deadman-backup"
 $home8   = Join-Path $ntUser "deadman-guardian"
 
-$sources = @("GuardianPorts.cs", "DeadmanGuardianAddOn.cs")
+# GuardedAccountRule.cs was added by M15 and the installer never learned of it: the deployed
+# addon referenced a type that was not in the Custom folder, and the next F5 failed with
+# CS0246/CS0103 on the live platform (2026-08-25). The verification that said IGUAL 9-of-9 was
+# green over a set that was no longer the artifact list - the same animal, sixth appearance.
+$sources = @("GuardedAccountRule.cs", "GuardianPorts.cs", "DeadmanGuardianAddOn.cs")
 # The soak suite is opt-in: it is an attacker, it places (unfillable) orders on Sim101, and it has no
 # business on a machine that is not being soaked. -WithSoak adds it.
 $soakSources = @("SoakSandbox.cs", "DeadmanGuardianSoak.cs")
