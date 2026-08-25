@@ -55,6 +55,21 @@ cualquier error en ese número es un error que aplana.
 | B6 | `Guardian.cs:743` | `Log` | el ledger dejó de poder escribirse |
 | B7 | `Guardian.cs:429` | `Tick` | el lockout (arriba) |
 
+### Qué significa "bloquear" en cada estado — fijado el 2026-08-25
+
+En `FAIL_CLOSED` el guardián **no cancela ni aplana nada**: sólo `LOCKED` toca al broker
+(`OnOrderObserved` retorna si el estado no es `Locked`; verificado en el código). `EntriesAllowed =
+false` es una declaración, no un freno físico. **Es deliberado y es la decisión correcta**: cancelar
+ante un desconocido dejaría que una falsa alarma mate un stop protector — el error espejo exacto que
+este documento persigue. Si el trader opera igual, los fills se observan y se contabilizan
+(`OnExecution` aplica al libro sin mirar el estado), y el camino real de breach retoma el control **en
+cuanto la causa del fail-closed se despeja** — con todo lo ocurrido en el medio ya contado.
+
+La precisión que completa la oración: **mientras la causa persista, el límite no se aplica** — el
+guardián no tiene un número en el que confíe, y aplicar el límite sobre un número no confiable sería
+el mismo error espejo por otra vía. Un fail-closed transitorio (desconexión, precio ausente) se cura y
+el breach retoma; uno persistente es un guardián que declara su ceguera en vez de actuar a ciegas.
+
 ### Y un octavo camino que no bloquea: cancela
 
 | | |

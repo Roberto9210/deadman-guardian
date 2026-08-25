@@ -531,6 +531,21 @@ Any of these means Core does not know the truth, and therefore blocks entries:
 - ledger not writable or chain verification fails (§11.5)
 - state or seal unreadable, or of an unknown schema version (§6.3)
 
+**What "blocks entries" means, per state — stated because the two states enforce differently and
+the difference is deliberate:**
+
+- In `LOCKED`, the guardian ACTS: an observed order on a guarded account is cancelled, positions were
+  flattened, and both keep happening for the rest of the day.
+- In `FAIL_CLOSED`, the guardian performs **no broker action at all** — no cancel, no flatten.
+  `EntriesAllowed = false` is a declaration consumed by the window and by anything polite enough to
+  ask; it physically stops nothing. This is deliberate and it is the right choice: cancelling on an
+  unknown would let a false alarm kill a protective stop, which is the mirror error — the guardian
+  causing the loss it exists to prevent. Fills that happen anyway ARE observed and accounted; the
+  moment the unknown resolves and the figures are trustworthy again, the ordinary breach path takes
+  over with everything that happened in between already counted. While the unknown PERSISTS, the
+  limit is not enforced — the guardian has no number it can honestly enforce, and enforcing on an
+  untrusted number is the same mirror error by other means.
+
 `FAIL_CLOSED` is not a lockout: it clears by itself the moment the unknown resolves — but it clears
 *through* a re-computation, never by assumption. **For a clock unknown the re-computation is the next
 coherent observation of the clock**: the tick that detects an anomaly may not clear it (A6). Step 2 found
