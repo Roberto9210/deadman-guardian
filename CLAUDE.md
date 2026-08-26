@@ -136,6 +136,20 @@ decorando.
   configurar algo que no configuran. Consecuencia concreta: una sesión de prueba no se puede desviar
   a un ledger aparte (ver `docs/proposals/live-production-breach-test.md`).
 
+### Orden definitivo después de la prueba viva (fijado 2026-08-26)
+
+1. **cert-1** — acotar el certificado al día que nombra. Mecánico, con maquinaria que ya existe.
+2. **Contrato de extensión del formato, con Ventana B** — ¿el verificador tolera campos desconocidos
+   en un evento conocido, y está escrito? Si la respuesta es que no hay tolerancia, **eso es un
+   hallazgo mayor que el campo** y reordena lo que sigue.
+3. **Hash del binario en `GUARDIAN_STARTED`** — sólo después del punto 2. Nombrado por lo que
+   establece: *el hash del archivo desde el que se cargó el ensamblado*, no "el código corriendo".
+4. **`limitRespected`** — semántica, no alcance. Separado a propósito.
+
+**El `.deploy-pin` quedó DESCARTADO**: con el pin puesto y sin correr el instalador —lo que pasó hoy—
+no habría hecho nada. Regla que deja: **un freno cuyo arreglo habitual es "desactivalo" ya dejó de ser
+un freno.**
+
 `docs/error_espejo.md` lleva la clasificación completa (M1–M22) con el costo de cada uno. Las
 pruebas `M4`–`M7` están **verdes afirmando el defecto**: pasan porque documentan lo que el código
 hace hoy. Cada una debe ponerse **roja** cuando llegue su arreglo; una que siga verde después de su

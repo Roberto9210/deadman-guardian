@@ -1,6 +1,12 @@
 # La tercera relación: DESPLEGADO contra LO QUE SE PROBÓ
 
-**Estado: evaluación pedida, con una contrapropuesta. Ni una línea de código.** 2026-08-26.
+**Estado: DECIDIDO el 2026-08-26. El pin queda descartado; el hash en `GUARDIAN_STARTED` aprobado.**
+Va **después** de la prueba viva y **después** de cert-1. Ni una línea de código todavía.
+
+Roberto, al descartar el pin: *"yo protegí la puerta equivocada"*. La objeción decisiva fue la
+primera — con el pin puesto y sin correr `install.ps1`, que es literalmente lo que pasó hoy, no
+habría hecho nada. Y queda como regla de la casa: **un freno cuyo arreglo habitual es "desactivalo"
+ya dejó de ser un freno.**
 
 `install.ps1` hoy verifica dos relaciones y las dos son reales:
 
@@ -59,8 +65,41 @@ Con esa línea:
 - Cierra el hueco que el propio instalador nombra: *"la línea del Log de NT8 dice que algo cargó, no
   **cuál**."* Bueno — que lo diga el ledger.
 
-**Costo honesto:** es un cambio de formato, y el formato es la evidencia. Un verificador viejo tiene
-que ignorar el campo nuevo con elegancia, y eso hay que confirmarlo con Ventana B antes de escribirlo.
+## La precisión del NOMBRE, antes de escribir el campo
+
+`IssuerIdentity.BuildHashOf` hashea `typeof(Certificate).Assembly.Location`: **el ARCHIVO desde el que
+se cargó el ensamblado**, no la imagen en memoria. En Windows, con NT8 manteniendo el archivo
+bloqueado, son la misma cosa — y por eso la verificación del 26-ago fue válida. Pero **el campo va a
+sobrevivir a esa circunstancia**, y el día que alguien cargue el ensamblado desde bytes, con
+shadow-copy o desde otra ruta, dejarán de coincidir sin que el nombre lo avise.
+
+**Se nombra y se documenta por lo que establece: el hash del archivo desde el que se cargó este
+ensamblado.** No "el código que está corriendo". Sería irónico construir la clase de la casa adentro
+del arreglo que la persigue — y ya pasó una vez hoy, con el `ROLLED BACK` que anunciaba una
+restauración que no había ocurrido, atrapado por su propio test.
+
+## LO QUE HAY QUE ACORDAR CON VENTANA B PRIMERO, y es más grande que este campo
+
+**La pregunta NO es "¿este campo rompe el verificador?".** Es el **contrato de extensión del formato**,
+una sola vez y para siempre:
+
+> ¿El verificador tolera **campos desconocidos en un evento conocido**? ¿Y esa tolerancia está
+> **escrita** en algún lado, o es un accidente de implementación que el próximo refactor puede borrar
+> sin que nadie note que borró un contrato?
+
+El ledger es el formato de la evidencia. Uno que no se puede extender sin romper su verificador tiene
+dos futuros y los dos son malos: **se congela**, o **se rompe en silencio** cuando alguien lo extiende
+igual. Y no es hipotético: el acotado por día de cert-1 va a pedir campos también.
+
+**Entregable, antes de escribir una línea del campo:** la regla escrita — dónde vive, quién la
+respeta, qué hace un verificador viejo frente a un campo nuevo. **Si Ventana B contesta que hoy no hay
+tolerancia, eso es un hallazgo más importante que el campo**, y cambia el orden de todo lo que sigue.
+
+*Estado del envío: al 26-ago 13:20 la única sesión par visible (`alaya-06`) no pudo identificarse como
+Ventana B — la de `deadman` era `alaya-4e`. No se le escribió a una ventana sin identificar. La
+pregunta no es urgente: el campo va tercero en el orden.*
+
+**Costo honesto del campo en sí:** es un cambio de formato, y el formato es la evidencia.
 
 ## Recomendación
 
@@ -88,7 +127,9 @@ Ventana B — que además ya está reemplazando `limitRespected` por un `outcome
 `incompleteReason` al lado. Meter las dos cosas en un diff sería una decisión de producto escondida
 adentro de un arreglo mecánico.
 
-**Lo que sí aporta la tanda de cert-1:** el caso concreto. Después de esta noche existe un día real
-en el que el guardián funcionó perfecto y el certificado dirá que el límite no se respetó. Ese día es
-el argumento que hasta ahora era teórico — y el mejor insumo posible para la conversación con
-Ventana B.
+**Lo que sí aporta la tanda de cert-1, y hay que anotarlo porque es el mejor argumento que
+`limitRespected` va a tener:** después de esta noche **existe un día real en el que el guardián
+funcionó perfecto y el certificado dice que el límite no se respetó**. Deja de ser teórico. Un día
+concreto, con su `dayKey`, sus `seq` y su cadena, en el que la palabra publicada contradice lo que el
+producto hizo bien. Ese es el insumo para la conversación con Ventana B, y vale más que cualquier
+argumento de diseño.
