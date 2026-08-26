@@ -1,6 +1,34 @@
 # Prueba viva: el camino de breach de PRODUCCIÓN, con fills reales
 
-**Estado: PLAN. Escrito antes de correr nada. Requiere el OK de Roberto.** 2026-08-26.
+**Estado: APROBADO por Roberto el 2026-08-26. Corre contra el ledger de PRODUCCIÓN.**
+
+## La decisión, y por qué
+
+Roberto decidió que la prueba corra sobre el ledger de producción. El motivo, textual, queda acá
+porque es lo que hace legítima la decisión:
+
+> Ese ledger **nunca fue un registro de trading**. Ya contiene el soak, BOT A y 66 órdenes del
+> 22-ago, todo en Sim101 con precios sintéticos. Es un ledger de desarrollo. Y el evento será
+> **cierto**: ese día el guardián estuvo armado en $40 y rompió el límite. No hay nada que falsificar.
+
+### PROHIBIDO: ningún evento que diga "esto fue una prueba"
+
+**No se agrega al ledger ningún evento, campo ni marca que signifique "esto no cuenta", "tramo de
+prueba" o equivalente.** Es una decisión de diseño, no una omisión.
+
+Un formato que aprende a descartar tramos **le da vocabulario a quien quiera esconder un día malo**.
+La cadena de hash existe exactamente contra eso: su valor entero es que ningún tramo pueda separarse
+del resto después del hecho. Agregar la capacidad de marcar "esto no cuenta" —aunque hoy se use con
+honestidad— construye la herramienta que mañana se usa para lo contrario, y la construye adentro de
+la pieza que se vende como evidencia.
+
+Así que el ledger dice, sin adornos, lo que pasó: el 26-ago el límite era $40 y se rompió.
+**La explicación de por qué vive AFUERA**, en este archivo, que está en git con su propia historia.
+Un auditor que se pregunte por ese día encuentra la respuesta en el repositorio, no en una excepción
+codificada dentro del formato.
+
+Es el mismo principio que gobierna todo lo demás acá: **el registro afirma exactamente lo que pasó,
+ni una palabra más** — y "esto no cuenta" es una palabra más.
 
 ## Por qué existe
 
@@ -42,9 +70,8 @@ Por lo tanto:
 - Va a contener un `LIMIT_BREACHED` **real** con un límite de $40 y su lockout completo.
 - Un certificado emitido para el 2026-08-26 va a reportar ese límite.
 
-**No es falsificar nada** — es un registro cierto de lo que pasó. Pero hay que quererlo, y hay que
-etiquetarlo. Si Roberto prefiere que la evidencia de producción quede limpia, **esta prueba no se
-puede hacer como está** y hay que hacerla contra una instalación NT8 aparte.
+**No es falsificar nada** — es un registro cierto de lo que pasó. **DECIDIDO: se acepta**, por el
+motivo de arriba. El etiquetado vive en este documento, nunca dentro del ledger.
 
 *(Nota lateral: que la config declare `ledgerPath` y `statePath` y el addon los ignore es la clase de
 la casa en forma de esquema — claves que afirman configurar algo que no configuran. Anotado, no
