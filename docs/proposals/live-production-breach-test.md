@@ -147,15 +147,55 @@ el lockout es un estado permanente y no un aplanado único** (`SPEC §9.5`).
 4. **Cero `ORDER_REJECTED_LOCKED`** aunque BOT A siga intentando ⇒ el lockout no es un estado.
 5. **Cualquier evento sobre una cuenta que no sea `Sim101`** ⇒ paro todo.
 6. **La cadena del ledger no verifica** al final ⇒ paro todo.
+7. **`CONFIG_TAMPERED` en cualquier punto** ⇒ alguien tocó `config.json` bajo sello. No debería poder
+   pasar si se sigue el orden de arriba; si aparece, la evidencia queda con una acusación falsa y hay
+   que documentarlo afuera igual que todo lo demás.
 
-## Vuelta a producción
+## LA TRAMPA DE LA VUELTA: restaurar la config bajo sello se registra como MANIPULACIÓN
 
-1. Borrar `botA.GO`.
-2. `config.json.produccion-20260826` → `config.json`, y **verificar por hash** que coincide con el
-   respaldo, no sólo que la copia no dio error.
-3. Restaurar `soak.GO` (hoy `soak.GO.parked-for-livetest`).
-4. Reiniciar NT8 y rearmar; confirmar `ARMED` con `personalLimit=600.00` y el `configHash` de
+Verificado en el código antes de correr, y corrige el paso 9 del plan original.
+
+`Guardian.OnConfigFileObserved` (`:517-529`) compara el hash de `config.json` en disco contra el
+sellado en cada tick del addon (`DeadmanGuardianAddOn.cs:229-237`, o sea a los **segundos** de que el
+archivo cambie, no en el reinicio). Si difieren mientras el sello vive:
+
+```
+CONFIG_TAMPERED   sealedHash=..., onDiskHash=..., changedKeys=[personalDailyLossLimit]
+EnterLockout("the configuration file was edited while sealed")
+```
+
+**Restaurar la config de producción dispararía eso.** Y el límite restaurado es **más estricto** — 600
+en vez de 40 — así que el ledger acusaría de "editar la configuración para operar por encima del
+límite" a una acción que hace exactamente lo contrario. Una acusación falsa, permanente, dentro de la
+cadena. Justo lo que este documento existe para no producir.
+
+**Y no hay atajo: no existe un `Disarm` deliberado.** `Ev.Disarmed` se escribe en un único sitio
+(`Guardian.cs:813`), dentro de `CheckExpiry`, y es ahí donde `_state.Seal = null` (`:816`).
+**La única forma de liberar un sello es que expire.** Eso es correcto por diseño — un sello que se
+puede cancelar no es un sello — pero tiene una consecuencia operativa que hay que aceptar de antemano.
+
+### Consecuencia: el guardián queda en $40 toda la jornada 2026-08-27
+
+El sello de la sesión de prueba se crea esta tarde y expira **2026-08-27T22:00:00Z**. Hasta entonces
+`config.json` **no se toca por ningún motivo**. La vuelta a producción es mañana.
+
+Es Sim101 con precios sintéticos y sin capital real, así que el costo es nulo — pero hay que quererlo
+antes, no descubrirlo después.
+
+Por qué el cambio de ida (paso 3) **sí** es seguro: se hace después de la expiración, cuando
+`_state.Seal` ya es `null`, y `OnConfigFileObserved` retorna de entrada en ese caso (`:519`).
+
+## Vuelta a producción — MAÑANA, no esta noche
+
+1. Borrar `botA.GO` (esto sí se puede hacer en cualquier momento: no es config).
+2. **Esperar `SEAL_EXPIRED` de la jornada `2026-08-27`** (2026-08-27T22:00:00Z). Hasta que ese evento
+   esté en el ledger, `config.json` no se toca.
+3. `config.json.produccion-20260826` → `config.json`, y **verificar por hash** que coincide con el
+   respaldo (`38a15089c889ac09`), no sólo que la copia no dio error.
+4. Restaurar `soak.GO` (hoy `soak.GO.parked-for-livetest`).
+5. Reiniciar NT8 y rearmar; confirmar `ARMED` con `personalLimit=600.00` y el `configHash` de
    producción, el mismo que aparece en los `CONFIG_LOADED` anteriores al 26-ago.
+6. Confirmar que **no** hay `CONFIG_TAMPERED` en ningún punto del tramo.
 
 ## Lo que esta prueba no puede probar
 
