@@ -660,8 +660,16 @@ namespace NinjaTrader.NinjaScript.AddOns
                     // the dangerous side, and on 2026-08-22 a real person went looking for an Arm
                     // button that is hidden precisely because there is nothing to arm.
                     _root.Background = new SolidColorBrush(Color.FromRgb(0xE6, 0x51, 0x00));   // orange
-                    _headline.Text = Messages.Headline(StateKind.FailClosed);
-                    _detail.Text = Messages.DetailCannotSee(v.Reason, v.HasSeal, v.Until);
+                    // FailClosed has more than one cause, and one of them makes the state headline
+                    // outright false rather than merely coarse: at the daily limit on adopted figures
+                    // the guardian sees the account perfectly - what it will not do is act on a number
+                    // it did not witness. Telling that reader "cannot see your account", with a
+                    // position still open at their limit, sends them to fix the wrong thing (M22).
+                    // The rest of ui-1 - the headline deriving from the state at all - stays open.
+                    _headline.Text = Messages.Headline(StateKind.FailClosed, v.Reason);
+                    _detail.Text = Messages.IsLimitNotFlattened(v.Reason)
+                        ? Messages.DetailLimitNotFlattened(v.Account, v.Reason, v.Until)
+                        : Messages.DetailCannotSee(v.Reason, v.HasSeal, v.Until);
                     _armButton.Visibility = Visibility.Collapsed;
                     break;
 

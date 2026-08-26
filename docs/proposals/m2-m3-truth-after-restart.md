@@ -1,6 +1,13 @@
 # M2/M3 — de dónde sale la verdad al rearrancar
 
-**Estado: OPCIÓN A IMPLEMENTADA el 2026-08-22, con las tres condiciones de Roberto.** El resto del
+**Estado: OPCIÓN A IMPLEMENTADA el 2026-08-22. Condición 1 CORREGIDA el 2026-08-26 (M22):**
+su primera implementación usaba `!HasObservedFill`, que es un **proxy** de la condición y más ancho que
+ella — `TotalDayLoss` no está hecho sólo de cifras adoptadas, porque `Unrealized` llega vivo de la
+plataforma en cada tick y nunca se adopta. Hoy la condición es la real: se bloquea sin aplanar
+**sólo si el breach desaparece al quitar la parte adoptada** (`TotalDayLossObserved`). Ver
+`docs/error_espejo.md`, M22.
+
+**Con las tres condiciones de Roberto.** El resto del
 documento queda como registro de por qué la forma es ésta.
 
 Las condiciones, y dónde viven:

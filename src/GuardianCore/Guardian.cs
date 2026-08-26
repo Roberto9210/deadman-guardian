@@ -652,20 +652,40 @@ namespace GuardianCore
             // baseline-only breach cannot flap between cleared and re-entered. An adopted figure may
             // BLOCK entries but may never FLATTEN: a flatten needs at least one fill this guardian
             // observed itself. Blocking over-costs opportunity; flattening over-costs money.
-            if (snapshot.TotalDayLoss >= _config.PersonalDailyLossLimit && !_book.HasObservedFill)
+            // M22. "!HasObservedFill" was a PROXY for condition 1, and a wider one than the condition:
+            // TotalDayLoss is not made of adopted figures alone. Unrealized arrives live from the
+            // platform every tick and was never adopted - adopting a position decides only whether it
+            // is READ - so a breach carried entirely by a moving live loss was being refused a flatten
+            // on the grounds that an adopted figure caused it, when that figure could be ZERO.
+            //
+            // The condition itself, now: block without flattening only when the breach DISAPPEARS once
+            // the adopted part is removed. If the observed loss reaches the limit on its own, this
+            // falls through to the ordinary lockout below and the position is closed.
+            if (snapshot.TotalDayLoss >= _config.PersonalDailyLossLimit &&
+                snapshot.TotalDayLossObserved < _config.PersonalDailyLossLimit &&
+                !_book.HasObservedFill)
             {
-                var reason = "daily loss limit reached on adopted figures alone; entries blocked, " +
-                             "nothing flattened (no fill observed this session)";
+                // The message reports the arithmetic instead of asserting a cause. "on adopted figures
+                // alone" was written over a figure that can be 0.00 - text claiming more than its own
+                // code checked, which is this project's house defect.
+                var reason = Messages.ReasonLimitNotFlattened +
+                             ": $" + Money.Format(snapshot.TotalDayLoss) + " against your $" +
+                             Money.Format(_config.PersonalDailyLossLimit) + " limit, of which $" +
+                             Money.Format(snapshot.TotalDayLossObserved) + " happened while I was watching" +
+                             " (baseline adopted at restart: $" + Money.Format(snapshot.TotalAdoptedBaseline) + ").";
                 var alreadyThis = _state.Kind == StateKind.FailClosed &&
-                                  _state.Reason != null &&
-                                  _state.Reason.StartsWith("daily loss limit reached on adopted", StringComparison.Ordinal);
+                                  Messages.IsLimitNotFlattened(_state.Reason);
                 if (!alreadyThis)
                     Log(Ev.LimitBreachedBaselineOnly, JsonValue.Obj()
                         .SetMoney("dayLoss", snapshot.TotalDayLoss)
+                        .SetMoney("dayLossObserved", snapshot.TotalDayLossObserved)
+                        .SetMoney("adoptedBaseline", snapshot.TotalAdoptedBaseline)
                         .SetMoney("limit", _config.PersonalDailyLossLimit)
                         .Set("perAccount", PerAccount(snapshot))
                         .Set("flattened", false)
-                        .Set("why", "no fill observed this session; adopted figures may block but never flatten"));
+                        .Set("why", "the limit is reached only once figures adopted at restart are counted; " +
+                                    "the loss observed by this session is under the limit on its own, and " +
+                                    "adopted figures may block but never flatten"));
                 EnterFailClosed(reason);
                 return;
             }
@@ -679,9 +699,12 @@ namespace GuardianCore
                 Checkpoint(snapshot, "transition");
             }
 
-            // SPEC 8: >= , not > . Landing exactly on the limit is a breach. Reaching here implies
-            // HasObservedFill: the baseline-only case returned above, so this lockout - the only path
-            // that flattens - always rests on at least one fill this guardian saw itself.
+            // SPEC 8: >= , not > . Landing exactly on the limit is a breach.
+            //
+            // Reaching here no longer implies HasObservedFill, and saying it did would be a comment
+            // that lies. Since M22 what it implies is the thing condition 1 actually protects: either
+            // this session witnessed a fill, or the loss it DID observe reaches the limit without any
+            // help from an adopted figure. Both are breaches this guardian is entitled to act on.
             if (snapshot.TotalDayLoss >= _config.PersonalDailyLossLimit)
             {
                 Log(Ev.LimitBreached, JsonValue.Obj()

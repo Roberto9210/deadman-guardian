@@ -36,6 +36,28 @@ namespace GuardianCore
         public const string HeadlineCannotSee = "CANNOT SEE YOUR ACCOUNT";
         public const string HeadlineNotArmed = "NOT ARMED";
 
+        /// <summary>The limit was reached, and the guardian did NOT close anything, because the breach
+        /// rests on figures it adopted at restart rather than fills it watched happen (M22).
+        ///
+        /// It needs its own headline because CANNOT SEE YOUR ACCOUNT is false here in the most
+        /// misleading way available: the guardian can see the account perfectly. What it will not do
+        /// is act on a number it did not witness. A reader shown "cannot see your account" at their
+        /// daily limit, with a position still open, has been told the wrong thing to go fix.</summary>
+        public const string HeadlineLimitNotFlattened = "DAILY LIMIT REACHED - NOTHING CLOSED";
+
+        /// <summary>The opening words the guardian writes as its reason in that state. Single-source,
+        /// and the coupling is deliberate: the producer builds its reason from this constant and the
+        /// window recognises the state by it, so there is one sentence rather than two copies that
+        /// drift. Matching on a string is the cost of Status carrying no discriminator; when one is
+        /// added, this predicate is the only place that changes.</summary>
+        public const string ReasonLimitNotFlattened = "daily limit reached on figures I did not see happen";
+
+        public static bool IsLimitNotFlattened(string reason)
+        {
+            return !string.IsNullOrEmpty(reason)
+                && reason.StartsWith(ReasonLimitNotFlattened, StringComparison.Ordinal);
+        }
+
         /// <summary>Wording this product used to put in front of a user and no longer does.
         ///
         /// A10 says user-facing text is single-source - but some surfaces CANNOT import this file.
@@ -47,6 +69,15 @@ namespace GuardianCore
         /// "NOT PROTECTED" is first because it survived its own removal: it had been taken out of the
         /// status window and was still greeting the reader from the installer's closing text.</summary>
         public static readonly string[] Retired = { "NOT PROTECTED" };
+
+        /// <summary>Headline by state AND cause. ui-1 - the headline being derived from the state
+        /// alone - stays open for the other states; this overload closes the one case where the state
+        /// headline was outright false rather than merely coarse.</summary>
+        public static string Headline(StateKind kind, string reason)
+        {
+            if (kind == StateKind.FailClosed && IsLimitNotFlattened(reason)) return HeadlineLimitNotFlattened;
+            return Headline(kind);
+        }
 
         public static string Headline(StateKind kind)
         {
@@ -95,6 +126,20 @@ namespace GuardianCore
                 : " Nothing is armed yet. The Arm button will appear once I can see the account.";
 
             return head + meanwhile + fix + arm;
+        }
+
+        /// <summary>What to DO, which here is a decision only the trader can make. The guardian is
+        /// not going to close the position, and saying so plainly is the whole point: a reader who
+        /// believes it was handled will leave a position open past their limit.</summary>
+        public static string DetailLimitNotFlattened(string account, string reason, string until)
+        {
+            return "You are at your daily limit on " + Safe(account) + ". " + (reason ?? "") +
+                   " I have NOT closed anything, and I am not going to on these figures: part of this " +
+                   "loss is a number I adopted from the platform when this session started, and I do " +
+                   "not close positions on the strength of fills I never saw." +
+                   " New entries are blocked" + UntilClause(until) + "." +
+                   " If you want your positions closed, close them yourself. From the next fill I do " +
+                   "see, I enforce the limit normally.";
         }
 
         public static string DetailNotArmed(string configPath)

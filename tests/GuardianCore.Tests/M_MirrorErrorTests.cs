@@ -169,15 +169,20 @@ namespace GuardianCore.Tests
         // never read - and DayLoss comes out zero while a real position bleeds. The window says ARMED.
         // It does not fail. It lies.
 
-        /// <summary>FIXED (Option A) - with a correction to the test itself, on record. The original
-        /// version modelled an INCONSISTENT world: the feed reported -800 unrealised while the broker
-        /// held no position, so the fix - which adopts positions from the broker - correctly found
-        /// nothing to adopt and the test stayed green instead of flipping. The world below is the real
-        /// one: the broker holds the position, priced, and the feed prices its unrealised. Under the
-        /// old code this world produced ARMED with zero loss (the lie the original test pinned);
-        /// under the fix it produces a BLOCK and, per CONDITION 1, no flatten.</summary>
+        /// <summary>FIXED TWICE, and the second time is the interesting one.
+        ///
+        /// It first asserted M3's own defect - ARMED while a position bled unseen - and was rewritten
+        /// when Option A landed. It then went RED again with the M22 fix, because the scenario it had
+        /// been given by then (baseline 0, -800 unrealised) IS M22a: the guardian now closes that
+        /// position rather than blocking. Rather than let two tests own one scenario, this one keeps
+        /// what is M3's alone: after a restart, an open position's unrealised loss is COUNTED again.
+        /// A loss well under the limit isolates that claim from the breach path entirely, so a future
+        /// change to when the guardian flattens cannot turn this test red for an unrelated reason.
+        ///
+        /// The number the old code reported in this exact situation was 0.00, while the trader was
+        /// down 300 dollars and the window said ARMED.</summary>
         [Fact]
-        public void M3_A_restart_with_an_open_bleeding_position_blocks_but_does_not_flatten()
+        public void M3_A_restart_no_longer_hides_an_open_positions_unrealised_loss()
         {
             var h = new Harness();
             h.Armed("600.00");
@@ -185,29 +190,26 @@ namespace GuardianCore.Tests
             h.Guardian.Tick();                               // checkpoint: realised 0, on record
             h.Guardian.Stop();
 
-            // New process. The platform still holds the position, deep under water.
+            // New process. The platform still holds the position, 300 under water.
             h.Broker.SetPosition(Harness.Account, Harness.Instrument, 1, 5000m);
-            h.Feed.SetPnl(Harness.Account, 0m, -800.00m);
+            h.Feed.SetPnl(Harness.Account, 0m, -300.00m);
             h.NewGuardian("run-2");
-            h.Guardian.Tick();
+            h.Guardian.Tick();                               // adopts the baseline and the position
+            h.Clock.Advance(TimeSpan.FromMinutes(6));
+            h.Guardian.Tick();                               // and now a checkpoint carrying the figure
 
-            // No longer ARMED-and-blind. But no flatten either: nothing here rests on a fill this
-            // guardian observed, and an adopted figure may block, never flatten.
-            Assert.Equal(StateKind.FailClosed, h.Guardian.Status.Kind);
-            Assert.False(h.Guardian.Status.EntriesAllowed);
-            Assert.DoesNotContain(h.Broker.Calls, c => c.StartsWith("flatten:", StringComparison.Ordinal));
-            Assert.DoesNotContain(Ev.LimitBreached, h.Events());
-            Assert.Contains(Ev.LimitBreachedBaselineOnly, h.Events());
+            Assert.Equal(StateKind.Armed, h.Guardian.Status.Kind);
 
             var adopted = h.LastEvent(Ev.PnlBaselineAdopted);
             Assert.NotNull(adopted);
             Assert.Equal(1, (int)(((JsonObject)adopted["payload"]).GetInt("positionsAdopted") ?? 0));
 
-            // And the block is proportionate, not a trap: if the position recovers, the guardian
-            // returns to ARMED on its own.
-            h.Feed.SetPnl(Harness.Account, 0m, -100.00m);
-            h.Guardian.Tick();
-            Assert.Equal(StateKind.Armed, h.Guardian.Status.Kind);
+            var checkpoint = h.LastEvent(Ev.PnlCheckpoint);
+            Assert.NotNull(checkpoint);
+            Assert.Equal("300.00", ((JsonObject)checkpoint["payload"]).GetString("dayLoss"));
+
+            // Nothing was closed, and nothing should have been: 300 is not a breach of 600.
+            Assert.DoesNotContain(h.Broker.Calls, c => c.StartsWith("flatten:", StringComparison.Ordinal));
         }
 
         // ================================================================ the three conditions
@@ -383,6 +385,155 @@ namespace GuardianCore.Tests
 
             Assert.DoesNotContain("restart baseline refused", h.Guardian.Status.Reason ?? "", StringComparison.Ordinal);
             Assert.Equal(1, h.Events().Count(e => e == Ev.PnlBaselineRefused));   // only the pre-arm one
+        }
+
+        // ================================================================ M22: the proxy in condition 1
+        //
+        // Condition 1 says "an ADOPTED baseline may block but never flatten". The code says
+        // "!HasObservedFill", which is a PROXY for that - and a wider one, because TotalDayLoss is not
+        // made of adopted figures alone:
+        //
+        //     DayPnl = GrossRealized + Unrealized - Commissions
+        //
+        // GrossRealized may come from an adopted baseline. Unrealized comes LIVE from the platform on
+        // every tick and was never adopted - adopting a position decides only whether it is READ, not
+        // where its value comes from. So a breach carried entirely by a live, moving loss is refused a
+        // flatten on the grounds that an adopted figure caused it, when the adopted figure may be zero.
+        //
+        // It is M3 in a narrow form, reintroduced by the fix for M3.
+
+        /// <summary>FIXED. Asserted the defect, went RED on the first build with the fix, rewritten
+        /// here to assert the corrected behaviour.
+        ///
+        /// Restart mid-morning: the platform reports zero realised and there is no same-day checkpoint,
+        /// so the trivially-established branch adopts a baseline of ZERO, and the open position is
+        /// adopted. It then bleeds past the limit. The old gate refused to flatten, recording that the
+        /// limit was reached "on adopted figures alone" - over a figure of 0.00, which cannot have
+        /// caused anything. Now the observed loss reaches the limit by itself, so the position is
+        /// closed.</summary>
+        [Fact]
+        public void M22a_A_zero_baseline_cannot_excuse_leaving_a_bleeding_position_open()
+        {
+            var h = new Harness();
+            h.Armed("600.00");
+            h.Guardian.Stop();                                   // no checkpoint: adoption takes the p==0 branch
+
+            h.Broker.SetPosition(Harness.Account, Harness.Instrument, 1, 5000m);
+            h.Feed.SetPnl(Harness.Account, 0m, -700.00m);        // realised 0, unrealised -700, limit 600
+            h.NewGuardian("run-2");
+            h.Guardian.Tick();
+
+            var adopted = h.LastEvent(Ev.PnlBaselineAdopted);
+            Assert.NotNull(adopted);
+            Assert.Equal("0.00", ((JsonObject)adopted["payload"]).GetString("adopted"));
+
+            Assert.Equal(StateKind.Locked, h.Guardian.Status.Kind);
+            Assert.Contains(Ev.LimitBreached, h.Events());
+            Assert.DoesNotContain(Ev.LimitBreachedBaselineOnly, h.Events());
+            Assert.Contains(h.Broker.Calls, c => c.StartsWith("flatten:", StringComparison.Ordinal));
+        }
+
+        /// <summary>THE CONTAINMENT. Asserts CORRECT behaviour and must stay GREEN after the fix - if it
+        /// goes red, the fix took condition 1 with it.
+        ///
+        /// Here the adopted baseline really does carry the breach: -500 adopted plus -200 live is -700
+        /// against a 600 limit, and removing the adopted part leaves 200, which breaches nothing. Block,
+        /// and do not flatten - exactly as Roberto's condition 1 requires.</summary>
+        [Fact]
+        public void M22b_A_load_bearing_adopted_baseline_still_never_flattens()
+        {
+            var h = new Harness();
+            h.Armed("600.00");
+            h.LoseExactly(500.00m);
+            h.Clock.Advance(TimeSpan.FromMinutes(6));
+            h.Guardian.Tick();                                   // checkpoint: -500
+            h.Guardian.Stop();
+
+            h.Broker.SetPosition(Harness.Account, Harness.Instrument, 1, 5000m);
+            h.Feed.SetPnl(Harness.Account, -500.00m, -200.00m);
+            h.NewGuardian("run-2");
+            h.Guardian.Tick();
+
+            var adopted = h.LastEvent(Ev.PnlBaselineAdopted);
+            Assert.NotNull(adopted);
+            Assert.Equal("-500.00", ((JsonObject)adopted["payload"]).GetString("adopted"));
+
+            Assert.Equal(StateKind.FailClosed, h.Guardian.Status.Kind);
+            Assert.Contains(Ev.LimitBreachedBaselineOnly, h.Events());
+            Assert.DoesNotContain(h.Broker.Calls, c => c.StartsWith("flatten:", StringComparison.Ordinal));
+        }
+
+        /// <summary>FIXED. Asserted the defect, went RED with the fix, rewritten.
+        ///
+        /// The live loss breaches ON ITS OWN: -650 unrealised against a 600 limit, with only -100
+        /// adopted. Take the adopted part away entirely and the limit is still crossed - so the reason
+        /// for not flattening never existed, and the position is now closed.</summary>
+        [Fact]
+        public void M22c_A_live_loss_that_breaches_on_its_own_must_flatten_even_after_a_restart()
+        {
+            var h = new Harness();
+            h.Armed("600.00");
+            h.LoseExactly(100.00m);
+            h.Clock.Advance(TimeSpan.FromMinutes(6));
+            h.Guardian.Tick();                                   // checkpoint: -100
+            h.Guardian.Stop();
+
+            h.Broker.SetPosition(Harness.Account, Harness.Instrument, 1, 5000m);
+            h.Feed.SetPnl(Harness.Account, -100.00m, -650.00m);
+            h.NewGuardian("run-2");
+            h.Guardian.Tick();
+
+            Assert.Equal(StateKind.Locked, h.Guardian.Status.Kind);
+            Assert.Contains(Ev.LimitBreached, h.Events());
+            Assert.DoesNotContain(Ev.LimitBreachedBaselineOnly, h.Events());
+            Assert.Contains(h.Broker.Calls, c => c.StartsWith("flatten:", StringComparison.Ordinal));
+        }
+
+        /// <summary>FIXED, and it is the sign trap. Asserted the defect, went RED with the fix.
+        ///
+        /// The adopted baseline is a PROFIT this guardian never saw: +300 realised before the restart,
+        /// against -900 unrealised now. The total is -600, exactly the limit, so a breach. Take the
+        /// adopted part away and the live loss is NINE HUNDRED - LARGER than the total.
+        ///
+        /// This is the only shape where observed loss exceeds total loss, and therefore the only one
+        /// that catches an inverted sign in the subtraction: with losing baselines both figures move
+        /// the same way and a flipped sign hides inside a smaller number that still looks plausible.
+        /// Here a flipped sign gives 300 instead of 900 - under the limit - and the position that most
+        /// needs closing would be the one left open. The assertion below is what makes that visible:
+        /// with the subtraction the right way round the observed loss is 900 and the guardian acts.</summary>
+        [Fact]
+        public void M22d_A_profitable_adopted_baseline_does_not_suppress_a_live_breach()
+        {
+            var h = new Harness();
+            h.Armed("600.00");
+
+            // A round trip that GAINS 300: long at 5000, out at 5060, $5 a point.
+            h.Feed.SetPnl(Harness.Account, 0m, 0m);
+            h.Guardian.OnExecution(new ExecutionRecord(Harness.Account, Harness.Instrument,
+                h.Clock.UtcNow, 5000m, 1, Side.Long, 0m, Harness.PointValue, "in-gain"));
+            h.Feed.SetPnl(Harness.Account, 300.00m, 0m);
+            h.Guardian.OnExecution(new ExecutionRecord(Harness.Account, Harness.Instrument,
+                h.Clock.UtcNow, 5060m, 1, Side.Short, 0m, Harness.PointValue, "out-gain"));
+
+            h.Clock.Advance(TimeSpan.FromMinutes(6));
+            h.Guardian.Tick();                                   // checkpoint: +300
+            Assert.Equal(StateKind.Armed, h.Guardian.Status.Kind);
+            h.Guardian.Stop();
+
+            // Restart. The profit is re-adopted; a new position is now deep under water.
+            h.Broker.SetPosition(Harness.Account, Harness.Instrument, 1, 5000m);
+            h.Feed.SetPnl(Harness.Account, 300.00m, -900.00m);
+            h.NewGuardian("run-2");
+            h.Guardian.Tick();
+
+            var adopted = h.LastEvent(Ev.PnlBaselineAdopted);
+            Assert.NotNull(adopted);
+            Assert.Equal("300.00", ((JsonObject)adopted["payload"]).GetString("adopted"));
+
+            Assert.Equal(StateKind.Locked, h.Guardian.Status.Kind);
+            Assert.Contains(Ev.LimitBreached, h.Events());
+            Assert.DoesNotContain(Ev.LimitBreachedBaselineOnly, h.Events());
+            Assert.Contains(h.Broker.Calls, c => c.StartsWith("flatten:", StringComparison.Ordinal));
         }
 
         /// <summary>An adopted position whose entry price the platform cannot state refuses the whole

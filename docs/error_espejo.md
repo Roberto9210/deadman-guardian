@@ -18,7 +18,7 @@ ocurrieron hoy**, en esta máquina, sin que nadie los estuviera buscando.
 
 | | |
 |---|---|
-| **disparo** | `Guardian.cs` — `snapshot.TotalDayLoss >= _config.PersonalDailyLossLimit` **y además, desde Option A, `_book.HasObservedFill`**: un aplanamiento sólo puede descansar en al menos un fill que este guardián observó en esta sesión. El breach sin fill observado escribe `LIMIT_BREACHED_BASELINE_ONLY` y **bloquea sin aplanar** (condición 1) |
+| **disparo** | `Guardian.cs` — `snapshot.TotalDayLoss >= _config.PersonalDailyLossLimit`, **y desde M22 (2026-08-26) que la pérdida OBSERVADA también alcance el límite, o que haya un fill visto en esta sesión**: un aplanamiento sólo puede descansar en al menos un fill que este guardián observó en esta sesión. El breach sin fill observado escribe `LIMIT_BREACHED_BASELINE_ONLY` y **bloquea sin aplanar** (condición 1) |
 | **camino** | `EnterLockout` (`:563`) → `RunLockoutSteps` (`:575`) → `_broker.CancelAllOrders` (`:585`) → `_broker.Flatten` (`:602`) |
 | **condición exacta** | la pérdida del día, **sumada sobre las cuentas cuyo estado es `Ok`**, alcanza o supera el límite personal. `>=`, no `>` |
 
@@ -111,6 +111,22 @@ Escenarios nuevos que el arreglo introduce, clasificados con el mismo criterio:
 | M19 | Se adopta una cifra cuyo período no se pudo corroborar | **IMPOSIBLE** | condición 3: sin checkpoint del día o fuera de tolerancia ⇒ `PNL_BASELINE_REFUSED` + fail-closed (`C3`, `C3b`) |
 | M20 | El feed reporta no-realizado ≠ 0 sin que el broker reporte posición alguna | IMPROBABLE, **residual** | dato de plataforma internamente inconsistente; el guardián sigue ciego a ese no-realizado (el snapshot sólo lo lee con posición conocida). Destapado al reescribir M3. Sin arreglar a propósito: exigiría tratar como señal un estado que la plataforma no debería poder producir |
 | M21 | Primer arranque de esta versión sobre un ledger viejo con realizado ≠ 0 ⇒ rehúsa hasta que ruede el día | PLAUSIBLE una sola vez por instalación | los checkpoints viejos no llevan `grossRealizedPerAccount`; sin productor no se confía en el consumidor. Se cura solo desde el primer día completo |
+| **M22** | Una pérdida EN VIVO que cruza el límite por sí sola no se aplana, porque hubo un baseline adoptado — aunque ese baseline sea CERO | **ARREGLADO 2026-08-26** | `!HasObservedFill` era un proxy demasiado ancho: `Unrealized` llega vivo de la plataforma en cada tick y **nunca fue adoptado**. Ahora se bloquea sin aplanar sólo si el breach desaparece al quitar la parte adoptada | **una posición cruzando el límite sin que nadie la cierre, con la ventana diciendo lo que no es** |
+
+### Lo que a esta tabla le faltaba, y es la lección
+
+M17 dice *"el baseline adoptado dispara un aplanamiento por sí solo: IMPOSIBLE"*. Es verdad, y estaba
+probado. Pero **le faltaba el espejo**: *un aplanamiento que corresponde y NO ocurre por haber adoptado
+un baseline*. Ese es M22, y vivió seis días dentro del arreglo de M3 sin que la tabla lo mirara.
+
+Clasificar un riesgo en una dirección no clasifica su opuesto. Cada vez que una condición nueva impide
+que algo pase, hay que escribir también qué pasa si impide de más — que es el tema entero de este
+documento, aplicado a sí mismo.
+
+Y M22 tenía **las dos mitades de la clase de la casa a la vez**: la lógica bloqueaba de más, y el texto
+(`"on adopted figures alone"`, sobre una cifra que podía ser `0.00`) afirmaba más de lo que el código
+había comprobado. El titular de la ventana decía la tercera versión del mismo error: `CANNOT SEE YOUR
+ACCOUNT` cuando el guardián ve la cuenta perfectamente.
 
 ---
 

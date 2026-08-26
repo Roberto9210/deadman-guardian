@@ -1,6 +1,6 @@
 # deadman-guardian — mapa para sesiones futuras (actualizar al cierre de cada tanda)
 
-Última actualización: 2026-08-26 (guardas del instalador; M22 abierto y en cola).
+Última actualización: 2026-08-26 (guardas del instalador; M22 arreglado; prueba viva de producción pendiente).
 Es un mapa, no un manual. El historial forense está en `git log`; la especificación en `SPEC.md`,
 las decisiones revisadas en `AMENDMENTS.md`, y el diagnóstico del error espejo en
 `docs/error_espejo.md`.
@@ -79,16 +79,15 @@ decorando.
 ## 5. Defectos abiertos (verificados, con archivo:línea)
 | # | qué | dónde |
 |---|---|---|
-| **M22** | La condición 1 usa `!HasObservedFill` como proxy: bloquea sin aplanar aunque la pérdida **en vivo** cruce el límite sola. `Unrealized` viene de la plataforma y nunca fue adoptado. **Es el próximo.** | `Guardian.cs:655`, mensaje en `:657`; `PnlAccounting.cs:222` |
+| **cert-1** | `daysCovered` cableado en 1: el certificado afirma una cobertura que nadie contó. **Es el próximo** — la clase de la casa dentro de la pieza cuyo valor entero es que nadie tenga que creerle a nadie. | `Certificate.cs:67`, `tools/IssueCertificate/Program.cs:87` |
 | M4 | Suspensión de la máquina ⇒ salto de reloj hacia adelante ⇒ bloqueo. **Sin medir.** | `Guardian.cs:753` |
 | M5 | Un tick sin precio con posición abierta ⇒ bloqueo. Diseñado así. | `PnlAccounting.cs:218` |
 | M6 | Desconexión ⇒ bloqueo. Diseñado así; ocurrió varias veces. | `PnlAccounting.cs:198` |
 | M7 | La deduplicación de fills es condicional: una ejecución sin `ExecutionId` se cuenta cada vez. Sin evidencia de que NT8 emita id nulo. | `PnlAccounting.cs:144` |
 | M20 | El feed reporta no-realizado sin que el broker reporte posición ⇒ el guardián sigue ciego. Residual, sin arreglar a propósito. | `PnlAccounting.cs:210-222` |
 | M21 | Primer arranque sobre un ledger viejo ⇒ rehúsa el baseline hasta que ruede el día. Una vez por instalación. | `Guardian.cs`, `LoadSameDayCheckpointGross` |
-| cert-1 | `daysCovered` está cableado en 1: el certificado afirma una cobertura que nadie contó. | `Certificate.cs:67`, `tools/IssueCertificate/Program.cs:87` |
 | cert-2 | Auditar si `SPEC §2b`/`CERT_CONFORMANCE` prometen L2 como alcanzado en vez de disponible. Prueba: leer la frase con la función apagada. | `SPEC.md`, `CERT_CONFORMANCE.md` |
-| ui-1 | El titular se deriva del **estado**, no de la **causa**: `CANNOT SEE YOUR ACCOUNT` es falso cuando el guardián sí ve la cuenta y sólo discrepa con ella. | `Messages.cs:51` |
+| ui-1 | El titular se deriva del **estado**, no de la **causa**. **Parcialmente cubierto**: el caso de M22 tiene titular propio (`Headline(kind, reason)` + `IsLimitNotFlattened`). Siguen sin cubrir los demás casos de `FailClosed` — discrepancia de fuentes, precio ausente, reloj, ledger — que comparten `CANNOT SEE YOUR ACCOUNT`. | `Messages.cs` |
 
 `docs/error_espejo.md` lleva la clasificación completa (M1–M22) con el costo de cada uno. Las
 pruebas `M4`–`M7` están **verdes afirmando el defecto**: pasan porque documentan lo que el código

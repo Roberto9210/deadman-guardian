@@ -26,15 +26,36 @@ namespace GuardianCore
         public decimal? PlatformGrossRealized { get; }
         public string Detail { get; }
 
+        /// <summary>How much of GrossRealized was adopted at restart rather than witnessed here.
+        /// Signed, and zero when nothing was adopted.</summary>
+        public decimal AdoptedBaseline { get; }
+
         public decimal DayPnl => GrossRealized + Unrealized - Commissions;
         public decimal DayLoss => DayPnl < 0m ? -DayPnl : 0m;
+
+        /// <summary>The same day, counting ONLY what this session saw happen: the adopted baseline
+        /// removed, live unrealised kept. Unrealized is NOT adopted - it arrives from the platform on
+        /// every tick and adopting a position decides whether it is read, never what it is worth - so
+        /// it belongs on this side of the line.</summary>
+        public decimal DayPnlObserved => (GrossRealized - AdoptedBaseline) + Unrealized - Commissions;
+        public decimal DayLossObserved => DayPnlObserved < 0m ? -DayPnlObserved : 0m;
+
         public bool Ok => Status == PnlStatus.Ok;
 
+        // Kept as a real overload rather than an optional parameter: optional parameters are
+        // compile-time sugar, so replacing the 7-argument constructor would break any already
+        // compiled caller - the same trap PositionSnapshot walked into on 2026-08-26.
         public AccountPnl(string account, PnlStatus status, decimal grossRealized, decimal commissions,
                           decimal unrealized, decimal? platformGrossRealized, string detail)
+            : this(account, status, grossRealized, commissions, unrealized, platformGrossRealized, detail, 0m) { }
+
+        public AccountPnl(string account, PnlStatus status, decimal grossRealized, decimal commissions,
+                          decimal unrealized, decimal? platformGrossRealized, string detail,
+                          decimal adoptedBaseline)
         {
             Account = account; Status = status; GrossRealized = grossRealized; Commissions = commissions;
             Unrealized = unrealized; PlatformGrossRealized = platformGrossRealized; Detail = detail;
+            AdoptedBaseline = adoptedBaseline;
         }
     }
 
@@ -48,12 +69,24 @@ namespace GuardianCore
         /// account's profit - a firm fails each account on its own number.</summary>
         public decimal TotalDayLoss { get; }
 
+        /// <summary>The day's loss counting only what this session witnessed - SPEC 5.2 all the same:
+        /// per-account losses are floored at zero and summed, never netted against another account's
+        /// gain. This is what decides whether a breach may FLATTEN (M22): a limit reached only because
+        /// of figures adopted at restart blocks, while one the live loss reaches on its own acts.</summary>
+        public decimal TotalDayLossObserved { get; }
+
+        /// <summary>Sum of the baselines adopted at restart, signed, for the message that has to say
+        /// the real arithmetic instead of asserting a cause.</summary>
+        public decimal TotalAdoptedBaseline { get; }
+
         public DayPnlSnapshot(IReadOnlyList<AccountPnl> accounts)
         {
             Accounts = accounts;
             FirstProblem = accounts.FirstOrDefault(a => !a.Ok);
             Ok = FirstProblem == null;
             TotalDayLoss = accounts.Where(a => a.Ok).Sum(a => a.DayLoss);
+            TotalDayLossObserved = accounts.Where(a => a.Ok).Sum(a => a.DayLossObserved);
+            TotalAdoptedBaseline = accounts.Where(a => a.Ok).Sum(a => a.AdoptedBaseline);
         }
     }
 
@@ -78,6 +111,8 @@ namespace GuardianCore
         private readonly Dictionary<string, Dictionary<string, Pos>> _positions =
             new Dictionary<string, Dictionary<string, Pos>>(StringComparer.Ordinal);
         private readonly Dictionary<string, decimal> _grossRealized = new Dictionary<string, decimal>(StringComparer.Ordinal);
+        private readonly Dictionary<string, decimal> _adoptedBaseline =
+            new Dictionary<string, decimal>(StringComparer.Ordinal);
         private readonly Dictionary<string, decimal> _commissions = new Dictionary<string, decimal>(StringComparer.Ordinal);
         private readonly HashSet<string> _badPointValue = new HashSet<string>(StringComparer.Ordinal);
         private readonly HashSet<string> _seenExecutionIds = new HashSet<string>(StringComparer.Ordinal);
@@ -86,6 +121,7 @@ namespace GuardianCore
         public void ResetDay()
         {
             HasObservedFill = false;
+            _adoptedBaseline.Clear();
             _positions.Clear();
             _grossRealized.Clear();
             _commissions.Clear();
@@ -107,10 +143,24 @@ namespace GuardianCore
         public bool HasObservedFill { get; private set; }
 
         /// <summary>Restart baseline (Option A): seed the day's realised P&amp;L with a figure adopted
-        /// from outside. Does NOT set HasObservedFill - that is the entire point.</summary>
+        /// from outside. Does NOT set HasObservedFill - that is the entire point.
+        ///
+        /// The figure is ALSO remembered separately, because "how much of today's P&amp;L did this
+        /// session actually witness" cannot be recovered from _grossRealized once real fills start
+        /// adding to it - and that question is what decides whether a breach may flatten (M22).</summary>
         public void AdoptBaseline(string account, decimal grossRealized)
         {
             _grossRealized[account] = grossRealized;
+            _adoptedBaseline[account] = grossRealized;
+        }
+
+        /// <summary>What was adopted for this account at restart, zero when nothing was. Signed: an
+        /// adopted PROFIT is positive, and subtracting it makes the observed loss LARGER than the
+        /// total - which is correct, and is the case a flipped sign would hide.</summary>
+        public decimal AdoptedBaselineOf(string account)
+        {
+            decimal v;
+            return _adoptedBaseline.TryGetValue(account, out v) ? v : 0m;
         }
 
         /// <summary>Adopt an open position the platform reports after a restart, so its unrealised
@@ -243,7 +293,8 @@ namespace GuardianCore
                     continue;
                 }
 
-                list.Add(new AccountPnl(account, PnlStatus.Ok, gross, commissions, unrealized, platform.GrossRealized, null));
+                list.Add(new AccountPnl(account, PnlStatus.Ok, gross, commissions, unrealized,
+                                        platform.GrossRealized, null, AdoptedBaselineOf(account)));
             }
             return new DayPnlSnapshot(list);
         }
