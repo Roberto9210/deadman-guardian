@@ -89,6 +89,20 @@ decorando.
 | cert-2 | Auditar si `SPEC §2b`/`CERT_CONFORMANCE` prometen L2 como alcanzado en vez de disponible. Prueba: leer la frase con la función apagada. | `SPEC.md`, `CERT_CONFORMANCE.md` |
 | ui-1 | El titular se deriva del **estado**, no de la **causa**. **Parcialmente cubierto**: el caso de M22 tiene titular propio (`Headline(kind, reason)` + `IsLimitNotFlattened`). Siguen sin cubrir los demás casos de `FailClosed` — discrepancia de fuentes, precio ausente, reloj, ledger — que comparten `CANNOT SEE YOUR ACCOUNT`. | `Messages.cs` |
 
+### Anotado, sin arreglar
+
+- **NinjaTrader de Roberto está en ESPAÑOL.** Los logs son `log.AAAAMMDD.NNNNN.es.txt`, no `.en.txt`
+  — me costó un diagnóstico fallido el 26-ago — y el feed se llama `Trasmisión de datos simulados`.
+  Auditoría rápida del beta-kit: `docs/install.md`, `docs/troubleshooting.md` y `docs/uninstall.md`
+  citan nombres de UI en inglés (**`NinjaScript Editor`** ×7, `Control Center`, `right-click`) y
+  `install.md:141` manda a leer "the Control Center Log". Ninguna herramienta parsea `.en.txt` hoy,
+  así que **no hay nada roto en el código** — el problema es de documentación, y afecta a Roberto y
+  a cualquier tester no anglófono.
+- **La config declara `ledgerPath` y `statePath`, y el addon los ignora**: usa rutas fijas
+  (`DeadmanGuardianAddOn.cs:32-33`). La clase de la casa en forma de esquema — claves que afirman
+  configurar algo que no configuran. Consecuencia concreta: una sesión de prueba no se puede desviar
+  a un ledger aparte (ver `docs/proposals/live-production-breach-test.md`).
+
 `docs/error_espejo.md` lleva la clasificación completa (M1–M22) con el costo de cada uno. Las
 pruebas `M4`–`M7` están **verdes afirmando el defecto**: pasan porque documentan lo que el código
 hace hoy. Cada una debe ponerse **roja** cuando llegue su arreglo; una que siga verde después de su
