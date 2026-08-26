@@ -47,6 +47,26 @@ cuando el backup faltaba y no había restaurado nada. La atrapó su propio test.
 **La regla: cada mensaje afirma exactamente lo que su propia comprobación establece, ni una palabra
 más.** Si hacen falta dos afirmaciones, se escriben dos (`COPY VERIFIED` / `BUILD CURRENT`).
 
+### Subtipo, y es el más difícil de ver: UNA AFIRMACIÓN CIERTA SOBRE EL CONJUNTO EQUIVOCADO
+
+No siempre el texto afirma de más. A veces afirma algo **perfectamente cierto**, y el conjunto sobre
+el que se calculó no es el conjunto del que habla. No hay mentira en la frase: hay un desajuste entre
+**el alcance de la afirmación y el alcance del cómputo**.
+
+Los dos hallazgos grandes del 26-ago son el mismo animal:
+
+- **`MATCH` en `install.ps1`** era cierto — los bytes desplegados eran los bytes de `bin\`. Pero el
+  conjunto que importaba era "el código que queríamos desplegar", y `bin\` no era ese conjunto.
+- **`daysCovered: 1`** habla de **un día** y se calcula sobre **el ledger entero** (`Issue` toma
+  `min/max(seq)` de lo que recibe, y el addon le pasa todo). La cifra existe; el alcance no coincide.
+
+Es más peligroso que el sobre-afirmar directo, porque **cada pieza resiste su propia inspección**: el
+cómputo es correcto, la frase es correcta, y el defecto vive sólo en la junta entre las dos.
+
+**La pregunta de cacería, ante cualquier afirmación del producto:** *¿sobre qué conjunto se calculó, y
+es el mismo conjunto del que habla?* Si no se puede contestar leyendo el código que la produce, la
+afirmación no está lista para ir a un documento que alguien va a auditar.
+
 Corolario hermano: **un chequeo que existe no es un chequeo que corre.** Antes de confiar en una
 protección, buscar su productor y correrla. Y un chequeo inalcanzable se borra — no se deja
 decorando.
@@ -77,6 +97,10 @@ decorando.
   **No existe un `Disarm` deliberado**: `Ev.Disarmed` se escribe en un solo sitio (`Guardian.cs:813`),
   dentro de `CheckExpiry`, que es donde `_state.Seal = null` (`:816`). La única salida es la expiración.
   Consecuencia operativa: **armar con el límite equivocado se paga hasta el corte de sesión.**
+- **La tercera relación que el instalador NO cubre**: desplegado contra *lo que se probó*. Verifica
+  build-vs-fuente y desplegado-vs-build, pero nada ata el binario que corrió al que se verificó.
+  Contrapropuesta evaluada al `.deploy-pin`: **que `GUARDIAN_STARTED` registre el hash del binario**
+  — hoy sólo lleva `state` (`Guardian.cs:154,183`). Ver `docs/proposals/deployed-vs-tested.md`.
 - **Verificar qué está corriendo**: el hash corto del DLL desplegado es el mismo valor que el
   certificado reporta como `issuer.buildHash`. La línea del Log de NT8 (`version='0.1.0.0'`) es
   idéntica en todo build jamás hecho: dice que algo cargó, no **cuál**.
@@ -87,8 +111,9 @@ decorando.
 ## 5. Defectos abiertos (verificados, con archivo:línea)
 | # | qué | dónde |
 |---|---|---|
-| **cert-1 + cert-3** | **Son un solo defecto: el certificado no tiene ALCANCE.** El addon le pasa a `Certificate.Issue` el ledger ENTERO (`:306`), `Issue` toma `min/max(seq)` de lo que recibe (`:247-250`), y `Recompute` recorre todo — así que `limitRespected`, `lockoutsTriggered` y `failClosedEpisodes` son totales de nueve días bajo un encabezado de un día, y `daysCovered: 1` **es falso**, no sólo cableado. Evidencia publicada: `certificate-2026-08-24.json` trae `ledgerRange {fromSeq:1}` y un episodio del 21-ago. **Es el próximo.** Decisión en `docs/proposals/what-days-covered-should-mean.md` | `Certificate.cs:67,247-250`, `DeadmanGuardianAddOn.cs:306,315` |
-| cert-2 | **AUDITADO 2026-08-26: limpio.** No existe `§2b` en este SPEC (ese es el de `deadman`). `CERT_CONFORMANCE.md` pasa la prueba de leerlo con la función apagada y además **publica la ausencia**: *"hoy no hay ancla externa, y el verificador lo dice en su propia salida"*. Nada que arreglar. | — |
+| **cert-1 + cert-3** | **Son un solo defecto: el certificado no tiene ALCANCE.** El addon le pasa a `Certificate.Issue` el ledger ENTERO (`:306`), `Issue` toma `min/max(seq)` de lo que recibe (`:247-250`), y `Recompute` recorre todo — así que `limitRespected`, `lockoutsTriggered` y `failClosedEpisodes` son totales de nueve días bajo un encabezado de un día, y `daysCovered: 1` **es falso**, no sólo cableado. Evidencia publicada: `certificate-2026-08-24.json` trae `ledgerRange {fromSeq:1}` y un episodio del 21-ago. **ES LA PRÓXIMA TANDA**, aprobada: acotar el certificado al día que nombra, con la maquinaria que `Recompute` ya expone y nadie llama — arregla tres defectos de una vez y hace que `daysCovered: 1` sea verdad por construcción. Rojo primero. `limitRespected` **NO** entra: es semántica, no alcance (ver `docs/proposals/deployed-vs-tested.md`, apéndice). Decisión en `docs/proposals/what-days-covered-should-mean.md` | `Certificate.cs:67,247-250`, `DeadmanGuardianAddOn.cs:306,315` |
+| cert-2 | **CERRADO en la parte que es nuestra.** `CERT_CONFORMANCE.md` pasa la prueba de leerlo con la función apagada y además **publica la ausencia**: *"hoy no hay ancla externa, y el verificador lo dice en su propia salida"*. Nada que arreglar acá. | `CERT_CONFORMANCE.md` |
+| **cert-2b** | **PENDIENTE DE VENTANA B — NO ES TERRITORIO DE ESTA VENTANA.** La pregunta original (¿`SPEC §2b` promete L2 como *alcanzado* en vez de *disponible*?) apunta al `§2b` del repo **`deadman`**, no al nuestro: acá la §2 es "The one number that matters" y no habla de anclaje. Queda anotado para que no se pierda; **esta ventana no lo toca.** | repo `deadman` |
 | M4 | Suspensión de la máquina ⇒ salto de reloj hacia adelante ⇒ bloqueo. **Sin medir.** | `Guardian.cs:753` |
 | M5 | Un tick sin precio con posición abierta ⇒ bloqueo. Diseñado así. | `PnlAccounting.cs:218` |
 | M6 | Desconexión ⇒ bloqueo. Diseñado así; ocurrió varias veces. | `PnlAccounting.cs:198` |

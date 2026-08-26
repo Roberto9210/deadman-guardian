@@ -147,7 +147,17 @@ el lockout es un estado permanente y no un aplanado único** (`SPEC §9.5`).
 4. **Cero `ORDER_REJECTED_LOCKED`** aunque BOT A siga intentando ⇒ el lockout no es un estado.
 5. **Cualquier evento sobre una cuenta que no sea `Sim101`** ⇒ paro todo.
 6. **La cadena del ledger no verifica** al final ⇒ paro todo.
-7. **`CONFIG_TAMPERED` en cualquier punto** ⇒ alguien tocó `config.json` bajo sello. No debería poder
+7. **El binario cargado no es `4d20652361c0b468`** ⇒ **la prueba no vale y se aborta.** Se verifica
+   **ANTES** de empezar, no sólo después: hash del archivo en `bin\Custom\GuardianCore.dll` **y**
+   confirmación de que NinjaTrader lo tiene bloqueado, que es lo que prueba que es el que cargó.
+
+   **Hasta que la prueba termine, `install.ps1` no se corre por ningún motivo.** El árbol de build ya
+   divergió — `bin\Release` hashea `57d36a5d6a8a9113` desde el arreglo de M22 — y **ninguna guarda del
+   instalador lo detendría**: la de build corriente pasaría (el build es más nuevo que su fuente) y
+   `COPY VERIFIED` pasaría (los bytes se copiarían bien). Desplegaría otro binario sin que nada chille,
+   y la prueba mediría código distinto del que cree medir.
+
+8. **`CONFIG_TAMPERED` en cualquier punto** ⇒ alguien tocó `config.json` bajo sello. No debería poder
    pasar si se sigue el orden de arriba; si aparece, la evidencia queda con una acusación falsa y hay
    que documentarlo afuera igual que todo lo demás.
 
