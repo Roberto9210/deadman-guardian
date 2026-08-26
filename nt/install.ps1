@@ -42,6 +42,41 @@ $soakSources = @("SoakSandbox.cs", "DeadmanGuardianSoak.cs")
 # the printed line is the only verification the mapping gets. So -WithSoak now needs them too.
 $botShared   = @("BotAccountRule.cs", "BotGuardrails.cs")
 $botSources  = @("DeadmanBotA.cs", "DeadmanBotB.cs")
+
+# ---------------------------------------------------------------- completeness, against reality
+# The lists above are written by hand, and the sixth instance of "a green check over a set that was
+# no longer the artifact list" was exactly a file missing from them: M15 added GuardedAccountRule.cs,
+# nobody taught the installer, the deploy shipped an addon referencing a type that was not in the
+# Custom folder, and the F5 failed CS0246 on the live platform (2026-08-25). A hand list without a
+# check against the filesystem repeats that identically the next time a commit adds a file.
+#
+# So: every .cs that actually exists in the managed directories must be in the union of the lists,
+# or nothing is installed and the missing ones are named. The published set derives from what
+# produces it - the same rule as everywhere else in this project.
+$managedNames = $sources + $soakSources + $botShared + $botSources
+$actualNames = @()
+foreach ($dir in @("nt/addon", "nt/soak", "nt/bots")) {
+    $actualNames += Get-ChildItem (Join-Path $repo $dir) -Filter *.cs | ForEach-Object { $_.Name }
+}
+$unmanaged = $actualNames | Where-Object { $managedNames -notcontains $_ }
+if ($unmanaged) {
+    $bar0 = "=" * 76
+    Write-Host ""
+    Write-Host $bar0 -ForegroundColor Red
+    Write-Host ""
+    Write-Host "     N O T H I N G   W A S   I N S T A L L E D" -ForegroundColor Red
+    Write-Host ""
+    Write-Host "     The repository has .cs files this installer does not manage:" -ForegroundColor Red
+    foreach ($m in $unmanaged) { Write-Host ("       - " + $m) -ForegroundColor Red }
+    Write-Host ""
+    Write-Host "  A source file that exists but is not deployed produces CS0246 in the human's F5"
+    Write-Host "  when anything deployed references it - which already happened once. Add each file"
+    Write-Host "  to the right list in this script (sources / soakSources / botShared / botSources)"
+    Write-Host "  and run again."
+    Write-Host ""
+    Write-Host $bar0 -ForegroundColor Red
+    exit 4
+}
 # net48, NOT netstandard2.0: NinjaTrader's in-process compiler has no 'netstandard' facade in its
 # reference set, so a netstandard2.0 assembly loads at runtime and fails at compile time.
 $coreDll = Join-Path $repo "src\GuardianCore\bin\Release\net48\GuardianCore.dll"
