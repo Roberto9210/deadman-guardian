@@ -343,16 +343,81 @@ foreach ($pair in $deployedPairs) {
     $hTo   = (Get-FileHash $pair.To   -Algorithm SHA256).Hash
     if ($hFrom -ne $hTo) { $mismatched += ($pair.Name + " (differs from the repository copy)") }
 }
+# The other three guards refuse BEFORE mutating anything. This one cannot - a copy is not
+# verifiable until it has happened - so it does the only equivalent available: it UNDOES.
+#
+# Printing "do not press F5" and leaving a half-deployed machine would be the failure this very
+# file documents at the NinjaTrader guard: on 2026-08-21 a guard fired, printed one line, and the
+# operator watched it scroll past, pressed F5 and carried on. An error that does not stop the human
+# reading it is, in its result, an error that did not happen. A revert stops them without asking
+# them to remember anything.
 if ($mismatched.Count -gt 0) {
+    $revertProblems = @()
+
+    # Only what THIS run copied. The full source lists would delete files belonging to an earlier
+    # good install that this run never touched - e.g. the bots when run without -WithBots.
+    foreach ($name in $copied) {
+        $target = if ($name -eq "GuardianCore.dll") { Join-Path $custom $name } else { Join-Path $addons $name }
+        try { if (Test-Path $target) { Remove-Item $target -Force -ErrorAction Stop } }
+        catch { $revertProblems += ("could not remove " + $name + ": " + $_.Exception.Message) }
+    }
+    # A MISSING backup is a rollback failure, not a no-op. The first version of this block wrapped
+    # the restore in "if (Test-Path $backup)", so an absent backup skipped it silently and the
+    # script went on to announce ROLLED BACK over a csproj still carrying the installer's edit -
+    # this file's own defect class, committed inside the fix for it, and caught by its test. By the
+    # time execution reaches here the backup always exists (it is created before the first copy), so
+    # its absence means something removed it mid-run: anomalous, and the human has to know.
+    #
+    # And the restore is VERIFIED rather than assumed: Copy-Item reporting no error is not the same
+    # fact as the project file now matching the backup.
+    if (-not (Test-Path $backup)) {
+        $revertProblems += "the csproj backup is gone, so the installer's edit to NinjaTrader.Custom.csproj could not be undone"
+    } else {
+        try {
+            Copy-Item $backup $csproj -Force -ErrorAction Stop
+            $hB = (Get-FileHash $backup -Algorithm SHA256).Hash
+            $hC = (Get-FileHash $csproj -Algorithm SHA256).Hash
+            if ($hB -ne $hC) { $revertProblems += "NinjaTrader.Custom.csproj still does not match the backup after restoring it" }
+        }
+        catch { $revertProblems += ("could not restore NinjaTrader.Custom.csproj: " + $_.Exception.Message) }
+    }
+
     $bar6 = "=" * 76
     Write-Host ""
     Write-Host $bar6 -ForegroundColor Red
+    Write-Host ""
     Write-Host "     D E P L O Y M E N T   I S   N O T   W H A T   T H E   R E P O   H A S" -ForegroundColor Red
+    Write-Host ""
+    foreach ($m in $mismatched) { Write-Host ("     " + $m) -ForegroundColor Red }
+    Write-Host ""
     Write-Host $bar6 -ForegroundColor Red
     Write-Host ""
-    foreach ($m in $mismatched) { Write-Host ("    " + $m) -ForegroundColor Red }
+
+    if ($revertProblems.Count -eq 0) {
+        Write-Host "     R O L L E D   B A C K   -   N O T H I N G   T O   P R E S S" -ForegroundColor Yellow
+        Write-Host ""
+        Write-Host "  Every file this run copied has been removed and NinjaTrader.Custom.csproj was"
+        Write-Host "  restored from the backup. Nothing from this run is left on the machine, so"
+        Write-Host "  there is no wrong build for an F5 to compile."
+        Write-Host ""
+        Write-Host "  Said precisely, because it is not quite 'as it was': if an earlier installation"
+        Write-Host "  was in place, its files were overwritten before this check could run and are"
+        Write-Host "  gone too. NinjaTrader is back to stock, which compiles cleanly. Fix the cause"
+        Write-Host "  above and run this script again."
+    } else {
+        Write-Host "     T H E   R O L L B A C K   I T S E L F   F A I L E D" -ForegroundColor Red
+        Write-Host ""
+        Write-Host "  This one DOES need you. The machine is half-deployed and this script could not"
+        Write-Host "  undo it:"
+        Write-Host ""
+        foreach ($r in $revertProblems) { Write-Host ("     " + $r) -ForegroundColor Red }
+        Write-Host ""
+        Write-Host "  Do not press F5. Undo by hand with:" -ForegroundColor Yellow
+        Write-Host "      .\install.ps1 -Uninstall"
+        Write-Host "  which removes the deployed files and restores the project file from the backup."
+    }
     Write-Host ""
-    Write-Host "  Do not press F5. Compiling now would build something other than what you checked out."
+    Write-Host $bar6 -ForegroundColor Red
     Write-Host ""
     exit 6
 }
@@ -366,16 +431,18 @@ foreach ($c in $copied) { "      " + $c }
 "  all " + $deployedPairs.Count + " deployed files match the repository, byte for byte."
 "  GuardianCore.dll now deployed : " + $deployedHash
 "  the bytes it was copied from  : " + $builtHash
-if ($deployedHash -eq $builtHash) {
-    # TWO statements, because they establish two different things and one of them used to claim the
-    # other. "the deployed binary is the one you just built" was a compile claim made by a script
-    # that never compiles anything; it survived a deploy of a stale build without a murmur.
-    "  COPY VERIFIED  - the deployed bytes are the bytes in bin\Release\net48."
-    "  BUILD CURRENT  - build " + $buildTime.ToString("yyyy-MM-dd HH:mm:ss") +
-        ", newest source " + $newestSrc.Name + " " + $newestSrc.LastWriteTime.ToString("yyyy-MM-dd HH:mm:ss") + "."
-} else {
-    Write-Host "  *** MISMATCH - the copy did NOT take. Do not compile, do not continue. ***" -ForegroundColor Red
-}
+# TWO statements, because they establish two different things and one of them used to claim the
+# other. "the deployed binary is the one you just built" was a compile claim made by a script
+# that never compiles anything; it survived a deploy of a stale build without a murmur.
+#
+# Unconditional now: the ten-file verification above compares the FULL sha256 of these same two
+# files and exits 6 if they differ, so reaching this line already establishes they are identical.
+# The `if` that used to wrap it, its MISMATCH branch and the `exit 3` at the end of this block were
+# unreachable from the moment that check landed - a check that cannot run is not a check, it is
+# decoration that suggests a protection nobody has.
+"  COPY VERIFIED  - the deployed bytes are the bytes in bin\Release\net48."
+"  BUILD CURRENT  - build " + $buildTime.ToString("yyyy-MM-dd HH:mm:ss") +
+    ", newest source " + $newestSrc.Name + " " + $newestSrc.LastWriteTime.ToString("yyyy-MM-dd HH:mm:ss") + "."
 ""
 "  Those 16 characters are the same value a certificate reports as issuer.buildHash."
 "  Note what does NOT verify this: the NinjaTrader Log line"
@@ -383,7 +450,6 @@ if ($deployedHash -eq $builtHash) {
 "  0.1.0.0 is the AssemblyVersion and is identical in every build ever made. It tells"
 "  you something loaded. It cannot tell you WHICH."
 $bar2
-if ($deployedHash -ne $builtHash) { exit 3 }
 
 ""
 "Installed - but NOT yet compiled. NinjaTrader compiles NinjaScript on demand, not at"
