@@ -1,6 +1,18 @@
 # deadman-guardian — mapa para sesiones futuras (actualizar al cierre de cada tanda)
 
-Última actualización: 2026-08-26 (guardas del instalador; M22 arreglado; prueba viva de producción pendiente).
+Última actualización: 2026-08-26 (**prueba viva CORRIDA: encontró LT-1, el defecto más grave abierto**).
+
+**ESTADO OPERATIVO AL CIERRE DEL 26-ago — leer antes de tocar nada:**
+- **NinjaTrader está CERRADO a propósito y debe seguir así hasta mañana 17:00 CT.** El guardián quedó
+  `LOCKED` con una posición abierta en Sim101 y un bucle de aplanado que giró 167 veces. **Si se reabre
+  antes de que expire el sello, el bucle reinicia** — ~1 evento por segundo en el ledger.
+- **`config.json` tiene el límite de prueba ($40), no el de producción ($600).** No se toca hasta que
+  expire el sello: editarlo bajo sello escribe `CONFIG_TAMPERED` y acusa de manipulación. El respaldo
+  es `config.json.produccion-20260826` (hash `38a15089c889ac09`). La vuelta está en
+  `docs/proposals/live-production-breach-test.md`.
+- **`install.ps1` no se corre**: `bin\Release` está en `57d36a5d6a8a9113` y lo desplegado en
+  `4d20652361c0b468`. Ninguna guarda del instalador detendría ese despliegue.
+- `botA.GO` sigue puesto y `soak.GO` sigue aparcado como `soak.GO.parked-for-livetest`.
 Es un mapa, no un manual. El historial forense está en `git log`; la especificación en `SPEC.md`,
 las decisiones revisadas en `AMENDMENTS.md`, y el diagnóstico del error espejo en
 `docs/error_espejo.md`.
@@ -67,6 +79,22 @@ cómputo es correcto, la frase es correcta, y el defecto vive sólo en la junta 
 es el mismo conjunto del que habla?* Si no se puede contestar leyendo el código que la produce, la
 afirmación no está lista para ir a un documento que alguien va a auditar.
 
+### Segundo subtipo, encontrado por la prueba viva del 26-ago
+
+> **UN DOBLE DE PRUEBA QUE SIMPLIFICA LA REALIDAD NO PRUEBA MENOS — PRUEBA OTRA COSA, Y EL VERDE DICE
+> QUE PROBASTE LA QUE NO ERA.**
+
+`FakeBroker.Flatten` borra la posición **de una lista**: sin orden, sin envío, sin aceptación, sin
+cancelación posible — **sin ciclo de vida**. El doble hizo el aplanado **atómico**, el diseño asumió esa
+atomicidad sin que nadie escribiera la suposición, y en producción el guardián **cancela sus propias
+órdenes de aplanado**. Las 16 corridas del soak y los 256 tests eran verdes y **lo siguen siendo**:
+prueban un mundo donde aplanar es instantáneo, y ese mundo no existe.
+
+Es hermana del subtipo de arriba, y peor de cazar: ahí el conjunto equivocado era un subconjunto;
+acá **es un universo entero construido a propósito**, y su diferencia con el real ES el defecto.
+**Pregunta de cacería:** ¿en qué se diferencia mi doble del mundo real, y esa diferencia puede ser
+justo donde vive el defecto?
+
 Corolario hermano: **un chequeo que existe no es un chequeo que corre.** Antes de confiar en una
 protección, buscar su productor y correrla. Y un chequeo inalcanzable se borra — no se deja
 decorando.
@@ -111,6 +139,9 @@ decorando.
 ## 5. Defectos abiertos (verificados, con archivo:línea)
 | # | qué | dónde |
 |---|---|---|
+| **LT-1** | **EL GUARDIÁN CANCELA SUS PROPIAS ÓRDENES DE APLANADO, Y LAS SALIDAS DEL TRADER.** `CancelAllOrders(order.Account)` es incondicional: no mira lado, ni origen, ni si la orden reduce exposición. Probado en vivo el 26-ago: 167 intentos, `FLATTEN_VERIFIED` cero, y `Sell`/`BuyToCover` cancelados. **PRIMERO EN EL MAPA**, por delante de todo: es el único defecto abierto que cuesta dinero y atrapa al trader en una posición. Informe: `docs/live-test-findings-20260826.md` | `Guardian.cs:576` |
+| **LT-2** | **La familia de M15 que no barrí.** `_personalLimit`, `_resetLocalTime` y `_zoneId` se asignan **sólo en la ruta de armado** (`:268`); un reinicio que restaura `ARMED` desde el sello los deja en su default. Consecuencia vista: el mensaje del breach publicó **"your limit is $0.00"** con límite $40, y el "until 17:00" desaparece en silencio de todos los mensajes. | `DeadmanGuardianAddOn.cs:50-52,268` |
+| LT-3 | Los dos mensajes del lockout no contemplan *"la promesa no se puede cumplir"*: `LockoutComplete` cuelga de `FLATTEN_VERIFIED`, así que el trader leyó *"I am about to close your positions"* y después nada, 167 vueltas. Correcto por diseño, malo en consecuencia. | `DeadmanGuardianAddOn.cs:427-434` |
 | **cert-1 + cert-3** | **Son un solo defecto: el certificado no tiene ALCANCE.** El addon le pasa a `Certificate.Issue` el ledger ENTERO (`:306`), `Issue` toma `min/max(seq)` de lo que recibe (`:247-250`), y `Recompute` recorre todo — así que `limitRespected`, `lockoutsTriggered` y `failClosedEpisodes` son totales de nueve días bajo un encabezado de un día, y `daysCovered: 1` **es falso**, no sólo cableado. Evidencia publicada: `certificate-2026-08-24.json` trae `ledgerRange {fromSeq:1}` y un episodio del 21-ago. **ES LA PRÓXIMA TANDA**, aprobada: acotar el certificado al día que nombra, con la maquinaria que `Recompute` ya expone y nadie llama — arregla tres defectos de una vez y hace que `daysCovered: 1` sea verdad por construcción. Rojo primero. `limitRespected` **NO** entra: es semántica, no alcance (ver `docs/proposals/deployed-vs-tested.md`, apéndice). Decisión en `docs/proposals/what-days-covered-should-mean.md` | `Certificate.cs:67,247-250`, `DeadmanGuardianAddOn.cs:306,315` |
 | cert-2 | **CERRADO en la parte que es nuestra.** `CERT_CONFORMANCE.md` pasa la prueba de leerlo con la función apagada y además **publica la ausencia**: *"hoy no hay ancla externa, y el verificador lo dice en su propia salida"*. Nada que arreglar acá. | `CERT_CONFORMANCE.md` |
 | **cert-2b** | **PENDIENTE DE VENTANA B — NO ES TERRITORIO DE ESTA VENTANA.** La pregunta original (¿`SPEC §2b` promete L2 como *alcanzado* en vez de *disponible*?) apunta al `§2b` del repo **`deadman`**, no al nuestro: acá la §2 es "The one number that matters" y no habla de anclaje. Queda anotado para que no se pierda; **esta ventana no lo toca.** | repo `deadman` |
@@ -138,6 +169,9 @@ decorando.
 
 ### Orden definitivo después de la prueba viva (fijado 2026-08-26)
 
+0. **LT-1** — que sólo se cancele lo que AUMENTA exposición. **Pasó al primer lugar el 26-ago**,
+   por delante de cert-1: es el único defecto abierto que cuesta dinero. Rojo primero, y **contra un
+   doble que modele el ciclo de vida de la orden** — con el doble actual el verde vuelve a mentir.
 1. **cert-1** — acotar el certificado al día que nombra. Mecánico, con maquinaria que ya existe.
 2. **Contrato de extensión del formato, con Ventana B** — ¿el verificador tolera campos desconocidos
    en un evento conocido, y está escrito? Si la respuesta es que no hay tolerancia, **eso es un
