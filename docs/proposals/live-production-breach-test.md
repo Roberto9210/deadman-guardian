@@ -11,6 +11,13 @@ porque es lo que hace legítima la decisión:
 > 22-ago, todo en Sim101 con precios sintéticos. Es un ledger de desarrollo. Y el evento será
 > **cierto**: ese día el guardián estuvo armado en $40 y rompió el límite. No hay nada que falsificar.
 
+**Corrección de fecha, verificada contra el historial antes de correr:** la sesión de prueba **no**
+va a llevar `dayKey 2026-08-26`. El corte de sesión es 17:00 CT, así que al expirar el sello el día
+rueda y armar después abre **`dayKey 2026-08-27`** — la jornada que empieza la tarde del 26. El
+precedente está en el propio ledger: `SEAL_EXPIRED dayKey=2026-08-22` (seq 6336) seguido de
+`ARMED dayKey=2026-08-23` (seq 6340). O sea que el día con límite $40 en la evidencia es el
+**2026-08-27**, y un certificado del 26-ago no lo toca.
+
 ### PROHIBIDO: ningún evento que diga "esto fue una prueba"
 
 **No se agrega al ledger ningún evento, campo ni marca que signifique "esto no cuenta", "tramo de
@@ -22,7 +29,7 @@ del resto después del hecho. Agregar la capacidad de marcar "esto no cuenta" �
 honestidad— construye la herramienta que mañana se usa para lo contrario, y la construye adentro de
 la pieza que se vende como evidencia.
 
-Así que el ledger dice, sin adornos, lo que pasó: el 26-ago el límite era $40 y se rompió.
+Así que el ledger dice, sin adornos, lo que pasó: en la sesión `2026-08-27` el límite era $40 y se rompió.
 **La explicación de por qué vive AFUERA**, en este archivo, que está en git con su propia historia.
 Un auditor que se pregunte por ese día encuentra la respuesta en el repositorio, no en una excepción
 codificada dentro del formato.
@@ -68,7 +75,7 @@ Por lo tanto:
 - La sesión de prueba escribe en `deadman-guardian\ledger.jsonl`, el archivo que este producto vende
   como evidencia.
 - Va a contener un `LIMIT_BREACHED` **real** con un límite de $40 y su lockout completo.
-- Un certificado emitido para el 2026-08-26 va a reportar ese límite.
+- Un certificado emitido para el **2026-08-27** va a reportar ese límite (ver la corrección de fecha arriba).
 
 **No es falsificar nada** — es un registro cierto de lo que pasó. **DECIDIDO: se acepta**, por el
 motivo de arriba. El etiquetado vive en este documento, nunca dentro del ledger.
@@ -110,11 +117,11 @@ sandbox de BOT A disparara antes, la prueba mediría otra vez lo que ya sabemos.
 ## Qué espero ver en el ledger, en este orden
 
 ```
-SEAL_EXPIRED        basis=..., dayKey=2026-08-26
+SEAL_EXPIRED        basis=..., dayKey=2026-08-26   (cierra la jornada del 26)
 DAY_CLOSED          dayKey=2026-08-26
 DISARMED
 CONFIG_LOADED       configHash=<distinto del de producción>
-ARMED               accounts=['Sim101'], personalLimit=40.00
+ARMED               accounts=['Sim101'], personalLimit=40.00, dayKey=2026-08-27
 SEAL_CREATED
 DAY_OPENED
 PNL_CHECKPOINT      dayLoss creciendo: 0.00 → ~10 → ~25 → ...
