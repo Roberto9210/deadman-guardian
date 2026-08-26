@@ -206,9 +206,14 @@ New-Item -ItemType Directory -Force -Path $addons, $home8 | Out-Null
 if (-not (Test-Path $backup)) { Copy-Item $csproj $backup -Force; "backed up NinjaTrader.Custom.csproj" }
 
 $copied = @()
+# Every copy records where it came from, so the verification at the end can cover ALL of them. Until
+# 2026-08-26 the hash check covered ONE file out of ten, and the other nine were verified by a human
+# running sha256sum by hand - which is the manual step this script exists to remove.
+$deployedPairs = @()
 foreach ($s in $sources) {
     Copy-Item (Join-Path $repo "nt\addon\$s") (Join-Path $addons $s) -Force
     $copied += $s
+    $deployedPairs += @{ Name = $s; From = (Join-Path $repo "nt\addon\$s"); To = (Join-Path $addons $s) }
     "copied $s"
 }
 if ($WithSoak -or $WithBots) {
@@ -216,6 +221,7 @@ if ($WithSoak -or $WithBots) {
     foreach ($s in $botShared) {
         Copy-Item (Join-Path $repo "nt\bots\$s") (Join-Path $addons $s) -Force
         $copied += $s
+        $deployedPairs += @{ Name = $s; From = (Join-Path $repo "nt\bots\$s"); To = (Join-Path $addons $s) }
         "copied $s  (shared: account rail + guardrails)"
     }
 }
@@ -223,6 +229,7 @@ if ($WithSoak) {
     foreach ($s in $soakSources) {
         Copy-Item (Join-Path $repo "nt\soak\$s") (Join-Path $addons $s) -Force
         $copied += $s
+        $deployedPairs += @{ Name = $s; From = (Join-Path $repo "nt\soak\$s"); To = (Join-Path $addons $s) }
         "copied $s  (soak suite)"
     }
 }
@@ -230,6 +237,7 @@ if ($WithBots) {
     foreach ($s in $botSources) {
         Copy-Item (Join-Path $repo "nt\bots\$s") (Join-Path $addons $s) -Force
         $copied += $s
+        $deployedPairs += @{ Name = $s; From = (Join-Path $repo "nt\bots\$s"); To = (Join-Path $addons $s) }
         "copied $s  (test bots - THESE SEND FILLABLE ORDERS)"
     }
     New-Item -ItemType Directory -Force -Path (Join-Path $ntUser "deadman-guardian-bots") | Out-Null
@@ -237,6 +245,7 @@ if ($WithBots) {
 }
 Copy-Item $coreDll (Join-Path $custom "GuardianCore.dll") -Force
 $copied += "GuardianCore.dll"
+$deployedPairs += @{ Name = "GuardianCore.dll"; From = $coreDll; To = (Join-Path $custom "GuardianCore.dll") }
 "copied GuardianCore.dll"
 
 $xml = Get-Content $csproj -Raw
@@ -323,6 +332,30 @@ else { "no config.json: the guardian will start NOT ARMED until you write one" }
 $deployedDll  = Join-Path $custom "GuardianCore.dll"
 $deployedHash = (Get-FileHash $deployedDll -Algorithm SHA256).Hash.Substring(0, 16).ToLower()
 $builtHash    = (Get-FileHash $coreDll     -Algorithm SHA256).Hash.Substring(0, 16).ToLower()
+
+# ALL of them, not just the DLL. A source file that silently failed to copy is a compile against the
+# previous version of that file - the same failure the DLL check was written to catch, in the nine
+# places it was not looking.
+$mismatched = @()
+foreach ($pair in $deployedPairs) {
+    if (-not (Test-Path $pair.To)) { $mismatched += ($pair.Name + " (missing at destination)"); continue }
+    $hFrom = (Get-FileHash $pair.From -Algorithm SHA256).Hash
+    $hTo   = (Get-FileHash $pair.To   -Algorithm SHA256).Hash
+    if ($hFrom -ne $hTo) { $mismatched += ($pair.Name + " (differs from the repository copy)") }
+}
+if ($mismatched.Count -gt 0) {
+    $bar6 = "=" * 76
+    Write-Host ""
+    Write-Host $bar6 -ForegroundColor Red
+    Write-Host "     D E P L O Y M E N T   I S   N O T   W H A T   T H E   R E P O   H A S" -ForegroundColor Red
+    Write-Host $bar6 -ForegroundColor Red
+    Write-Host ""
+    foreach ($m in $mismatched) { Write-Host ("    " + $m) -ForegroundColor Red }
+    Write-Host ""
+    Write-Host "  Do not press F5. Compiling now would build something other than what you checked out."
+    Write-Host ""
+    exit 6
+}
 $bar2 = "=" * 76
 
 ""
@@ -330,6 +363,7 @@ $bar2
 "  INSTALLED - " + $copied.Count + " file(s) copied:"
 foreach ($c in $copied) { "      " + $c }
 ""
+"  all " + $deployedPairs.Count + " deployed files match the repository, byte for byte."
 "  GuardianCore.dll now deployed : " + $deployedHash
 "  the bytes it was copied from  : " + $builtHash
 if ($deployedHash -eq $builtHash) {
