@@ -100,10 +100,26 @@ when it cannot tell.
 
 ## Two things it will not do
 
-**It will not let you raise the limit while armed.** Not from the window, not by editing `config.json`, not
-by editing the state file, not by restarting NinjaTrader, and not by changing your system clock. Editing the
-sealed files is detected and results in a lockout, because an edit is an attempt to trade past the limit —
-which is what it is.
+**It will not let you CHANGE the limit while armed — in either direction.** Not from the window, not by
+editing `config.json`, not by editing the state file, not by restarting NinjaTrader, and not by changing your
+system clock.
+
+Read that as written, because the earlier wording said "raise" and that was wrong in the dangerous direction.
+The guardian compares the config file's hash against the sealed one; **any** difference is detected. A
+*stricter* limit is rejected exactly like a looser one, and a change made while sealed produces
+`CONFIG_TAMPERED` and a lockout regardless of which way it moved.
+
+That is deliberate — SPEC §7.2 — because a seal you can edit "just this once, and only downward" is a seal
+with a negotiation in it. But it has a consequence the operator has to know in advance:
+
+> **While a seal is in force, `config.json` is not touched for ANY reason — not even to put back a previous
+> version.** There is no deliberate disarm: the only way a seal is released is by expiring at your session
+> reset time. If you armed with the wrong limit, you live with it until the session ends. Restoring the old
+> file before then does not undo anything; it is recorded as tampering, and the record is permanent.
+
+The reason the record says "tampering" rather than "changed" is that the guardian cannot know your intent,
+and the safe reading of an edit under seal is the hostile one. That is correct for enforcement and it means
+the ledger can carry an accusation against an honest restore. Do the restore after expiry.
 
 **It will not bound your loss.** It bounds your *exposure* and removes your discretion. Between the moment
 the limit is reached and the moment the position is actually closed, the market keeps moving: measured on

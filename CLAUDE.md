@@ -69,6 +69,14 @@ decorando.
   Cerrar la ventana principal no alcanza. Cerrar con gracia, nunca matar el proceso: un kill duro le
   roba al guardián su `GUARDIAN_STOPPED`.
 - **Deshacer**: `.\nt\install.ps1 -Uninstall` borra lo desplegado y restaura el `csproj` del backup.
+- **CON SELLO VIGENTE, `config.json` NO SE TOCA POR NINGÚN MOTIVO — ni siquiera para restaurar.**
+  `Guardian.OnConfigFileObserved` (`:517-529`) compara el hash en disco contra el sellado en cada tick
+  del addon (`DeadmanGuardianAddOn.cs:229-237`), y **cualquier** diferencia escribe `CONFIG_TAMPERED` y
+  entra en lockout — **también una más estricta**. Restaurar un límite más duro queda registrado como
+  intento de operar por encima del límite: una acusación falsa y permanente en la cadena.
+  **No existe un `Disarm` deliberado**: `Ev.Disarmed` se escribe en un solo sitio (`Guardian.cs:813`),
+  dentro de `CheckExpiry`, que es donde `_state.Seal = null` (`:816`). La única salida es la expiración.
+  Consecuencia operativa: **armar con el límite equivocado se paga hasta el corte de sesión.**
 - **Verificar qué está corriendo**: el hash corto del DLL desplegado es el mismo valor que el
   certificado reporta como `issuer.buildHash`. La línea del Log de NT8 (`version='0.1.0.0'`) es
   idéntica en todo build jamás hecho: dice que algo cargó, no **cuál**.
@@ -79,14 +87,14 @@ decorando.
 ## 5. Defectos abiertos (verificados, con archivo:línea)
 | # | qué | dónde |
 |---|---|---|
-| **cert-1** | `daysCovered` cableado en 1: el certificado afirma una cobertura que nadie contó. **Es el próximo** — la clase de la casa dentro de la pieza cuyo valor entero es que nadie tenga que creerle a nadie. | `Certificate.cs:67`, `tools/IssueCertificate/Program.cs:87` |
+| **cert-1 + cert-3** | **Son un solo defecto: el certificado no tiene ALCANCE.** El addon le pasa a `Certificate.Issue` el ledger ENTERO (`:306`), `Issue` toma `min/max(seq)` de lo que recibe (`:247-250`), y `Recompute` recorre todo — así que `limitRespected`, `lockoutsTriggered` y `failClosedEpisodes` son totales de nueve días bajo un encabezado de un día, y `daysCovered: 1` **es falso**, no sólo cableado. Evidencia publicada: `certificate-2026-08-24.json` trae `ledgerRange {fromSeq:1}` y un episodio del 21-ago. **Es el próximo.** Decisión en `docs/proposals/what-days-covered-should-mean.md` | `Certificate.cs:67,247-250`, `DeadmanGuardianAddOn.cs:306,315` |
+| cert-2 | **AUDITADO 2026-08-26: limpio.** No existe `§2b` en este SPEC (ese es el de `deadman`). `CERT_CONFORMANCE.md` pasa la prueba de leerlo con la función apagada y además **publica la ausencia**: *"hoy no hay ancla externa, y el verificador lo dice en su propia salida"*. Nada que arreglar. | — |
 | M4 | Suspensión de la máquina ⇒ salto de reloj hacia adelante ⇒ bloqueo. **Sin medir.** | `Guardian.cs:753` |
 | M5 | Un tick sin precio con posición abierta ⇒ bloqueo. Diseñado así. | `PnlAccounting.cs:218` |
 | M6 | Desconexión ⇒ bloqueo. Diseñado así; ocurrió varias veces. | `PnlAccounting.cs:198` |
 | M7 | La deduplicación de fills es condicional: una ejecución sin `ExecutionId` se cuenta cada vez. Sin evidencia de que NT8 emita id nulo. | `PnlAccounting.cs:144` |
 | M20 | El feed reporta no-realizado sin que el broker reporte posición ⇒ el guardián sigue ciego. Residual, sin arreglar a propósito. | `PnlAccounting.cs:210-222` |
 | M21 | Primer arranque sobre un ledger viejo ⇒ rehúsa el baseline hasta que ruede el día. Una vez por instalación. | `Guardian.cs`, `LoadSameDayCheckpointGross` |
-| cert-2 | Auditar si `SPEC §2b`/`CERT_CONFORMANCE` prometen L2 como alcanzado en vez de disponible. Prueba: leer la frase con la función apagada. | `SPEC.md`, `CERT_CONFORMANCE.md` |
 | ui-1 | El titular se deriva del **estado**, no de la **causa**. **Parcialmente cubierto**: el caso de M22 tiene titular propio (`Headline(kind, reason)` + `IsLimitNotFlattened`). Siguen sin cubrir los demás casos de `FailClosed` — discrepancia de fuentes, precio ausente, reloj, ledger — que comparten `CANNOT SEE YOUR ACCOUNT`. | `Messages.cs` |
 
 ### Anotado, sin arreglar
