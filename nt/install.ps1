@@ -151,6 +151,56 @@ if (-not (Test-Path $coreDll)) {
     throw "GuardianCore.dll (net48) not built. Run: dotnet build src\GuardianCore\GuardianCore.csproj -c Release"
 }
 
+# ---------------------------------------------------------------- BUILD CURRENCY GUARD
+# The hash comparison at the end of this script establishes that the copy took, and nothing else.
+# On 2026-08-26 it printed MATCH over a build 26 seconds OLDER than the source fix it was supposed
+# to carry - and the sentence beside it, "the deployed binary is the one you just built", asserted a
+# compile that had never happened. The bytes were faithfully copied. They were the wrong bytes.
+#
+# A stale build is worse than no build: the deploy reports success, the F5 compiles against it, and
+# the live test measures the previous version while everyone believes it is measuring the new one.
+# So currency is checked HERE, where refusing is still free.
+#
+# bin\ and obj\ are excluded on purpose. They hold this build's own outputs, some of them newer than
+# the DLL by construction, and a guard that trips on its own artefacts gets switched off by the first
+# person who meets it - which is the same as not having written it.
+$coreSrcDir = Join-Path $repo "src\GuardianCore"
+$buildTime = (Get-Item $coreDll).LastWriteTime
+$coreSrcs = Get-ChildItem $coreSrcDir -Recurse -Include *.cs, *.csproj |
+            Where-Object { $_.FullName -notmatch '\\(bin|obj)\\' }
+$newestSrc = $coreSrcs | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+$staleAgainst = @($coreSrcs | Where-Object { $_.LastWriteTime -gt $buildTime })
+
+if ($staleAgainst.Count -gt 0) {
+    $bar5 = "=" * 76
+    Write-Host ""
+    Write-Host $bar5 -ForegroundColor Red
+    Write-Host ""
+    Write-Host "     N O T H I N G   W A S   I N S T A L L E D" -ForegroundColor Red
+    Write-Host ""
+    Write-Host "     No file was copied. No file was edited. Nothing changed at all." -ForegroundColor Red
+    Write-Host "     The version NinjaTrader would run is the OLD one, unchanged." -ForegroundColor Red
+    Write-Host ""
+    Write-Host $bar5 -ForegroundColor Red
+    Write-Host ""
+    Write-Host "  Why: GuardianCore.dll is OLDER than its own source. Installing it would deploy"
+    Write-Host "  code that does not contain the changes sitting in these files:"
+    Write-Host ""
+    Write-Host ("    build   " + $buildTime.ToString("yyyy-MM-dd HH:mm:ss") + "   GuardianCore.dll")
+    foreach ($f in ($staleAgainst | Sort-Object LastWriteTime -Descending)) {
+        Write-Host ("    source  " + $f.LastWriteTime.ToString("yyyy-MM-dd HH:mm:ss") + "   " + $f.Name) -ForegroundColor Yellow
+    }
+    Write-Host ""
+    Write-Host "  COMPILE FIRST, THEN INSTALL:" -ForegroundColor Yellow
+    Write-Host "    dotnet build src\GuardianCore\GuardianCore.csproj -c Release"
+    Write-Host ""
+    Write-Host "  Then run this script again. Nothing has been installed by this run."
+    Write-Host ""
+    Write-Host $bar5 -ForegroundColor Red
+    Write-Host ""
+    exit 5
+}
+
 New-Item -ItemType Directory -Force -Path $addons, $home8 | Out-Null
 
 if (-not (Test-Path $backup)) { Copy-Item $csproj $backup -Force; "backed up NinjaTrader.Custom.csproj" }
@@ -281,9 +331,14 @@ $bar2
 foreach ($c in $copied) { "      " + $c }
 ""
 "  GuardianCore.dll now deployed : " + $deployedHash
-"  the build it was copied from  : " + $builtHash
+"  the bytes it was copied from  : " + $builtHash
 if ($deployedHash -eq $builtHash) {
-    "  MATCH - the deployed binary is the one you just built."
+    # TWO statements, because they establish two different things and one of them used to claim the
+    # other. "the deployed binary is the one you just built" was a compile claim made by a script
+    # that never compiles anything; it survived a deploy of a stale build without a murmur.
+    "  COPY VERIFIED  - the deployed bytes are the bytes in bin\Release\net48."
+    "  BUILD CURRENT  - build " + $buildTime.ToString("yyyy-MM-dd HH:mm:ss") +
+        ", newest source " + $newestSrc.Name + " " + $newestSrc.LastWriteTime.ToString("yyyy-MM-dd HH:mm:ss") + "."
 } else {
     Write-Host "  *** MISMATCH - the copy did NOT take. Do not compile, do not continue. ***" -ForegroundColor Red
 }
