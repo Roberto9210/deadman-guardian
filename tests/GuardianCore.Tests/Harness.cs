@@ -48,6 +48,11 @@ namespace GuardianCore.Tests
         /// published by a LATER append that must itself succeed.</summary>
         public Action<LedgerEntry> Observer;
 
+        /// <summary>Set to run against a broker double that models the ORDER LIFECYCLE instead of the
+        /// atomic FakeBroker. Only the LT-1 tests need it; everything else is unaffected, which is why
+        /// this is an override rather than a change of type.</summary>
+        public IBrokerActions BrokerOverride;
+
         public Guardian NewGuardian(string runId = null)
         {
             RunId = runId ?? RunId;
@@ -55,7 +60,7 @@ namespace GuardianCore.Tests
             {
                 Clock = Clock,
                 Store = Store,
-                Broker = Broker,
+                Broker = BrokerOverride ?? (IBrokerActions)Broker,
                 Feed = Feed,
                 StatePath = StatePath,
                 LedgerPath = LedgerPath,

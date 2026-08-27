@@ -43,7 +43,7 @@ with a plausible reason why today is different. Every rule below exists because 
 | T4 | Restarting NT8 to clear the state | Seal, state and lockout live on disk and are re-read on startup (§6, §8) |
 | T5 | Hand-editing the config, state or ledger files | Hash seal + hash-chained ledger: edits are detected, and detection means lockout (§7.4) |
 | T6 | Silent failure — the guard believes it is watching and is not | Unknown state is a state: block entries, never guess (§10) |
-| T7 | Orders placed after lockout from a DOM, chart, or a running strategy | Enforcement is continuous, not a one-shot flatten (§9.5) |
+| T7 | Orders placed after lockout from a DOM, chart, or a running strategy | Enforcement is continuous, not a one-shot flatten (§9.5). Since 2026-08-26 it is *literally* a repeated flatten where the adapter cannot cancel one order by id: the order fills and the next cycle closes it, so the trader pays one round trip. The property — no position can be built past the lockout — is unchanged; the mechanism and the timing are |
 | T8 | Winding the system clock **forward** so the seal looks expired | Expiry is measured on a monotonic clock, not on the wall clock (§6.4, §7.5) — the seal is *maintained* when they disagree |
 | T9 | Winding the system clock **back** (to fake an earlier session, or after a forward jump) | Backward observations are detected and logged; they never release the seal (§6.4) |
 
@@ -107,10 +107,29 @@ that ship as indicators carry that hole by construction.
 application level, independent of any chart or instrument, and lives for the whole NT8 session. That is the
 only shape in which the promise "you cannot trade past your limit today" can be made honestly.
 
-**Unverified until Step 3:** whether an AddOn can veto an order *before* it reaches the broker. NT8 exposes
-no documented pre-submit hook to third-party AddOns, so §9.5 specifies enforcement as
-*detect-and-cancel-immediately*, not *prevent*. If a pre-submit hook is found, it is an addition, not a
-replacement — and the cancel path stays as the backstop.
+**Verified on 2026-08-26, and this clause is now CLOSED.** It asked whether an AddOn can veto an order
+*before* it reaches the broker, and anticipated two outcomes: a pre-submit hook exists (an addition), or it
+does not (and cancelling is the backstop). NT8 still exposes no pre-submit hook to third-party AddOns — but
+the live test returned a **third** answer, which neither branch contemplated:
+
+> **The backstop was the weapon.** Cancelling on observation cancelled the guardian's OWN flatten orders,
+> 1 ms after the venue accepted them, and cancelled the trader's exits along with them. 167 loops,
+> `FLATTEN_VERIFIED` zero, position never closed (`docs/live-test-findings-20260826.md`).
+
+The spec asked to be verified, and the verification came back with an answer that was not among the ones it
+expected. So §9.5 is amended, and enforcement after the lockout has **two branches, both permanent**:
+
+- **WITH selective cancellation** (a port that can cancel one order by id): orders that INCREASE exposure are
+  cancelled on observation. Orders that reduce it, and the guardian's own flatten orders, are never touched.
+- **WITHOUT it** — an older adapter, a test double, any other adapter: post-lockout protection is **by
+  repeated flatten, one cycle later**. The order fills, the guardian sees the position, and closes it.
+
+The second branch is not an interim excuse: it stays true after selective cancellation lands, because it is
+what the guardian must do wherever that capability is absent. It is the foundation, not a detour.
+
+**The cost of the second branch, stated rather than buried:** the trader pays one round trip on an order that
+would previously have been cancelled before filling. That is a real cost, and it is the smaller one — the
+alternative cancelled their exits and trapped them in the position (§17).
 
 ### 3.4 What NinjaTrader already provides, and why this add-on does not lean on it
 

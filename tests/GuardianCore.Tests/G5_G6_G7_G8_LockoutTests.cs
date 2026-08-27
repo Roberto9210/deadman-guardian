@@ -130,8 +130,19 @@ namespace GuardianCore.Tests
             Assert.NotEqual(StateKind.Disarmed, resumed.Status.Kind);
         }
 
+        /// <summary>REWRITTEN 2026-08-26 (A11), and it was a SPECIFICATION before it was a test.
+        ///
+        /// It used to assert that an order observed after the lockout is cancelled on the spot. The live
+        /// test proved what that costs: the guardian cancelled its own flatten order 1ms after the venue
+        /// accepted it, and the trader's exits with it. SPEC section 3.3 had marked this "Unverified
+        /// until Step 3" and anticipated two outcomes; the verification returned a third - the backstop
+        /// was the weapon - so the clause is closed and section 9.5 amended.
+        ///
+        /// What this asserts now is the branch that holds wherever the adapter cannot cancel one order
+        /// by id, which is a PERMANENT branch and not an interim one: nothing is cancelled on
+        /// observation, and the position the order creates is closed by the next cycle's flatten.</summary>
         [Fact]
-        public void G8_an_order_placed_after_the_lockout_is_cancelled_and_recorded()
+        public void G8_an_order_after_the_lockout_is_not_cancelled_on_observation()
         {
             Armed("600.00");
             LoseExactly(600.00m);
@@ -139,24 +150,32 @@ namespace GuardianCore.Tests
 
             Guardian.OnOrderObserved(new OrderSnapshot(Account, "o-99", Instrument, "Buy"));
 
-            Assert.Contains("cancel:" + Account, Broker.Calls);
-            var rejected = LastEvent(Ev.OrderRejectedLocked);
-            Assert.NotNull(rejected);
-            var payload = (JsonObject)rejected["payload"];
-            Assert.Equal("o-99", payload.GetString("orderId"));
-            Assert.Equal(Account, payload.GetString("account"));
+            // Not "no cancel for that order" - NO broker call at all. A blind account-wide cancel is
+            // what killed the flatten, and no observation may trigger one again.
+            Assert.Empty(Broker.Calls);
+
+            // And no ORDER_REJECTED_LOCKED, because nothing was rejected. A name that asserts a
+            // rejection which did not happen is the defect class this repository chases; the event
+            // returns, truthfully, when selective cancellation lands.
+            Assert.DoesNotContain(Ev.OrderRejectedLocked, Events());
         }
 
+        /// <summary>The property T7 actually promises - enforcement is continuous, not a one-shot
+        /// flatten - survives the amendment, and here it is literally a repeated flatten. Five orders
+        /// observed, five times nothing cancelled, and the guardian still LOCKED and still trying.</summary>
         [Fact]
-        public void G8_enforcement_keeps_working_for_every_later_order_not_just_the_first()
+        public void G8_enforcement_is_still_continuous_it_is_just_the_flatten_that_carries_it()
         {
             Armed("600.00");
             LoseExactly(600.00m);
+            Broker.Calls.Clear();
 
             for (int i = 0; i < 5; i++)
                 Guardian.OnOrderObserved(new OrderSnapshot(Account, "o" + i, Instrument, "Buy"));
 
-            Assert.Equal(5, Events().Count(e => e == Ev.OrderRejectedLocked));
+            Assert.Empty(Broker.Calls);
+            Assert.Equal(StateKind.Locked, Guardian.Status.Kind);
+            Assert.False(Guardian.Status.EntriesAllowed);
         }
 
         [Fact]

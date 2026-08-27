@@ -182,5 +182,58 @@ knowing, which is why this is written as a rule rather than left as an anecdote 
 | A7 `MaxFlattenAttempts` = 3, retry on the tick | §9 step 4 | — |
 | A8 `LOCKED` outranks `FAIL_CLOSED` | §8 | — |
 | A10 single-source user-facing text | **pending** — raised after v0.4, alongside the lockout message work | yes: the failure mode is that the *stale* copy is the survivor |
+| A11 post-lockout enforcement has two branches | **pending** — closes the "Unverified until Step 3" clause of §3.3 and amends §9.5 | yes: the branch without selective cancellation is permanent, not interim |
 
 *Written during Step 2, 19 August 2026, against SPEC v0.3. Absorbed into SPEC v0.4 on 20 August 2026.*
+
+---
+
+## A11 — post-lockout enforcement has two branches, and cancelling on observation is not one of them
+
+**2026-08-26. Closes the "Unverified until Step 3" clause of §3.3, and amends §9.5.**
+
+**What changed.** `OnOrderObserved` no longer cancels anything. The blind account-wide sweep moved out of
+`RunLockoutSteps` — which re-enters on every tick until the flatten verifies — into `EnterLockout`, where it
+runs once. "Once" is now a property of where the code lives rather than a rule someone has to remember to
+check: a flag gets forgotten, a call site does not.
+
+**Why.** The live test of 2026-08-26 ran the production breach path on real fills for the first time. The
+breach fired exactly on the limit, and the flatten never completed: the guardian observed its OWN flatten
+order through `OrderUpdate`, saw itself `LOCKED`, and cancelled it **1 ms after the venue accepted it**. 167
+loops, `FLATTEN_VERIFIED` zero, position never closed — and twelve `ORDER_REJECTED_LOCKED` that were `Sell`,
+`SellShort` and `BuyToCover`: the trader's own exits. Full trace in `docs/live-test-findings-20260826.md`.
+
+§3.3 had anticipated two outcomes and got a third. **The spec asked to be verified, and the verification
+came back with an answer that was not among the ones it expected: the backstop was the weapon.** This is the
+closing of a clause the spec itself left open, not the loosening of a promise.
+
+**The capability the port lacks.** `IBrokerActions` offers `CancelAllOrders(account)` and nothing finer.
+There is no way to cancel ONE order, so "cancel only what increases exposure" cannot be expressed at all.
+This amendment is bounded by a missing capability, not by a missing decision.
+
+**Restoration condition.** When the port can cancel a single order by id — planned as an optional interface
+the adapter may implement and the guardian probes with `as`, so adding it breaks no already-compiled adapter
+in the window between deploying a new DLL and the F5 that recompiles it — orders that INCREASE exposure are
+cancelled on observation again. Orders that reduce it, and the guardian's own flatten orders, stay
+untouchable.
+
+**What does not come back, ever.** Blind account-wide cancellation on observation. No capability makes it
+safe: it is the mechanism that trapped a trader in a position.
+
+**Why the branch without selective cancellation is permanent, not interim.** Wherever that capability is
+absent — an older adapter, a test double, another adapter entirely — the guardian must do exactly what it
+does today. The minimum is the foundation the complete option stands on, not a detour around it.
+
+**The doctrine this belongs to**, and the half whose absence caused it:
+
+| | |
+|---|---|
+| on WORDS | every message asserts exactly what its own code established |
+| on ACTS | the guardian never acts on the account on a premise it could not verify |
+
+Cancelling is **acting** on the account, not refusing to act, so the fail-closed instinct never reached it.
+And the worst cases are not symmetric, which is the whole argument: cancelling wrongly means the trader
+cannot exit a sinking position — unbounded loss, caused by the guardian — while not cancelling wrongly means
+one order opens exposure and the next cycle's flatten closes it, bounded by one cycle.
+
+**How it fails if ignored:** silently, and in the direction that costs money.

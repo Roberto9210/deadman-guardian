@@ -36,6 +36,16 @@ que le sellaron.
    código que un test no puede ejecutar (adaptador), extraerla a código puro primero: que algo sea
    inejecutable en un test es parte del defecto, no una excusa.
 3. **Diffs antes de aplicar**, y esperar el OK en cualquier cambio que toque la puerta del breach.
+3b. **Antes de reescribir un test que se puso rojo, preguntar si lo que afirma está PROMETIDO en algún
+   lado.** Lo normal es reescribir el test y seguir. El 26-ago dos tests rojos resultaron ser una
+   **especificación**: `SPEC §9.5` decía por nombre *detect-and-cancel-immediately* y la fila `T7` del
+   modelo de amenazas lo publicaba. Reescribirlos en silencio habría dejado el código contradiciendo una
+   spec publicada. Un test rojo puede ser un test viejo — o el único lugar donde una promesa sigue viva.
+3c. **Un doble de prueba se corrige contra PRODUCCIÓN, no contra la intuición.** El
+   `OrderLifecycleBroker` apilaba una orden por aplanado hasta que el log de producción lo desmintió
+   (167 `FLATTEN_REQUESTED` contra 6 órdenes `Cerrar`). Cada punto en que un doble difiere de lo real es
+   un lugar donde puede esconderse un defecto: o está respaldado por evidencia, o queda escrito como
+   simplificación conocida.
 4. **Commits separados por fix, por ruta explícita. Nunca `git add -A`.**
 5. **Una sola sesión por repositorio.** Esta ventana es la de `deadman-guardian`; no toca `deadman`
    (Ventana B) ni `deadman-research` (exclusivo de Roberto, ni siquiera lectura).
@@ -139,7 +149,7 @@ decorando.
 ## 5. Defectos abiertos (verificados, con archivo:línea)
 | # | qué | dónde |
 |---|---|---|
-| **LT-1** | **EL GUARDIÁN CANCELA SUS PROPIAS ÓRDENES DE APLANADO, Y LAS SALIDAS DEL TRADER.** `CancelAllOrders(order.Account)` es incondicional: no mira lado, ni origen, ni si la orden reduce exposición. Probado en vivo el 26-ago: 167 intentos, `FLATTEN_VERIFIED` cero, y `Sell`/`BuyToCover` cancelados. **PRIMERO EN EL MAPA**, por delante de todo: es el único defecto abierto que cuesta dinero y atrapa al trader en una posición. Informe: `docs/live-test-findings-20260826.md` | `Guardian.cs:576` |
+| ~~LT-1~~ | **ARREGLADO 2026-08-26** (A11). `OnOrderObserved` ya no cancela; el barrido vive en `EnterLockout` y corre una vez. Cuatro tests con un doble que modela el ciclo de vida de la orden. Queda la **opción completa** como tanda propia: interfaz opcional de cancelación selectiva consultada con `as`, y sin ella el comportamiento de hoy, que es permanente. Era: **el guardián cancelaba sus propias órdenes de aplanado y las salidas del trader.** `CancelAllOrders(order.Account)` es incondicional: no mira lado, ni origen, ni si la orden reduce exposición. Probado en vivo el 26-ago: 167 intentos, `FLATTEN_VERIFIED` cero, y `Sell`/`BuyToCover` cancelados. **PRIMERO EN EL MAPA**, por delante de todo: es el único defecto abierto que cuesta dinero y atrapa al trader en una posición. Informe: `docs/live-test-findings-20260826.md` | `Guardian.cs:576` |
 | **LT-2** | **La familia de M15 que no barrí.** `_personalLimit`, `_resetLocalTime` y `_zoneId` se asignan **sólo en la ruta de armado** (`:268`); un reinicio que restaura `ARMED` desde el sello los deja en su default. Consecuencia vista: el mensaje del breach publicó **"your limit is $0.00"** con límite $40, y el "until 17:00" desaparece en silencio de todos los mensajes. | `DeadmanGuardianAddOn.cs:50-52,268` |
 | LT-3 | Los dos mensajes del lockout no contemplan *"la promesa no se puede cumplir"*: `LockoutComplete` cuelga de `FLATTEN_VERIFIED`, así que el trader leyó *"I am about to close your positions"* y después nada, 167 vueltas. Correcto por diseño, malo en consecuencia. | `DeadmanGuardianAddOn.cs:427-434` |
 | **cert-1 + cert-3** | **Son un solo defecto: el certificado no tiene ALCANCE.** El addon le pasa a `Certificate.Issue` el ledger ENTERO (`:306`), `Issue` toma `min/max(seq)` de lo que recibe (`:247-250`), y `Recompute` recorre todo — así que `limitRespected`, `lockoutsTriggered` y `failClosedEpisodes` son totales de nueve días bajo un encabezado de un día, y `daysCovered: 1` **es falso**, no sólo cableado. Evidencia publicada: `certificate-2026-08-24.json` trae `ledgerRange {fromSeq:1}` y un episodio del 21-ago. **ES LA PRÓXIMA TANDA**, aprobada: acotar el certificado al día que nombra, con la maquinaria que `Recompute` ya expone y nadie llama — arregla tres defectos de una vez y hace que `daysCovered: 1` sea verdad por construcción. Rojo primero. `limitRespected` **NO** entra: es semántica, no alcance (ver `docs/proposals/deployed-vs-tested.md`, apéndice). Decisión en `docs/proposals/what-days-covered-should-mean.md` | `Certificate.cs:67,247-250`, `DeadmanGuardianAddOn.cs:306,315` |

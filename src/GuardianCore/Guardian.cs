@@ -573,12 +573,31 @@ namespace GuardianCore
                 return;
             }
 
-            _broker.CancelAllOrders(order.Account);
-            Log(Ev.OrderRejectedLocked, JsonValue.Obj()
-                .Set("account", order.Account)
-                .Set("orderId", order.OrderId ?? "")
-                .Set("instrument", order.Instrument ?? "")
-                .Set("action", order.Action ?? ""));
+            // LT-1, 2026-08-26. This line used to be _broker.CancelAllOrders(order.Account), and the
+            // live test proved what that costs: the guardian OBSERVED ITS OWN FLATTEN ORDER, saw
+            // itself LOCKED, and cancelled it 1ms after the venue accepted it. 167 loops,
+            // FLATTEN_VERIFIED zero, position never closed. The twelve ORDER_REJECTED_LOCKED it wrote
+            // that night were Sell, SellShort and BuyToCover - the trader's own exits.
+            //
+            // Twenty lines above, the M1 fix already said "what a cancel destroys is a protective
+            // stop, on an account that may hold real money". We fixed WHO it happens to and left WHAT
+            // IT IS on the guarded account untouched.
+            //
+            // THE DOCTRINE: the guardian never acts on the account on a premise it could not verify.
+            // Cancelling is ACTING, not refusing to act, so the fail-closed instinct does not reach
+            // it. And the worst cases are not symmetric: cancelling wrongly means the trader cannot
+            // exit a sinking position - unbounded, and caused by us - while NOT cancelling means one
+            // order opens exposure and the next cycle's flatten closes it, bounded by one cycle.
+            //
+            // So nothing is cancelled here. An order that fills after the lockout is closed by the
+            // flatten, which is where the protection actually lives.
+            //
+            // ORDER_REJECTED_LOCKED is not written either, and its absence is deliberate: nothing is
+            // rejected any more, and a name that asserts a rejection that did not happen is exactly
+            // the defect class this repository chases. The event returns - truthfully - when
+            // classification lands and the orders that INCREASE exposure are cancelled again. Until
+            // then the certificate's ordersRejectedWhileLocked is 0, which is true.
+            return;
         }
 
         public void Tick()
@@ -853,15 +872,28 @@ namespace GuardianCore
             _state.LockoutVerified = false;
             _state.FlattenAttempts = 0;
             Persist();                       // step 1, before anything reaches the broker
+            SweepRestingOrders();            // step 2, ONCE - see the method
             RunLockoutSteps();
             Persist();
         }
 
-        private void RunLockoutSteps()
+        /// <summary>Clears the orders resting AT the moment the lockout begins. It lives here, and not
+        /// in RunLockoutSteps, because RunLockoutSteps RE-ENTERS on every tick until the flatten
+        /// verifies - and a blind account-wide cancel running every second would kill a flatten order
+        /// still in flight, which is LT-1's slow half. Placing it at the call site makes "once" a
+        /// property of WHERE THE CODE LIVES rather than a rule somebody has to remember to check: a
+        /// flag gets forgotten, a call site does not.
+        ///
+        /// And it is an OPTIMISATION, not a protection - the distinction matters and was verified
+        /// rather than assumed. Every path was constructed: a resting order that fills after the
+        /// lockout opens exposure, and the next cycle's flatten closes it. Even the worst one - an
+        /// orphaned stop firing after the position closed, opening the other way - ends at the
+        /// flatten, one cycle later. The sweep prevents a FILL; the flatten UNDOES one. That is a
+        /// difference of magnitude, not of kind, so best-effort once is correct: it is recorded if it
+        /// fails and never retried.</summary>
+        private void SweepRestingOrders()
         {
             var accounts = _config?.Accounts ?? (IReadOnlyList<string>)new List<string>();
-            if (accounts.Count == 0) { _state.LockoutVerified = false; return; }
-
             foreach (var account in accounts)
             {
                 try
@@ -878,6 +910,12 @@ namespace GuardianCore
                     Log(Ev.LockoutIncomplete, JsonValue.Obj().Set("account", account).Set("step", "cancel").Set("error", ex.Message));
                 }
             }
+        }
+
+        private void RunLockoutSteps()
+        {
+            var accounts = _config?.Accounts ?? (IReadOnlyList<string>)new List<string>();
+            if (accounts.Count == 0) { _state.LockoutVerified = false; return; }
 
             foreach (var account in accounts)
             {

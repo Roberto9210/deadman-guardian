@@ -58,10 +58,17 @@ namespace GuardianCore.Tests
             Assert.Contains("Sim101", payload.GetString("guarded"), StringComparison.Ordinal);
         }
 
-        /// <summary>And the guarded account still gets cancelled - the fix must not have turned the
-        /// enforcement off along with the over-reach.</summary>
+        /// <summary>REWRITTEN 2026-08-26 (A11). It used to assert that the guarded account still got
+        /// cancelled - "the fix must not have turned the enforcement off along with the over-reach" -
+        /// and LT-1 showed the over-reach and the enforcement were the same act. Cancelling blindly on
+        /// observation killed the guardian's own flatten order and the trader's exits.
+        ///
+        /// What M1 was really about survives untouched and is what this asserts now: a FOREIGN account
+        /// is refused loudly. M1_A already covers that; this one pins the guarded account's side of the
+        /// boundary, which is now "observed, recorded by the events the lockout itself writes, and not
+        /// acted upon".</summary>
         [Fact]
-        public void M1_A2_an_order_on_the_guarded_account_is_still_cancelled()
+        public void M1_A2_the_guarded_account_is_observed_without_being_acted_upon()
         {
             var h = new Harness();
             h.Armed("600.00");
@@ -71,8 +78,10 @@ namespace GuardianCore.Tests
 
             h.Guardian.OnOrderObserved(new OrderSnapshot(Harness.Account, "o-2", Harness.Instrument, "Buy"));
 
-            Assert.Contains(h.Broker.Calls, c => c.Contains(Harness.Account));
-            Assert.Contains(Ev.OrderRejectedLocked, h.Events());
+            Assert.Empty(h.Broker.Calls);
+            // Nor is it treated as foreign: the account IS guarded, and saying otherwise would be a
+            // different lie in the ledger.
+            Assert.DoesNotContain(Ev.ForeignAccountOrderObserved, h.Events());
         }
 
         /// <summary>A Locked state whose sealed config no longer parses leaves Core unable to verify
