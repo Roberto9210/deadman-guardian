@@ -47,11 +47,20 @@ namespace NinjaTrader.NinjaScript.AddOns
         /// on arm, and its outcome is logged every time so an auditor can see which account each
         /// session actually watched - or why it watched none.</summary>
         private string _guardedAccount;
-        private string _resetLocalTime;                // "17:00", from the sealed config
-        private string _zoneId;                        // "America/Chicago" - never dropped from a time
-        private decimal _personalLimit;
-        private int _lastCancelCount;                  // what ORDERS_CANCELLED reported, for message 2
-        private decimal _breachDayLoss;                // the figure LIMIT_BREACHED itself carried
+        // LT-2. These five only ever existed if this process was present at a particular instant, and
+        // three of them lied about it because their TYPE gave them no way to be absent. A real person
+        // read "your limit is $0.00" with a $40 limit on 2026-08-26, after an F5 restored ARMED from
+        // the seal without re-arming.
+        //
+        // The three that come from configuration are gone: they are read from Core, which reparses the
+        // SEALED snapshot at Start and therefore knows them after a restart - the same fix M15 applied
+        // to the guarded account, now applied to the family it should have swept.
+        //
+        // The two that come from OBSERVED EVENTS stay here and are nullable, because they genuinely
+        // can be unknown: a restart during a lockout misses LIMIT_BREACHED and ORDERS_CANCELLED, which
+        // were written before this process existed. Null is that fact; 0 is a different fact.
+        private int? _lastCancelCount;                 // what ORDERS_CANCELLED reported, if we saw it
+        private decimal? _breachDayLoss;               // the figure LIMIT_BREACHED carried, if we saw it
         private string _lastConfigText;
 
         protected override void OnStateChange()
@@ -260,13 +269,9 @@ namespace NinjaTrader.NinjaScript.AddOns
                 {
                     // The guarded account may have changed with the config; same resolver as boot,
                     // so there is exactly one dialect of this decision.
-                    var parsed = GuardianConfig.Parse(text);
-                    if (parsed.Ok)
-                    {
-                        _resetLocalTime = parsed.Config.SessionResetLocalTime.ToString(@"hh\:mm");
-                        _zoneId = parsed.Config.SessionResetTimeZone;
-                        _personalLimit = parsed.Config.PersonalDailyLossLimit;
-                    }
+                    // The reset time, the zone and the limit used to be copied out of the config
+                    // here - the only place that ever assigned them, which is why a restore left them
+                    // at their type's default (LT-2). They are read from Core now, at the point of use.
                     ResolveGuardedAccount("arm");
                     AdapterLog("ARMED");
                     return null;
@@ -407,7 +412,7 @@ namespace NinjaTrader.NinjaScript.AddOns
         {
             if (entry == null) return;
 
-            var until = Messages.Until(_resetLocalTime, _zoneId);
+            var until = Messages.Until(_guardian.SealedSessionResetLocalTime, _guardian.SealedSessionResetTimeZone);
 
             switch (entry.Event)
             {
@@ -417,11 +422,13 @@ namespace NinjaTrader.NinjaScript.AddOns
                     // "Disabling NinjaScript strategy" BEFORE NinjaTrader writes it - the Log is read
                     // downwards, and an explanation arriving afterwards corrects nothing.
                     _breachDayLoss = MoneyOf(entry, "dayLoss");
-                    Announce(Messages.LockoutImminent(_guardedAccount, _breachDayLoss, _personalLimit));
+                    Announce(Messages.LockoutImminent(_guardedAccount, _breachDayLoss,
+                                                      _guardian.SealedPersonalDailyLossLimit));
                     break;
 
                 case Ev.OrdersCancelled:
-                    _lastCancelCount = (int)(entry.Payload?.GetInt("count") ?? 0);
+                    // (int?) rather than ?? 0: an event without the field is unknown, not zero.
+                    _lastCancelCount = (int?)entry.Payload?.GetInt("count");
                     break;
 
                 case Ev.FlattenVerified:
@@ -429,7 +436,8 @@ namespace NinjaTrader.NinjaScript.AddOns
                     // The figure LIMIT_BREACHED carried, not a fresh read: message 2 reports the loss
                     // that caused the lockout, and a re-read could show a different number for a
                     // reason the reader has no way to see.
-                    Announce(Messages.LockoutComplete(_guardedAccount, _breachDayLoss, _personalLimit,
+                    Announce(Messages.LockoutComplete(_guardedAccount, _breachDayLoss,
+                                                      _guardian.SealedPersonalDailyLossLimit,
                                                       _lastCancelCount, until));
                     break;
 
@@ -488,7 +496,7 @@ namespace NinjaTrader.NinjaScript.AddOns
                     Account = _guardedAccount,
                     SecondsToExpiry = SecondsToExpiry(),
                     HasSeal = s.Sealed,
-                    Until = Messages.Until(_resetLocalTime, _zoneId),
+                    Until = Messages.Until(_guardian.SealedSessionResetLocalTime, _guardian.SealedSessionResetTimeZone),
                     ConfigPath = ConfigPath
                 };
             }

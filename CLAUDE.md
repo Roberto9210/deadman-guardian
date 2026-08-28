@@ -105,6 +105,25 @@ acá **es un universo entero construido a propósito**, y su diferencia con el r
 **Pregunta de cacería:** ¿en qué se diferencia mi doble del mundo real, y esa diferencia puede ser
 justo donde vive el defecto?
 
+### Tercer subtipo, y el que decide el tipo del campo
+
+> **UN DEFAULT PLAUSIBLE MIENTE, UNA AUSENCIA DICE LA VERDAD CALLÁNDOSE — y el TIPO del campo decide
+> cuál de las dos puede.**
+
+Seis campos del adaptador sólo existían si el proceso estaba presente en un instante dado. Los tres de
+referencia pudieron **callarse** (`Messages.Until(null,…)` devuelve `null` y la cláusula desaparece
+limpia). Los de valor **no tuvieron opción**: `decimal` → `0.00` impreso como plata, `int` → `0`
+impreso como conteo. Un trader leyó *"your limit is $0.00"* con el límite en $40 (LT-2, 26-ago).
+
+**No fue descuido de quien escribió los campos: es una propiedad del lenguaje que nadie miró.**
+
+Y el agravante: **el default plausible es PEOR que uno absurdo.** `-999999` se habría visto el primer
+día; `$0.00` es la cifra más creíble que existe, y por eso sobrevivió hasta que un humano la leyó en
+el peor momento posible.
+
+**Cero no es ausencia.** `ORDERS_CANCELLED` llevó un conteo real de `0` el 26-ago — no había órdenes en
+reposo. *"No se canceló ninguna"* y *"no sé cuántas"* son hechos distintos y tienen que leerse distinto.
+
 Corolario hermano: **un chequeo que existe no es un chequeo que corre.** Antes de confiar en una
 protección, buscar su productor y correrla. Y un chequeo inalcanzable se borra — no se deja
 decorando.
@@ -150,7 +169,7 @@ decorando.
 | # | qué | dónde |
 |---|---|---|
 | ~~LT-1~~ | **ARREGLADO 2026-08-26** (A11). `OnOrderObserved` ya no cancela; el barrido vive en `EnterLockout` y corre una vez. Cuatro tests con un doble que modela el ciclo de vida de la orden. Queda la **opción completa** como tanda propia: interfaz opcional de cancelación selectiva consultada con `as`, y sin ella el comportamiento de hoy, que es permanente. Era: **el guardián cancelaba sus propias órdenes de aplanado y las salidas del trader.** `CancelAllOrders(order.Account)` es incondicional: no mira lado, ni origen, ni si la orden reduce exposición. Probado en vivo el 26-ago: 167 intentos, `FLATTEN_VERIFIED` cero, y `Sell`/`BuyToCover` cancelados. **PRIMERO EN EL MAPA**, por delante de todo: es el único defecto abierto que cuesta dinero y atrapa al trader en una posición. Informe: `docs/live-test-findings-20260826.md` | `Guardian.cs:576` |
-| **LT-2** | **La familia de M15 que no barrí.** `_personalLimit`, `_resetLocalTime` y `_zoneId` se asignan **sólo en la ruta de armado** (`:268`); un reinicio que restaura `ARMED` desde el sello los deja en su default. Consecuencia vista: el mensaje del breach publicó **"your limit is $0.00"** con límite $40, y el "until 17:00" desaparece en silencio de todos los mensajes. | `DeadmanGuardianAddOn.cs:50-52,268` |
+| ~~LT-2~~ | **ARREGLADO 2026-08-27** (capa 1). Los tres de config salen de Core (`SealedPersonalDailyLossLimit`, `SealedSessionResetLocalTime`, `SealedSessionResetTimeZone`); los dos de evento son `decimal?`/`int?` y el mensaje **suprime lo ausente y apunta al registro**. Falta la capa 2 — recuperar del ledger los dos de evento — que **viaja con cert-1**, porque exige responder qué entradas pertenecen al día en curso. Era: **la familia de M15 que no barrí.** `_personalLimit`, `_resetLocalTime` y `_zoneId` se asignan **sólo en la ruta de armado** (`:268`); un reinicio que restaura `ARMED` desde el sello los deja en su default. Consecuencia vista: el mensaje del breach publicó **"your limit is $0.00"** con límite $40, y el "until 17:00" desaparece en silencio de todos los mensajes. | `DeadmanGuardianAddOn.cs:50-52,268` |
 | LT-3 | Los dos mensajes del lockout no contemplan *"la promesa no se puede cumplir"*: `LockoutComplete` cuelga de `FLATTEN_VERIFIED`, así que el trader leyó *"I am about to close your positions"* y después nada, 167 vueltas. Correcto por diseño, malo en consecuencia. | `DeadmanGuardianAddOn.cs:427-434` |
 | **cert-1 + cert-3** | **Son un solo defecto: el certificado no tiene ALCANCE.** El addon le pasa a `Certificate.Issue` el ledger ENTERO (`:306`), `Issue` toma `min/max(seq)` de lo que recibe (`:247-250`), y `Recompute` recorre todo — así que `limitRespected`, `lockoutsTriggered` y `failClosedEpisodes` son totales de nueve días bajo un encabezado de un día, y `daysCovered: 1` **es falso**, no sólo cableado. Evidencia publicada: `certificate-2026-08-24.json` trae `ledgerRange {fromSeq:1}` y un episodio del 21-ago. **ES LA PRÓXIMA TANDA**, aprobada: acotar el certificado al día que nombra, con la maquinaria que `Recompute` ya expone y nadie llama — arregla tres defectos de una vez y hace que `daysCovered: 1` sea verdad por construcción. Rojo primero. `limitRespected` **NO** entra: es semántica, no alcance (ver `docs/proposals/deployed-vs-tested.md`, apéndice). Decisión en `docs/proposals/what-days-covered-should-mean.md` | `Certificate.cs:67,247-250`, `DeadmanGuardianAddOn.cs:306,315` |
 | cert-2 | **CERRADO en la parte que es nuestra.** `CERT_CONFORMANCE.md` pasa la prueba de leerlo con la función apagada y además **publica la ausencia**: *"hoy no hay ancla externa, y el verificador lo dice en su propia salida"*. Nada que arreglar acá. | `CERT_CONFORMANCE.md` |

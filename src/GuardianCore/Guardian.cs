@@ -127,6 +127,20 @@ namespace GuardianCore
         /// anybody else.</summary>
         public IReadOnlyList<string> GuardedAccounts => _config?.Accounts;
 
+        /// <summary>LT-2. The three configured values a RESTORE has but the arm path is the only thing
+        /// that ever assigned in the adapter. Same shape as GuardedAccounts and for the same reason:
+        /// _config is reparsed from the sealed snapshot at Start, so after a restart these are known
+        /// even though nobody re-armed - and the adapter had them at their type's default instead.
+        ///
+        /// Null means "no configuration is in force", which is a real answer and not the same as zero.
+        /// The reset time is formatted here so there is one dialect of it rather than one per caller.</summary>
+        public decimal? SealedPersonalDailyLossLimit => _config?.PersonalDailyLossLimit;
+
+        public string SealedSessionResetLocalTime =>
+            _config == null ? null : _config.SessionResetLocalTime.ToString(@"hh\:mm", CultureInfo.InvariantCulture);
+
+        public string SealedSessionResetTimeZone => _config?.SessionResetTimeZone;
+
         public LedgerVerifyResult VerifyLedger() => _ledger?.Verify() ?? LedgerVerifyResult.Good();
 
         /// <summary>True only inside the run that armed: monotonic counters restart with the process

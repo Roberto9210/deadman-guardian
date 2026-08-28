@@ -159,6 +159,61 @@ namespace GuardianCore
         // So: one at LIMIT_BREACHED, in the future tense, when the breach is known and nothing has
         // been touched. One after FLATTEN_VERIFIED, in the past tense, with the real figures.
 
+        // ---------------------------------------------------------------- LT-2: absent figures
+        //
+        // A real person read "You are down $40.00 and your limit is $0.00" on 2026-08-26, with a $40
+        // limit, because _personalLimit is assigned only in the arm path and a restore does not run it.
+        //
+        // A PLAUSIBLE DEFAULT LIES; AN ABSENCE TELLS THE TRUTH BY SAYING NOTHING - and the field's
+        // TYPE decides which it can do. Until() could return null and the clause vanished cleanly; a
+        // decimal had no such option and printed money that was never true.
+        //
+        // So the figures arrive nullable, and an absent one is SUPPRESSED and the reader is pointed at
+        // the record that does have it. Zero is NOT absence: ORDERS_CANCELLED carried a real count of
+        // 0 on 2026-08-26 - there were no resting orders - and "no orders were cancelled" and "I do
+        // not know how many" are different facts that must read differently.
+
+        public static string LockoutImminent(string account, decimal? dayLoss, decimal? limit)
+        {
+            var figures = dayLoss.HasValue && limit.HasValue
+                ? " You are down $" + Money.Format(dayLoss.Value) + " and your limit is $" +
+                  Money.Format(limit.Value) + "."
+                : limit.HasValue
+                    ? " Your limit is $" + Money.Format(limit.Value) + "; the figure for today is in your record."
+                    : " The figures for today are in your record.";
+
+            return "DAILY LOSS LIMIT REACHED. The guardian is closing your day on " + Safe(account) + "." +
+                   figures +
+                   " I am about to cancel your working orders and close your positions. " +
+                   "NinjaTrader will switch off any strategy running on this account as a result - " +
+                   "that is NinjaTrader reacting to the positions being closed, not an error, and nothing is broken.";
+        }
+
+        public static string LockoutComplete(string account, decimal? dayLoss, decimal? limit,
+                                             int? ordersCancelled, string until)
+        {
+            var cancelled = ordersCancelled.HasValue
+                ? Plural(ordersCancelled.Value, "order") + " cancelled and positions closed on " + Safe(account)
+                : "Your positions were closed on " + Safe(account);
+
+            var against = dayLoss.HasValue && limit.HasValue
+                ? ", at $" + Money.Format(dayLoss.Value) + " against a $" + Money.Format(limit.Value) + " limit."
+                : limit.HasValue
+                    ? ", against a $" + Money.Format(limit.Value) + " limit."
+                    : ".";
+
+            // Said once, and only when something really is missing. A reader who is told to check the
+            // record when nothing is missing learns to ignore the sentence.
+            var missing = (dayLoss.HasValue && limit.HasValue && ordersCancelled.HasValue)
+                ? ""
+                : " The figures this message cannot state are in your record - I was restarted and did " +
+                  "not witness them myself.";
+
+            return "LOCKED. " + cancelled + against + missing +
+                   " Any new order will be cancelled" + UntilClause(until) + ". " +
+                   "This is what you asked for.";
+        }
+
         public static string LockoutImminent(string account, decimal dayLoss, decimal limit)
         {
             return "DAILY LOSS LIMIT REACHED. The guardian is closing your day on " + Safe(account) + ". " +
