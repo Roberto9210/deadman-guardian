@@ -206,6 +206,20 @@ decorando.
   (`DeadmanGuardianAddOn.cs:32-33`). La clase de la casa en forma de esquema — claves que afirman
   configurar algo que no configuran. Consecuencia concreta: una sesión de prueba no se puede desviar
   a un ledger aparte (ver `docs/proposals/live-production-breach-test.md`).
+- **La cuenta de los bots está cableada, y es la misma familia** (verificado 29-ago). La REGLA es
+  genérica —`BotAccountRule.Decide(accounts, target)` toma el objetivo por parámetro y no nombra
+  ninguna cuenta— pero **los cinco llamadores son constantes de compilación**:
+  `BotGuardrails.cs:67` (`TargetAccount`, objetivo de BOT A/B), `BotGuardrails.cs:407` (la cuenta que
+  vigila el **guardián sandbox** del bot), `SoakSandbox.cs:152`, `DeadmanGuardianSoak.cs:38`,
+  `DeadmanGuardianLatencyProbe.cs:35`. **El guardián NO tiene este problema**: `GuardedAccountRule`
+  lee sólo el config sellado y rehúsa explícitamente tener un fallback.
+  **Por qué importa más que una molestia**: sin una segunda cuenta de simulación, **cada prueba quema
+  producción** — el costo que se pagó toda la semana. *No se paga una vez, se paga siempre.*
+  **Por qué NO se cambia de apuro**: `TargetAccount` siendo `const` es parte de por qué el riel que
+  mantiene a los bots lejos de una cuenta fundeada se puede creer. Volverlo variable **es modificar
+  un riel de seguridad** y necesita tanda propia, roja primero, con los casos de negación cubiertos.
+  Dato que la hace viable: **cambiar esas constantes no toca `GuardianCore.dll`** — los bots son
+  NinjaScript y compilan en `NinjaTrader.Custom.dll`, así que el binario bajo prueba no cambia.
 
 ### Orden definitivo después de la prueba viva (fijado 2026-08-26)
 
