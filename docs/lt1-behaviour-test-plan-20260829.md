@@ -108,6 +108,52 @@ como fallo de LT-1.**
 
 ---
 
+### 2b. Lo que LT-4 obliga a escribir hoy — tres cosas, por Roberto
+
+**(i) De dónde salió el error, dicho por quien lo aprobó.**
+
+> *"Aprobé el arreglo mínimo de LT-1 sobre el argumento de que el ciclo siguiente cierra la
+> exposición. **No verifiqué que existiera un ciclo siguiente.** Tercera vez esta semana que afirmo
+> sin la premisa, y la más cara."* — Roberto, 29-ago
+
+Queda acá y no en una nota al pie porque es el mismo animal que persigue todo el repositorio, esta vez
+en una **aprobación** en vez de en un mensaje del producto: **una afirmación cierta apoyada en una
+premisa que nadie fue a buscar.** El arreglo de LT-1 se revisó línea por línea; la frase que lo
+justificaba, no.
+
+**(ii) `T7` ES FALSA HOY, y no se corrige todavía.**
+
+`SPEC.md:46` dice, en un repositorio público:
+
+> *"Enforcement is continuous, not a one-shot flatten (§9.5) … the order fills and **the next cycle
+> closes it** … The property — **no position can be built past the lockout** — is unchanged"*
+
+Con LT-4, las dos mitades subrayadas son falsas: no hay ciclo siguiente, y una posición **sí** puede
+construirse después del lockout y quedarse. La aclaramos hace dos días y quedó diciendo lo contrario
+de lo que hace el código.
+
+**No se toca hasta después de la corrida de hoy.** Corregir una fila de un modelo de amenazas sobre
+una **lectura**, justo después de que una lectura sin verificar nos trajo hasta acá, sería repetir el
+error con más confianza. **Si la predicción 8 se cumple, `T7` se corrige con evidencia y no con
+inferencia**, y viaja en la misma tanda que el arreglo de LT-4. Si no se cumple, se revisa `LT4a`
+antes de tocar nada.
+
+**(iii) Por qué el arreglo de LT-1 fue correcto igual — para que nadie lo revierta por pánico.**
+
+Esto se escribe hoy porque dentro de seis meses alguien va a leer LT-4 y va a querer devolver el
+`CancelAllOrders`. **La comparación es ésta:**
+
+| | antes de LT-1 | después de LT-1 (hoy) |
+|---|---|---|
+| qué hace el guardián | **CAUSA** el daño: cancela las salidas del trader y su propio aplanado | **FALLA EN PREVENIR** un daño |
+| quién lo inicia | el guardián | el trader, deliberadamente, **después de que se le avisó** |
+| cota | ninguna — el trader queda atrapado en una posición que se hunde | la exposición que él mismo abrió |
+
+**Causar es peor que no prevenir.** El intercambio fue a favor y no se revierte. **Y LT-4 bloquea la
+beta igual**: que el arreglo haya sido correcto no lo vuelve suficiente.
+
+---
+
 ## 3. Configuración de la sesión, y cómo se vuelve
 
 ### Antes de armar: cerrar la posición vieja
