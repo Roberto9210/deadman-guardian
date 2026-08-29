@@ -1,18 +1,20 @@
 # deadman-guardian — mapa para sesiones futuras (actualizar al cierre de cada tanda)
 
-Última actualización: 2026-08-26 (**prueba viva CORRIDA: encontró LT-1, el defecto más grave abierto**).
+Última actualización: 2026-08-29 (LT-4 encontrado; plan de la prueba de conducta de LT-1 escrito).
 
-**ESTADO OPERATIVO AL CIERRE DEL 26-ago — leer antes de tocar nada:**
-- **NinjaTrader está CERRADO a propósito y debe seguir así hasta mañana 17:00 CT.** El guardián quedó
-  `LOCKED` con una posición abierta en Sim101 y un bucle de aplanado que giró 167 veces. **Si se reabre
-  antes de que expire el sello, el bucle reinicia** — ~1 evento por segundo en el ledger.
-- **`config.json` tiene el límite de prueba ($40), no el de producción ($600).** No se toca hasta que
-  expire el sello: editarlo bajo sello escribe `CONFIG_TAMPERED` y acusa de manipulación. El respaldo
-  es `config.json.produccion-20260826` (hash `38a15089c889ac09`). La vuelta está en
-  `docs/proposals/live-production-breach-test.md`.
-- **`install.ps1` no se corre**: `bin\Release` está en `57d36a5d6a8a9113` y lo desplegado en
-  `4d20652361c0b468`. Ninguna guarda del instalador detendría ese despliegue.
-- `botA.GO` sigue puesto y `soak.GO` sigue aparcado como `soak.GO.parked-for-livetest`.
+**ESTADO OPERATIVO AL 29-ago 11:20 CT — verificado, no recordado:**
+- **NinjaTrader está ABIERTO** (PID 39112, desde el jue 27-ago 19:55). Guardián vivo y `DISARMED`:
+  el sello de $600 expiró el 28-ago 17:00 CT (`SEAL_EXPIRED` seq 7963 → `DAY_CLOSED` → `DISARMED`).
+- **`config.json` es el de PRODUCCIÓN ($600)** y **no hay sello vigente**, así que hoy sí se puede
+  editar. Respaldo previo: `config.json.produccion-20260826`.
+- **Hay una POSICIÓN ABIERTA en Sim101** — `positionsAdopted: 1`, +$18.430 no realizados al último
+  checkpoint del viernes. **Es la que LT-1 dejó varada el 26-ago** (32 `FLATTEN_REQUESTED`, 32
+  `LOCKOUT_INCOMPLETE`, cero `FLATTEN_VERIFIED`). Cerrarla antes de cualquier prueba: el no realizado
+  entra crudo en `DayPnl`, y con +$18k **ningún límite es alcanzable**.
+- **Divergencia pendiente**: desplegado `fc8fda6e514bb921` (LT-1), `bin\Release` en
+  `104dbca67f19f709` (LT-2). Ver §4, "cuándo la divergencia importa".
+- Sin compuertas `.GO`; `soak.GO` sigue aparcado como `soak.GO.parked-for-livetest`.
+- 268 tests, 0 fallos. Plan de hoy: `docs/lt1-behaviour-test-plan-20260829.md`.
 Es un mapa, no un manual. El historial forense está en `git log`; la especificación en `SPEC.md`,
 las decisiones revisadas en `AMENDMENTS.md`, y el diagnóstico del error espejo en
 `docs/error_espejo.md`.
@@ -161,6 +163,14 @@ decorando.
 - **Verificar qué está corriendo**: el hash corto del DLL desplegado es el mismo valor que el
   certificado reporta como `issuer.buildHash`. La línea del Log de NT8 (`version='0.1.0.0'`) es
   idéntica en todo build jamás hecho: dice que algo cargó, no **cuál**.
+- **CUÁNDO LA DIVERGENCIA `bin\Release` ≠ desplegado IMPORTA — y cuándo callarse.** Que el build local
+  vaya adelantado es **el estado normal** entre un arreglo y su despliegue, no una anomalía. Se
+  reporta **sólo** cuando existe *verificación pendiente sobre un binario específico*: hay una
+  afirmación de conducta que queremos sostener sobre el binario **X**, y el árbol ya no produce X.
+  Ahí la divergencia puede hacer que se verifique lo que no era, y hay que nombrar el estado con esas
+  palabras — *"verificación pendiente sobre `fc8fda6e514bb921`"*, no *"bin\Release difiere"*. **El
+  resto del tiempo no se menciona.** *Flaguear siempre gasta la atención que hace falta para el caso
+  que sí importa*, y un aviso que aparece en cada reporte deja de leerse justo cuando importa.
 - El guardián nunca coloca órdenes de entrada. Los bots de prueba (`DeadmanBotA`/`B`) sí envían
   órdenes fillables, sólo en Sim101 verificada por `Provider == Simulator`, y sólo con su archivo
   `.GO` presente.
@@ -170,6 +180,7 @@ decorando.
 |---|---|---|
 | ~~LT-1~~ | **ARREGLADO 2026-08-26** (A11). `OnOrderObserved` ya no cancela; el barrido vive en `EnterLockout` y corre una vez. Cuatro tests con un doble que modela el ciclo de vida de la orden. Queda la **opción completa** como tanda propia: interfaz opcional de cancelación selectiva consultada con `as`, y sin ella el comportamiento de hoy, que es permanente. Era: **el guardián cancelaba sus propias órdenes de aplanado y las salidas del trader.** `CancelAllOrders(order.Account)` es incondicional: no mira lado, ni origen, ni si la orden reduce exposición. Probado en vivo el 26-ago: 167 intentos, `FLATTEN_VERIFIED` cero, y `Sell`/`BuyToCover` cancelados. **PRIMERO EN EL MAPA**, por delante de todo: es el único defecto abierto que cuesta dinero y atrapa al trader en una posición. Informe: `docs/live-test-findings-20260826.md` | `Guardian.cs:576` |
 | ~~LT-2~~ | **ARREGLADO 2026-08-27** (capa 1). Los tres de config salen de Core (`SealedPersonalDailyLossLimit`, `SealedSessionResetLocalTime`, `SealedSessionResetTimeZone`); los dos de evento son `decimal?`/`int?` y el mensaje **suprime lo ausente y apunta al registro**. Falta la capa 2 — recuperar del ledger los dos de evento — que **viaja con cert-1**, porque exige responder qué entradas pertenecen al día en curso. Era: **la familia de M15 que no barrí.** `_personalLimit`, `_resetLocalTime` y `_zoneId` se asignan **sólo en la ruta de armado** (`:268`); un reinicio que restaura `ARMED` desde el sello los deja en su default. Consecuencia vista: el mensaje del breach publicó **"your limit is $0.00"** con límite $40, y el "until 17:00" desaparece en silencio de todos los mensajes. | `DeadmanGuardianAddOn.cs:50-52,268` |
+| **LT-4** | **NUEVO 29-ago, y es la premisa del arreglo de LT-1.** Una vez que el aplanado verifica, `LockoutVerified` queda en `true` y **nada la vuelve a `false` mientras el guardián sigue `Locked`** — los dos call sites del tick están guardados por `!LockoutVerified` (`:240`, `:635`), y las tres asignaciones a `false` son `Arm` (`:478`), `CheckExpiry` (`:851`) y `EnterLockout` (`:886`). **La exposición abierta después del primer aplanado no se cierra nunca.** El comentario de LT-1 dice *"the next cycle's flatten closes it — loss BOUNDED by one cycle"*: **no hay next cycle's flatten; la cota está afirmada, no implementada.** Es **más viejo** que LT-1: lo tapaba el `CancelAllOrders` incondicional que sacamos, mal y a ciegas. *Un chequeo que existe no es un chequeo que corre — y acá el que corría era el defecto.* Confirmado por máquina: `LT4_LockoutStopsEnforcingTests.cs`, 3 verdes afirmando el defecto (convención M4-M7), `LT4c` prueba que la re-entrada **antes** de verificar sí funciona ⇒ el defecto es el pestillo, no el bucle. **El arreglo es decisión de diseño** (re-verificar cada tick, o rearmar los pasos al aparecer una posición) y no se toma en el mismo aliento que el hallazgo. | `Guardian.cs:240,635,965` |
 | LT-3 | Los dos mensajes del lockout no contemplan *"la promesa no se puede cumplir"*: `LockoutComplete` cuelga de `FLATTEN_VERIFIED`, así que el trader leyó *"I am about to close your positions"* y después nada, 167 vueltas. Correcto por diseño, malo en consecuencia. | `DeadmanGuardianAddOn.cs:427-434` |
 | **cert-1 + cert-3** | **Son un solo defecto: el certificado no tiene ALCANCE.** El addon le pasa a `Certificate.Issue` el ledger ENTERO (`:306`), `Issue` toma `min/max(seq)` de lo que recibe (`:247-250`), y `Recompute` recorre todo — así que `limitRespected`, `lockoutsTriggered` y `failClosedEpisodes` son totales de nueve días bajo un encabezado de un día, y `daysCovered: 1` **es falso**, no sólo cableado. Evidencia publicada: `certificate-2026-08-24.json` trae `ledgerRange {fromSeq:1}` y un episodio del 21-ago. **ES LA PRÓXIMA TANDA**, aprobada: acotar el certificado al día que nombra, con la maquinaria que `Recompute` ya expone y nadie llama — arregla tres defectos de una vez y hace que `daysCovered: 1` sea verdad por construcción. Rojo primero. `limitRespected` **NO** entra: es semántica, no alcance (ver `docs/proposals/deployed-vs-tested.md`, apéndice). Decisión en `docs/proposals/what-days-covered-should-mean.md` | `Certificate.cs:67,247-250`, `DeadmanGuardianAddOn.cs:306,315` |
 | cert-2 | **CERRADO en la parte que es nuestra.** `CERT_CONFORMANCE.md` pasa la prueba de leerlo con la función apagada y además **publica la ausencia**: *"hoy no hay ancla externa, y el verificador lo dice en su propia salida"*. Nada que arreglar acá. | `CERT_CONFORMANCE.md` |
