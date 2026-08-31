@@ -127,6 +127,24 @@ namespace GuardianCore
                    "then check the platform.";
         }
 
+        /// <summary>The taskbar and Alt-Tab title: the only text a person reads WITHOUT switching to
+        /// the window. It was the constant "deadman-guardian" - the product's own name, which the
+        /// reader already knows - so a free channel carried nothing.
+        ///
+        /// The STATE LEADS, because a taskbar entry is truncated from the right: whatever is at the
+        /// end is the first thing lost. And the needs-you title obeys LT4h's rule too - no vocabulary
+        /// of giving up - which matters more here than anywhere, because this is the string read most
+        /// often and inspected least.</summary>
+        public static string WindowTitle(StateKind kind, bool needsHuman)
+        {
+            var state = needsHuman ? "CLOSE IT YOURSELF"
+                      : kind == StateKind.Locked ? HeadlineLocked
+                      : kind == StateKind.Armed ? HeadlineArmed
+                      : kind == StateKind.FailClosed ? HeadlineCannotSee
+                      : HeadlineNotArmed;
+            return state + " - deadman-guardian";
+        }
+
         public static string DetailLocked(string account, string until)
         {
             // See LockoutComplete for why "any new order will be cancelled" is gone from every message.

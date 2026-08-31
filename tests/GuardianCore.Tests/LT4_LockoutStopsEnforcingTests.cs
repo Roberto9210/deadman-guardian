@@ -264,6 +264,30 @@ namespace GuardianCore.Tests
             Assert.Contains("CLOSE IT YOURSELF", m, StringComparison.OrdinalIgnoreCase);
         }
 
+        /// <summary>The taskbar/Alt-Tab title, which is the one piece of text a person reads WITHOUT
+        /// switching to the window. It was the constant "deadman-guardian" - the product's name, which
+        /// the reader already knows - so the free channel said nothing.
+        ///
+        /// The state goes FIRST, because a taskbar entry is truncated from the right.</summary>
+        [Fact]
+        public void LT4i_The_window_title_carries_the_state_and_leads_with_it()
+        {
+            Assert.StartsWith("CLOSE IT YOURSELF", Messages.WindowTitle(StateKind.Locked, true),
+                              StringComparison.Ordinal);
+            Assert.StartsWith("LOCKED", Messages.WindowTitle(StateKind.Locked, false),
+                              StringComparison.Ordinal);
+
+            // every state still identifies the product, after the state
+            foreach (var k in new[] { StateKind.Armed, StateKind.Locked, StateKind.FailClosed, StateKind.Disarmed })
+                Assert.Contains("deadman-guardian", Messages.WindowTitle(k, false), StringComparison.Ordinal);
+
+            // and the needs-you title may not inherit the giving-up vocabulary either (LT4h's rule,
+            // applied to the channel that is read most often and inspected least)
+            foreach (var lie in new[] { "gave up", "stopped", "could not" })
+                Assert.False(Messages.WindowTitle(StateKind.Locked, true)
+                                     .IndexOf(lie, StringComparison.OrdinalIgnoreCase) >= 0, lie);
+        }
+
         /// <summary>THE PERMANENT CONTAINMENT ON WHAT THE LOCKOUT IS ALLOWED TO PROMISE.
         ///
         /// NT8 has no pre-submit veto - 2,912 types scanned in and out of process, STEP3_FINDINGS

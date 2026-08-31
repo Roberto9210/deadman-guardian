@@ -651,6 +651,10 @@ namespace NinjaTrader.NinjaScript.AddOns
         {
             if (v == null) return;
 
+            // Free channel, read without switching windows - and until 2026-08-31 it was the constant
+            // "deadman-guardian", which tells the reader only what they already know.
+            Title = Messages.WindowTitle(v.Kind, v.NeedsHuman);
+
             switch (v.Kind)
             {
                 // Every string below comes from GuardianCore.Messages, which the NinjaTrader Log also
@@ -672,15 +676,29 @@ namespace NinjaTrader.NinjaScript.AddOns
                     // text while a position stood open and stuck, because `exhausted` is a field on an
                     // event and Render only ever switched on Kind. The panel is the one surface a
                     // trader sees without looking for it; message 3 went to a Log tab he does not read.
+                    // COLOURS CORRECTED before this ever shipped: the first draft painted the
+                    // needs-a-human state ORANGE - softer than the ordinary lockout's red, and the
+                    // same orange FailClosed already uses. That is the day's own defect in the visual
+                    // channel: the most urgent signal rendered less urgently than the routine one, and
+                    // ambiguous with a different state on top of it. The stuck state is now the
+                    // hottest thing the panel can be.
                     _root.Background = v.NeedsHuman
-                        ? new SolidColorBrush(Color.FromRgb(0xE6, 0x51, 0x00))    // orange: act
-                        : new SolidColorBrush(Color.FromRgb(0xB7, 0x1C, 0x1C));   // red: closed
+                        ? new SolidColorBrush(Color.FromRgb(0xD5, 0x00, 0x00))    // vivid: act NOW
+                        : new SolidColorBrush(Color.FromRgb(0xB7, 0x1C, 0x1C));   // dark red: closed
                     _headline.Text = v.NeedsHuman
                         ? Messages.HeadlineNeedsYou
                         : Messages.Headline(StateKind.Locked);
                     _detail.Text = v.NeedsHuman
                         ? Messages.DetailNeedsYou(v.Account)
                         : Messages.DetailLocked(v.Account, v.Until);
+                    // A panel that only changes hue is invisible to someone watching charts. This one
+                    // GROWS - bigger headline, wider window - because peripheral vision catches a
+                    // change of shape long before a change of tone. Width is set here rather than once
+                    // in the constructor, so Left must be recomputed: it was derived from Width at
+                    // construction, and widening without this would push the panel off the right edge.
+                    _headline.FontSize = v.NeedsHuman ? 30 : 22;
+                    Width = v.NeedsHuman ? 430 : 330;
+                    Left = SystemParameters.WorkArea.Right - Width - 20;
                     _armButton.Visibility = Visibility.Collapsed;
                     break;
 
