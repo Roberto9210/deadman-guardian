@@ -198,6 +198,72 @@ namespace GuardianCore.Tests
             Assert.Equal(sweepsAtLockout, broker.CancelAllCalls);
         }
 
+        /// <summary>Candidate 8's half that the product can fix on its own: the ONE surface a trader
+        /// sees without looking for it must be able to say a human is needed.
+        ///
+        /// On 2026-08-26 the guardian asked for help 165 times and Roberto's answer on 2026-08-31 was
+        /// "no me di cuenta". Announce writes to NinjaTrader's Log tab, which he does not read - so
+        /// message 3 was never delivered to the person it names. Meanwhile the status panel, which IS
+        /// Topmost and IS on screen, said the ordinary locked text: that no position would stay open,
+        /// while one was open and stuck, for five days.
+        ///
+        /// Derived, never stored: LockoutVerified and FlattenAttempts are already persisted, so this
+        /// survives a restart. An adapter-side flag would be the LT-2 / M15 family all over again - a
+        /// field that only exists if the process was present at a particular instant.
+        ///
+        /// And it retracts itself: FLATTEN_VERIFIED sets LockoutVerified, the derivation goes false,
+        /// the panel returns to the ordinary text. If the panel promises, the panel must be able to
+        /// take it back - by construction, not by remembering to.</summary>
+        [Fact]
+        public void LT4g_The_panel_can_say_a_human_is_needed_and_only_while_one_is()
+        {
+            var h = new Harness();
+            var broker = new OrderLifecycleBroker();
+            h.BrokerOverride = broker;
+            h.Armed("600.00");
+            Assert.False(h.Guardian.LockoutNeedsHuman, "armed and fine");
+
+            broker.SetPosition(Harness.Account, Harness.Instrument, 1);
+            h.LoseExactly(600.00m);
+            h.Guardian.Tick();                                  // attempt 1, flatten in flight
+            Assert.False(h.Guardian.LockoutNeedsHuman, "one unfilled attempt is an ordinary lockout");
+
+            h.Guardian.Tick();                                  // 2
+            h.Guardian.Tick();                                  // 3 - now it is genuinely stuck
+            Assert.True(h.Guardian.LockoutNeedsHuman);
+
+            broker.Fill(broker.LastFlattenOrder().OrderId);     // it finally closes
+            h.Guardian.Tick();
+            Assert.Contains(Ev.FlattenVerified, h.Events());
+            Assert.False(h.Guardian.LockoutNeedsHuman, "the panel must take it back on its own");
+        }
+
+        /// <summary>The text, and the trap it has to avoid.
+        ///
+        /// The derivation is computed off a flag the ledger calls `exhausted`, and MaxFlattenAttempts
+        /// is a constant named "maximum attempts" - but this morning's enumeration proved it gates no
+        /// loop at all (Guardian.cs:1044 is its only use; the guardian retries forever). If the panel
+        /// inherits that vocabulary and says "gave up" or "stopped", it reintroduces exactly the lie
+        /// we removed from message 3 an hour earlier - candidate 7 biting through a name into the text
+        /// derived from it.
+        ///
+        /// Three things are true at once and the panel has to hold all three: something is still open,
+        /// the guardian has NOT stopped, and it needs the person.</summary>
+        [Fact]
+        public void LT4h_The_needs_you_text_never_says_the_guardian_stopped()
+        {
+            var m = Messages.DetailNeedsYou(Harness.Account);
+
+            foreach (var lie in new[] { "gave up", "gives up", "stopped trying", "no longer trying",
+                                        "could not close", "cannot close", "has stopped" })
+                Assert.False(m.IndexOf(lie, StringComparison.OrdinalIgnoreCase) >= 0,
+                             "the panel says the guardian stopped, and it has not: '" + lie + "' in: " + m);
+
+            Assert.Contains("still open", m, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("keeps trying", m, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("CLOSE IT YOURSELF", m, StringComparison.OrdinalIgnoreCase);
+        }
+
         /// <summary>THE PERMANENT CONTAINMENT ON WHAT THE LOCKOUT IS ALLOWED TO PROMISE.
         ///
         /// NT8 has no pre-submit veto - 2,912 types scanned in and out of process, STEP3_FINDINGS

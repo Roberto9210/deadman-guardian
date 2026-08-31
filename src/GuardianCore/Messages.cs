@@ -33,6 +33,11 @@ namespace GuardianCore
 
         public const string HeadlineArmed = "ARMED";
         public const string HeadlineLocked = "LOCKED";
+
+        /// <summary>The one headline that asks for something. "LOCKED" is a statement about the
+        /// guardian; this is an instruction to the reader, and the difference is the whole point of
+        /// the state existing separately (LT-4 / candidate 8).</summary>
+        public const string HeadlineNeedsYou = "THE GUARDIAN NEEDS YOU";
         public const string HeadlineCannotSee = "CANNOT SEE YOUR ACCOUNT";
         public const string HeadlineNotArmed = "NOT ARMED";
 
@@ -99,6 +104,27 @@ namespace GuardianCore
         public static string DetailArmed(string account)
         {
             return "Watching " + Safe(account) + ". Entries allowed.";
+        }
+
+        /// <summary>The panel's text for the one state where this product depends on a person.
+        ///
+        /// It exists because of what 2026-08-26 cost: the guardian asked for help 165 times through
+        /// NinjaScript.Log, and the person it was asking answered, five days later, "no me di cuenta".
+        /// He does not read that tab. Meanwhile the panel - Topmost, on screen, the one surface he
+        /// sees without looking for it - showed the ordinary locked text, promising that no position
+        /// would stay open while one was open and stuck.
+        ///
+        /// THREE THINGS ARE TRUE AT ONCE AND ALL THREE HAVE TO BE HERE. Something is still open; the
+        /// guardian has NOT stopped; and it needs the person. Dropping the second would inherit the
+        /// vocabulary of the flag this is derived from - `exhausted`, MaxFlattenAttempts - and both of
+        /// those names assert a giving-up that the code does not do. That is the same lie removed from
+        /// LockoutStillOpen an hour before this was written, arriving through a name instead of a
+        /// sentence.</summary>
+        public static string DetailNeedsYou(string account)
+        {
+            return "SOMETHING IS STILL OPEN on " + Safe(account) + ". The guardian keeps trying and " +
+                   "has not stopped - but it cannot finish this one alone. CLOSE IT YOURSELF NOW, " +
+                   "then check the platform.";
         }
 
         public static string DetailLocked(string account, string until)

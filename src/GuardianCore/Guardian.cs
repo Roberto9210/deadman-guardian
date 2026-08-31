@@ -141,6 +141,23 @@ namespace GuardianCore
 
         public string SealedSessionResetTimeZone => _config?.SessionResetTimeZone;
 
+        /// <summary>Whether the lockout has reached the one state where this product depends on a
+        /// person. DERIVED, never stored - both inputs are already persisted, so it survives a restart
+        /// the way an adapter-side flag would not (that is the LT-2 / M15 family: a field that only
+        /// exists if the process was present at a particular instant).
+        ///
+        /// It also retracts itself. FLATTEN_VERIFIED sets LockoutVerified, this goes false, and the
+        /// panel returns to the ordinary locked text with no clean-up logic to forget.
+        ///
+        /// THE NAME IS PART OF THE FIX. The underlying flag is called `exhausted` and the constant is
+        /// called MaxFlattenAttempts, and BOTH names assert more than their code does: the guardian
+        /// never gives up - MaxFlattenAttempts gates no loop, it only lights that flag (:1044). A
+        /// property called Exhausted or Stuck would carry the lie into every text derived from it,
+        /// which is candidate 7 biting through a name. What is true is that a human is needed.</summary>
+        public bool LockoutNeedsHuman =>
+            _state != null && _state.Kind == StateKind.Locked && !_state.LockoutVerified &&
+            _state.FlattenAttempts >= Constants.MaxFlattenAttempts;
+
         public LedgerVerifyResult VerifyLedger() => _ledger?.Verify() ?? LedgerVerifyResult.Good();
 
         /// <summary>True only inside the run that armed: monotonic counters restart with the process

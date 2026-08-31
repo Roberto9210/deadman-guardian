@@ -497,7 +497,8 @@ namespace NinjaTrader.NinjaScript.AddOns
                     SecondsToExpiry = SecondsToExpiry(),
                     HasSeal = s.Sealed,
                     Until = Messages.Until(_guardian.SealedSessionResetLocalTime, _guardian.SealedSessionResetTimeZone),
-                    ConfigPath = ConfigPath
+                    ConfigPath = ConfigPath,
+                    NeedsHuman = _guardian.LockoutNeedsHuman
                 };
             }
         }
@@ -557,6 +558,10 @@ namespace NinjaTrader.NinjaScript.AddOns
             public bool HasSeal;
             public string Until;
             public string ConfigPath;
+
+            /// <summary>LT-4 / candidate 8. Derived in Core from state that is already persisted, so
+            /// it survives a restart - an adapter-side flag would be the LT-2 family again.</summary>
+            public bool NeedsHuman;
         }
 
         private readonly Func<string> _arm;
@@ -582,7 +587,13 @@ namespace NinjaTrader.NinjaScript.AddOns
             MinHeight = 190;
             WindowStyle = WindowStyle.ToolWindow;
             Topmost = true;
-            ShowInTaskbar = false;
+            // REVERSED 2026-08-31, and it is the reversal of a deliberate choice, not the repair of
+            // an oversight. It was off for a good reason: a small tool window has no business
+            // cluttering the taskbar. The reason that now outweighs it is that the taskbar is the
+            // CHEAPEST attention mechanism that exists, and the product had it switched off on the
+            // day it needed attention - 2026-08-26, when it asked for help 165 times through a Log
+            // tab the trader does not read, and the position stood for five days.
+            ShowInTaskbar = true;
             ResizeMode = ResizeMode.NoResize;
             WindowStartupLocation = WindowStartupLocation.Manual;
             Left = SystemParameters.WorkArea.Right - Width - 20;
@@ -655,9 +666,21 @@ namespace NinjaTrader.NinjaScript.AddOns
                     break;
 
                 case StateKind.Locked:
-                    _root.Background = new SolidColorBrush(Color.FromRgb(0xB7, 0x1C, 0x1C));   // red
-                    _headline.Text = Messages.Headline(StateKind.Locked);
-                    _detail.Text = Messages.DetailLocked(v.Account, v.Until);
+                    // Two lockouts share a Kind and they are not the same situation. The ordinary one
+                    // promises that no position stays open. The other one is the single state where
+                    // this product depends on a person - and until 2026-08-31 it said the ordinary
+                    // text while a position stood open and stuck, because `exhausted` is a field on an
+                    // event and Render only ever switched on Kind. The panel is the one surface a
+                    // trader sees without looking for it; message 3 went to a Log tab he does not read.
+                    _root.Background = v.NeedsHuman
+                        ? new SolidColorBrush(Color.FromRgb(0xE6, 0x51, 0x00))    // orange: act
+                        : new SolidColorBrush(Color.FromRgb(0xB7, 0x1C, 0x1C));   // red: closed
+                    _headline.Text = v.NeedsHuman
+                        ? Messages.HeadlineNeedsYou
+                        : Messages.Headline(StateKind.Locked);
+                    _detail.Text = v.NeedsHuman
+                        ? Messages.DetailNeedsYou(v.Account)
+                        : Messages.DetailLocked(v.Account, v.Until);
                     _armButton.Visibility = Visibility.Collapsed;
                     break;
 
