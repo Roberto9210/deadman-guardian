@@ -48,6 +48,18 @@ que le sellaron.
    (167 `FLATTEN_REQUESTED` contra 6 órdenes `Cerrar`). Cada punto en que un doble difiere de lo real es
    un lugar donde puede esconderse un defecto: o está respaldado por evidencia, o queda escrito como
    simplificación conocida.
+3d. **UN PLAN TIENE FECHA DE ESCRITURA, Y CADA PASO HEREDA EL CONOCIMIENTO DE ESA FECHA.**
+   Ejecutarlo después es ejecutar decisiones tomadas con menos información. La pregunta no es sólo
+   si la secuencia es coherente — es **si cada paso sigue siendo la decisión que tomarías HOY**.
+   Nació el 31-ago: el §11 del plan del sábado mandaba reponer `soak.GO`; doce horas después se
+   decidió que la aserción del soak necesitaba resolverse antes, y el paso se ejecutó igual.
+   **LA MECÁNICA QUE LO PREVIENE, y vale más que la regla**: *una decisión que deja sin efecto un
+   paso planificado se escribe DONDE VIVE EL PASO, no sólo donde se tomó la decisión.* Ese día la
+   decisión quedó en la conversación y en la cola de este archivo; el paso vivía en el §11 del plan;
+   los dos lugares no se conocían y **el que ejecutaba era el segundo**. Buscar el paso y anotarlo
+   en su destino cuesta treinta segundos y es mecánico. **La regla te pide acordarte; la mecánica no
+   te pide nada.** Aplicada en su propio caso: `docs/lt1-behaviour-test-plan-20260829.md` §11 lleva
+   el paso 12.6 tachado con el motivo, en el paso mismo.
 4. **Commits separados por fix, por ruta explícita. Nunca `git add -A`.**
 5. **Una sola sesión por repositorio.** Esta ventana es la de `deadman-guardian`; no toca `deadman`
    (Ventana B) ni `deadman-research` (exclusivo de Roberto, ni siquiera lectura).

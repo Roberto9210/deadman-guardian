@@ -474,7 +474,23 @@ sello está vigente aunque el reloj diga otra cosa.
 | 12.3 | copiar `config.json.produccion-20260831` sobre `config.json` | — |
 | 12.4 | **verificar que el hash de `config.json` vuelve a `38a15089c889ac09`** | si no coincide, **parar y reportar**: significa que el respaldo no era el original |
 | 12.5 | confirmar `personalDailyLossLimit` = `"600.00"` leyendo el archivo | — |
-| 12.6 | reponer `soak.GO` renombrando `soak.GO.parked-for-livetest` | regresión limpia, según lo acordado |
+| ~~12.6~~ | ~~reponer `soak.GO`~~ **SIN EFECTO — NO SE EJECUTA** | ver abajo |
+
+> ### ⛔ El paso 12.6 quedó sin efecto el 2026-08-31, DESPUÉS de escribirse este plan
+>
+> **La aserción del soak exige algo que el código ya no hace.**
+> `nt/soak/DeadmanGuardianSoak.cs:203-221` afirma *"order while locked is cancelled"* y espera
+> `ORDER_REJECTED_LOCKED` registrado **y** la orden ya no viva. Desde el arreglo de LT-1 (26-ago)
+> **no ocurre ninguna de las dos**: nada se cancela al observar, y ese evento no tiene productor.
+>
+> **Reponer la compuerta daría un FAIL conocido disfrazado de regresión.** Primero hay que decidir
+> qué prueba esa aserción.
+>
+> **Y esto está escrito ACÁ, en el paso, y no sólo en la cola de `CLAUDE.md`, a propósito**: el
+> 31-ago se ejecutó este paso igual, porque la decisión vivía en un lugar y el paso en otro, y el
+> que ejecutaba era el segundo. Se revirtió antes de tener consecuencia — la compuerta se lee en
+> `State.Configure` y no hubo F5 —, y la compuerta quedó como
+> `soak.GO.parked-pending-assertion-decision`, que dice por qué está aparcada y no sólo que lo está.
 
 `38a15089c889ac09` es el hash de producción verificado hoy 31-ago: `config.json` y
 `config.json.produccion-20260826` coinciden en ese valor, así que el número está corroborado por dos
