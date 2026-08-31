@@ -699,6 +699,8 @@ namespace NinjaTrader.NinjaScript.AddOns
         private readonly Button _collapseButton = new Button();
         private bool _collapsed;
         private bool _stripAllowed = true;
+        private StateKind _renderedKind = StateKind.Disarmed;
+        private bool _haveRendered;       // the first render counts as a transition
         private bool _sealInForce;
         private bool _allowClose;
 
@@ -906,10 +908,19 @@ namespace NinjaTrader.NinjaScript.AddOns
 
         /// <summary>One writer for the comfort file, so position and collapsed can never be saved
         /// separately and disagree.</summary>
+        /// <summary>One writer for the comfort file, so position and collapsed can never be saved
+        /// separately and disagree - and the collapsed flag goes through PanelCollapse.PersistCollapsed
+        /// rather than straight out of _collapsed. See that method: writing it raw is what let a
+        /// collapse made in DISARMED survive into the next day.</summary>
         private void SavePrefs()
         {
             if (_savePrefs == null) return;
-            _savePrefs(new UiPrefs { Left = Left, Top = Top, Collapsed = _collapsed });
+            _savePrefs(new UiPrefs
+            {
+                Left = Left,
+                Top = Top,
+                Collapsed = PanelCollapse.PersistCollapsed(_collapsed, _renderedKind)
+            });
         }
 
         /// <summary>Resize WITHOUT moving house. The first draft recomputed Left from the corner of
@@ -963,7 +974,22 @@ namespace NinjaTrader.NinjaScript.AddOns
             // and Wednesday would open to a strip reading NOT ARMED that asks for nothing - a product
             // that depends on one voluntary act per day, with its only button behind a click nobody
             // remembers. Every day starts with the product asking for its own.
-            if (!PanelCollapse.RemembersCollapsed(v.Kind)) _collapsed = false;
+            // A TRANSITION, NOT A STANDING CONDITION - and getting that wrong was a real defect,
+            // reported by Roberto on the first boot: he pressed the collapse button while DISARMED,
+            // the panel collapsed, and a second later it opened by itself. From the outside that is
+            // indistinguishable from a button that does nothing.
+            //
+            // The rule agreed was "on ENTERING Disarmed the panel opens itself" - the moment the day
+            // closes, so tomorrow starts with the product asking for its own. It was implemented as
+            // "force it open WHILE Disarmed", which is a standing condition, and that quietly removed
+            // a capability the same design had granted: collapsing in Disarmed for the session.
+            //
+            // The first render counts as a transition on purpose: booting into Disarmed with a
+            // remembered collapse is exactly the Tuesday-to-Wednesday case the rule exists for.
+            var forcedOpen = PanelCollapse.ShouldOpenItself(_collapsed, v.Kind, _renderedKind, !_haveRendered);
+            _renderedKind = v.Kind;
+            _haveRendered = true;
+            if (forcedOpen) _collapsed = false;
 
             switch (v.Kind)
             {
@@ -1043,6 +1069,11 @@ namespace NinjaTrader.NinjaScript.AddOns
             // collapsed panel has no buttons at all.
             _strip.Text = Messages.Strip(v.Kind, v.NeedsHuman, v.Reason, v.Limit, v.Until);
             ApplyCollapsed();
+
+            // If the state just took the collapse away, the FILE has to hear about it too. Leaving it
+            // saying true was the whole defect: the panel obeyed the rule and the file did not, and
+            // the file is what the next boot reads.
+            if (forcedOpen) SavePrefs();
 
             if (v.SecondsToExpiry >= 0)
             {

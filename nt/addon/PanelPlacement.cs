@@ -113,6 +113,52 @@ namespace NinjaTrader.NinjaScript.AddOns.DeadmanGuardian
         {
             return kind != StateKind.Disarmed;
         }
+
+        /// <summary>What the comfort file is allowed to hold, which is NOT the same as what the panel
+        /// is currently showing.
+        ///
+        /// Added 2026-08-31 after the first real boot of the day's work, found by reading ui.json:
+        /// Roberto collapsed the panel while DISARMED, Render forced it open again - the rule worked
+        /// ON SCREEN - but SavePrefs had already written "collapsed": true and nothing corrected it.
+        /// THE RULE WAS IMPLEMENTED ON THE SCREEN AND NOT IN THE FILE.
+        ///
+        /// The consequence is the Tuesday-to-Wednesday scenario the rule exists to prevent, arriving
+        /// through a door nobody looked at: not by REMAINING collapsed in DISARMED, but by PERSISTING
+        /// FROM it. The next boot reads true; if that boot is ARMED, RemembersCollapsed says true and
+        /// nobody corrects it, so a collapse made in the state that forgets leaks into the state that
+        /// remembers.
+        ///
+        /// Being remembered is therefore a property of the WRITE, decided here once, rather than
+        /// something every call site has to get right.</summary>
+        public static bool PersistCollapsed(bool collapsed, StateKind kind)
+        {
+            return collapsed && RemembersCollapsed(kind);
+        }
+
+        /// <summary>Whether the panel must open ITSELF right now. A TRANSITION, never a standing
+        /// condition, and the difference was a real defect rather than a nicety.
+        ///
+        /// Reported by Roberto on the first boot of 2026-08-31: he pressed the collapse button while
+        /// DISARMED, the panel collapsed, and a second later it opened by itself. From outside that
+        /// is indistinguishable from a button that does nothing - and he read it exactly that way.
+        ///
+        /// The rule agreed was "on ENTERING Disarmed the panel opens itself", so tomorrow starts with
+        /// the product asking for its own. It had been implemented as "force it open WHILE Disarmed",
+        /// a standing condition, which silently withdrew a capability the same design had granted:
+        /// collapsing in Disarmed for the current session. AN AGREED "YES, BUT NOT REMEMBERED" HAD
+        /// BECOME "NO", and nothing in the suite could tell, because the pure rule it was built on -
+        /// RemembersCollapsed - was correct the whole time. The defect lived in how the window
+        /// applied it, which is why the decision is extracted here now.
+        ///
+        /// The first render counts as a transition on purpose: booting into Disarmed with a
+        /// remembered collapse is precisely the Tuesday-to-Wednesday case the rule exists for.</summary>
+        public static bool ShouldOpenItself(bool collapsed, StateKind kind, StateKind previousKind,
+                                            bool firstRender)
+        {
+            if (!collapsed) return false;
+            if (RemembersCollapsed(kind)) return false;
+            return firstRender || kind != previousKind;
+        }
     }
 
     /// <summary>The panel's remembered comfort settings: WHERE the trader put it, and whether

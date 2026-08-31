@@ -76,6 +76,72 @@ namespace GuardianCore.Tests
             Assert.False(PanelCollapse.RemembersCollapsed(StateKind.Disarmed));
         }
 
+        /// <summary>THE HALF THAT WAS MISSING, found on the first real boot of the whole day's work
+        /// (2026-08-31, 18:25) by reading ui.json rather than by anyone reporting anything.
+        ///
+        /// Roberto collapsed the panel while DISARMED. Render did its job and forced it open again -
+        /// the rule worked ON SCREEN. But SavePrefs had already written `"collapsed": true` to the
+        /// file and nothing ever corrected it, so THE RULE WAS IMPLEMENTED ON THE SCREEN AND NOT IN
+        /// THE FILE.
+        ///
+        /// The consequence is exactly the Tuesday-to-Wednesday scenario the rule exists to prevent,
+        /// arriving through a door neither of us looked at: not by REMAINING collapsed in DISARMED,
+        /// but by PERSISTING FROM it. Next boot the constructor reads true; if that boot is ARMED,
+        /// RemembersCollapsed says true and nobody corrects it - so a collapse made in the state that
+        /// forgets leaks into the state that remembers.
+        ///
+        /// So "remembered" becomes a property of the WRITE, in one place, rather than something the
+        /// window has to get right at each call site.</summary>
+        [Fact]
+        public void UI2k_A_collapse_made_where_it_is_not_remembered_is_never_written_down()
+        {
+            // collapsed in a state that remembers: it persists
+            Assert.True(PanelCollapse.PersistCollapsed(true, StateKind.Armed));
+            Assert.True(PanelCollapse.PersistCollapsed(true, StateKind.Locked));
+
+            // collapsed in DISARMED: the panel may show it for this session, the FILE never keeps it
+            Assert.False(PanelCollapse.PersistCollapsed(true, StateKind.Disarmed));
+
+            // and not collapsed is not collapsed, anywhere
+            foreach (var k in new[] { StateKind.Armed, StateKind.Locked, StateKind.Disarmed, StateKind.FailClosed })
+                Assert.False(PanelCollapse.PersistCollapsed(false, k));
+        }
+
+        /// <summary>THE ONE THE SUITE COULD NOT HAVE CAUGHT, and it took a person pressing a button.
+        ///
+        /// Roberto, first boot of 2026-08-31: he pressed collapse while DISARMED, the panel
+        /// collapsed, and a second later it opened by itself. From outside, indistinguishable from a
+        /// button that does nothing - and that is how he read it.
+        ///
+        /// The agreed rule was a TRANSITION: "on ENTERING Disarmed the panel opens itself". It was
+        /// implemented as a STANDING CONDITION - "force it open while Disarmed" - which quietly
+        /// withdrew a capability the same design had granted. An agreed "yes, but not remembered" had
+        /// become "no".
+        ///
+        /// AND 303 TESTS WERE GREEN THROUGH ALL OF IT, because the pure rule they exercised -
+        /// RemembersCollapsed - was correct the whole time. The defect was in how the window applied
+        /// it. So the application is a rule now too, and this is its test.</summary>
+        [Fact]
+        public void UI2l_The_panel_opens_itself_on_ENTERING_a_forgetting_state_not_while_in_one()
+        {
+            // the case that was broken: collapsed BY THE USER while already Disarmed, and staying
+            // Disarmed. Nothing changed, so nothing undoes their click.
+            Assert.False(PanelCollapse.ShouldOpenItself(true, StateKind.Disarmed, StateKind.Disarmed, false));
+
+            // the case the rule exists for: the day closes, Locked -> Disarmed, and it opens itself
+            Assert.True(PanelCollapse.ShouldOpenItself(true, StateKind.Disarmed, StateKind.Locked, false));
+
+            // and booting into Disarmed with a remembered collapse - Tuesday to Wednesday
+            Assert.True(PanelCollapse.ShouldOpenItself(true, StateKind.Disarmed, StateKind.Disarmed, true));
+
+            // states that remember never open themselves, transition or not
+            Assert.False(PanelCollapse.ShouldOpenItself(true, StateKind.Armed, StateKind.Disarmed, false));
+            Assert.False(PanelCollapse.ShouldOpenItself(true, StateKind.Locked, StateKind.Armed, true));
+
+            // and an expanded panel is never asked to open
+            Assert.False(PanelCollapse.ShouldOpenItself(false, StateKind.Disarmed, StateKind.Locked, true));
+        }
+
         // ------------------------------------------------------------------ the strip's words
 
         [Fact]
