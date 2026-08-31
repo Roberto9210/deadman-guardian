@@ -345,6 +345,16 @@ Eso mueve el contrato de extensión del sexto lugar al camino crítico del defec
    *el hash del archivo desde el que se cargó el ensamblado*, no "el código corriendo".
 6. **`limitRespected`** — semántica, no alcance. Separado a propósito.
 
+**ENTRADA DE OTRA CLASE PARA ESE INVENTARIO, y hay que escribirla ahí** (31-ago):
+**LA MÁQUINA PUEDE CORRER TESTS PERO NO PUEDE APRETAR BOTONES CON EXPECTATIVAS.** Los dos defectos
+del primer arranque real vivían en código con **303 pruebas verdes**, y los encontró una persona en
+sesenta segundos — no porque las pruebas fueran malas, sino **porque ninguna traía una creencia
+previa sobre lo que ese botón iba a hacer.** Roberto apretó un `-` esperando minimizar; la regla
+pura que las pruebas ejercitaban (`RemembersCollapsed`) era correcta todo el tiempo y el defecto
+estaba en **cómo la ventana la aplicaba**, más un glifo que **prometía la única función que el
+producto se niega a tener**. Es una condición no producible de otra familia que las de arriba: no
+falta un estado del entorno, falta **un humano con una expectativa**.
+
 **ENCOLADO tras el canal, y NO construido todavía — `docs/` (lista viva, no regla)**:
 **INVENTARIO DE LAS CONDICIONES QUE ESTA MÁQUINA NO PUEDE PRODUCIR.** Cada entrada: la condición,
 por qué esta máquina no la produce, y si hay test que la simule. Es la regla del doble de prueba

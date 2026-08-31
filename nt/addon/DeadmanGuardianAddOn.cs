@@ -833,12 +833,26 @@ namespace NinjaTrader.NinjaScript.AddOns
             _strip.Cursor = System.Windows.Input.Cursors.Hand;
             _strip.MouseLeftButtonUp += (s, e) => SetCollapsed(false);
 
-            _collapseButton.Content = "-";
+            // A CHEVRON, NOT A MINUS, and the change is not cosmetic. "-" promises MINIMISE, and
+            // minimise is the one thing this product deliberately refuses to offer: it would send the
+            // only channel that reaches this trader into nothing. So the glyph was promising the
+            // function the code exists to withhold - this house's defect class, in one character.
+            // Roberto pressed it expecting a minimise and reported that the window did not minimise.
+            //
+            // A chevron is the standard collapse gesture, it is symmetric (up closes, down opens),
+            // and it promises nothing else. It also has NO LANGUAGE: NinjaTrader here is in Spanish
+            // and this product speaks English, so a word would open a translation argument that a
+            // glyph does not.
+            //
+            // THE FONT IS SET EXPLICITLY BECAUSE SEGOE UI DOES NOT HAVE THIS GLYPH - verified, not
+            // assumed: U+2303 and U+2304 are absent from Segoe UI and present in Segoe UI Symbol.
+            // WPF would probably resolve it by fallback, and "probably" is how a box character
+            // ships. The escapes keep this file ASCII, which is the same reason Messages.cs is.
+            _collapseButton.FontFamily = new FontFamily("Segoe UI Symbol, Segoe UI");
             _collapseButton.Width = 22;
             _collapseButton.Padding = new Thickness(0);
             _collapseButton.HorizontalAlignment = HorizontalAlignment.Right;
-            _collapseButton.ToolTip = "Shrink to a strip. It stays on screen.";
-            _collapseButton.Click += (s, e) => SetCollapsed(true);
+            _collapseButton.Click += (s, e) => SetCollapsed(!_collapsed);
 
             _exportButton.Content = "Export my day";
             _exportButton.Margin = new Thickness(0, 6, 0, 0);
@@ -885,10 +899,15 @@ namespace NinjaTrader.NinjaScript.AddOns
             _headline.Visibility = showFull;
             _detail.Visibility = showFull;
             _countdown.Visibility = showFull;
-            // HIDDEN, never disabled, where collapsing is refused. A button that does not respond
-            // reads as a broken product; an absent one reads as a state that does not offer it.
-            _collapseButton.Visibility = (showFull == Visibility.Visible && _stripAllowed)
-                ? Visibility.Visible : Visibility.Collapsed;
+            // ONE button, two glyphs, symmetric: up closes, down opens. It lives in BOTH modes -
+            // collapsed, it is how you come back - and is HIDDEN, never disabled, where collapsing is
+            // refused: a button that does not respond reads as a broken product, an absent one reads
+            // as a state that does not offer it.
+            _collapseButton.Content = _collapsed ? "\u2304" : "\u2303";
+            _collapseButton.ToolTip = _collapsed
+                ? "Show the whole panel again."
+                : "Shrink to a strip. It stays on screen - this is not a minimise.";
+            _collapseButton.Visibility = _stripAllowed ? Visibility.Visible : Visibility.Collapsed;
             if (_collapsed) { _armButton.Visibility = Visibility.Collapsed;
                               _exportButton.Visibility = Visibility.Collapsed; }
             else if (_exportButton.Visibility != Visibility.Visible) _exportButton.Visibility = Visibility.Visible;
