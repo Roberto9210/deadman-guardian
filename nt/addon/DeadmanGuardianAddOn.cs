@@ -126,10 +126,14 @@ namespace NinjaTrader.NinjaScript.AddOns
             // made the handler run twice against a null guardian on the very first real startup.
             Account.AccountStatusUpdate += OnAccountStatusUpdate;
             // SubscribeToAccount already ran inside ResolveGuardedAccount("boot") above.
-            // Windows ending the session must never meet a window that argues. BOTH mechanisms are
-            // subscribed rather than one: SystemEvents does not need Application.Current, which
-            // RunOnUi already treats as possibly null, and Application.SessionEnding covers the WPF
-            // side. Either one opens the gate; neither cancels anything.
+            // Session-end hooks. Their job CHANGED when e.Cancel was removed and the comment must
+            // say the new one rather than the old: nothing is refused any more, so these no longer
+            // prevent a hang - by construction there is none. What they prevent is scheduling a
+            // RETURN inside a process that is going away. Shutdown() covers that too, but it may run
+            // after the window has already closed, so these arrive first.
+            //
+            // Both are subscribed rather than one: SystemEvents does not need Application.Current,
+            // which RunOnUi already treats as possibly null.
             try { Microsoft.Win32.SystemEvents.SessionEnding += OnSessionEnding; }
             catch (Exception ex) { AdapterLog("SessionEnding hook: " + ex.Message); }
             RunOnUi(() =>
@@ -755,23 +759,34 @@ namespace NinjaTrader.NinjaScript.AddOns
             // Saved on every move rather than on close, because the process can end without one -
             // an F5, a crash, or NinjaTrader going away. A preference kept only in memory is a
             // preference that survives exactly the sessions that did not need it.
-            // STEP 3. Two answers, because the states differ in what they leave the trader.
+            // STEP 3, and it is ONE mechanism rather than two: while a commitment is in force, the
+            // panel cannot be dismissed FOR THE DAY. It can always be dismissed for a minute.
             //
-            // Where the panel MAY collapse, closing is refused: the strip is the legitimate way to
-            // reclaim the screen and it is right there. Where it may NOT collapse - needs-a-human,
-            // and the blind FailClosed - refusing would leave no way out at all, and the panel may be
-            // sitting over the very control they need to act with. A permanent exemption would be a
-            // permanent answer to a temporary problem, so the close becomes a NAP: it goes, and it
-            // comes back on its own.
+            // An earlier draft refused the close outright (e.Cancel) where the strip was available.
+            // It was removed before shipping, for five reasons and the first is decisive:
             //
-            // AND IT NEVER FIGHTS THE OPERATING SYSTEM. _allowClose opens on the addon shutdown and
-            // on Windows ending the session. A window that stalls a logoff is an application that
-            // gets uninstalled that same night - the whole product lost to defend a panel.
+            //   1. Closing cannot tell a close by the USER from a close by NINJATRADER, so refusing
+            //      is always a bet on the platform's internal shutdown order. We do not gamble with
+            //      anyone's machine shutting down.
+            //   2. One behaviour, not two. A user does not distinguish them; a maintainer in six
+            //      months would have to reconstruct why they differ.
+            //   3. IT DEGRADES VISIBLY. If refusal broke - an NT8 change, a close path that skips
+            //      Closing - it would break silently and we would never learn. If the nap breaks, the
+            //      window does not come back, and that is seen.
+            //   4. It is the honest promise. The guardian cannot guarantee the window is never
+            //      closed; it can guarantee it comes back. Promising the second is what we did all
+            //      day with the messages, and behaviour should not follow a different rule than text.
+            //   5. It is enough for what this product IS. Roberto is protecting himself from himself,
+            //      not from an attacker. A window that returns every minute is expensive and
+            //      deliberate to evade - it has to be decided again, consciously, every minute -
+            //      without the guardian claiming a power it does not have.
+            //
+            // Flat sixty seconds, never escalating: A BRAKE THAT ESCALATES THE FIGHT IS A BRAKE THAT
+            // EARNS AN ENEMY.
             Closing += (s, e) =>
             {
-                if (_allowClose || !_sealInForce) return;       // no commitment in force, no argument
-                if (_stripAllowed) { e.Cancel = true; return; } // they have the strip
-                var nap = SnoozeRequested;                      // no strip: let it go, and come back
+                if (_allowClose || !_sealInForce) return;   // no commitment in force, no argument
+                var nap = SnoozeRequested;
                 if (nap != null) nap();
             };
 
