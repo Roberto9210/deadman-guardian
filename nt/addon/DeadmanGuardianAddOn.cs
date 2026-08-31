@@ -34,6 +34,15 @@ namespace NinjaTrader.NinjaScript.AddOns
         // Comfort, not commitment. NEVER config.json: that one is SEALED, and a window position that
         // could write CONFIG_TAMPERED would lock a trader out for tidying their desktop.
         private static readonly string UiPrefsPath = Path.Combine(HomeDir, "ui.json");
+
+        /// <summary>Long enough to act, far too short to forget. No cap on how many times: a counter
+        /// that traps someone after three tries arrives without warning, which is worse than having
+        /// no way out at all.</summary>
+        private const int SnoozeMs = 60000;
+        private Timer _snoozeTimer;
+        private bool _snoozed;
+        private string _snoozedUnder;     // the rendered state when it went to sleep
+        private bool _stopping;
         private static readonly string AdapterLogPath = Path.Combine(HomeDir, "adapter.log");
 
         private readonly object _gate = new object();
@@ -117,6 +126,18 @@ namespace NinjaTrader.NinjaScript.AddOns
             // made the handler run twice against a null guardian on the very first real startup.
             Account.AccountStatusUpdate += OnAccountStatusUpdate;
             // SubscribeToAccount already ran inside ResolveGuardedAccount("boot") above.
+            // Windows ending the session must never meet a window that argues. BOTH mechanisms are
+            // subscribed rather than one: SystemEvents does not need Application.Current, which
+            // RunOnUi already treats as possibly null, and Application.SessionEnding covers the WPF
+            // side. Either one opens the gate; neither cancels anything.
+            try { Microsoft.Win32.SystemEvents.SessionEnding += OnSessionEnding; }
+            catch (Exception ex) { AdapterLog("SessionEnding hook: " + ex.Message); }
+            RunOnUi(() =>
+            {
+                try { if (Application.Current != null) Application.Current.SessionEnding += OnAppSessionEnding; }
+                catch (Exception ex) { AdapterLog("App SessionEnding hook: " + ex.Message); }
+            });
+
             ShowWindow();
 
             // SPEC §5.6: the evaluation floor. Everything else is event-driven.
@@ -124,8 +145,69 @@ namespace NinjaTrader.NinjaScript.AddOns
                                Constants.PnlEvaluationIntervalMs);
         }
 
+        private void OnSessionEnding(object sender, Microsoft.Win32.SessionEndingEventArgs e)
+        {
+            AdapterLog("windows session ending - the panel stops arguing");
+            _stopping = true;
+            RunOnUi(() => _window?.AllowClose());
+        }
+
+        private void OnAppSessionEnding(object sender, SessionEndingCancelEventArgs e)
+        {
+            AdapterLog("application session ending - the panel stops arguing");
+            _stopping = true;
+            _window?.AllowClose();
+        }
+
+        /// <summary>The nap. The window is gone; this brings it back WHERE THE TRADER LEFT IT - the
+        /// position lives in ui.json, so it reappears in place rather than in a corner - and without
+        /// stealing focus, because the window is created with ShowActivated = false.</summary>
+        private void Snooze()
+        {
+            _snoozed = true;
+            _snoozedUnder = RenderedState();
+            try { if (_snoozeTimer != null) _snoozeTimer.Dispose(); } catch { }
+            _snoozeTimer = new Timer(_ => WakeFromSnooze(), null, SnoozeMs, Timeout.Infinite);
+        }
+
+        private void WakeFromSnooze()
+        {
+            if (_stopping) return;
+            _snoozed = false;
+            try { if (_snoozeTimer != null) _snoozeTimer.Dispose(); } catch { }
+            _snoozeTimer = null;
+            ShowWindow();
+        }
+
+        /// <summary>What the panel is currently showing, as one string. A CHANGE of this cuts a nap
+        /// short: the nap is about the window, not about the state, and a state change is exactly the
+        /// moment there is something new to say.
+        ///
+        /// KNOWN LIMITATION, with its trigger written down: a FailClosed that FLAPS - a data feed
+        /// reconnecting repeatedly, which this machine's own logs show happening - would wake the
+        /// panel on every flap. If that is ever observed, the fix is to require the new state to
+        /// differ from the one napped under rather than merely to have changed. Not built now:
+        /// speculating about which flap matters is how the 165-message storm got designed.</summary>
+        private string RenderedState()
+        {
+            lock (_gate)
+            {
+                var s = _guardian.Status;
+                return s.Kind + "/" + (_guardian.LockoutNeedsHuman ? "needs" : "-") + "/" + (s.Reason ?? "");
+            }
+        }
+
         private void Shutdown()
         {
+            _stopping = true;
+            RunOnUi(() => _window?.AllowClose());
+            try { Microsoft.Win32.SystemEvents.SessionEnding -= OnSessionEnding; } catch { }
+            RunOnUi(() =>
+            {
+                try { if (Application.Current != null) Application.Current.SessionEnding -= OnAppSessionEnding; }
+                catch { }
+            });
+            try { if (_snoozeTimer != null) _snoozeTimer.Dispose(); } catch { }
             try { _timer?.Dispose(); } catch { }
             try { Account.AccountStatusUpdate -= OnAccountStatusUpdate; } catch { }
             UnsubscribeFromAccount();
@@ -409,6 +491,7 @@ namespace NinjaTrader.NinjaScript.AddOns
             RunOnUi(() =>
             {
                 _window = new GuardianStatusWindow(Arm, ExportDay, LoadUiPrefs, SaveUiPrefs);
+                _window.SnoozeRequested = Snooze;
                 _window.Show();
                 _window.Render(Snapshot());
             });
@@ -499,6 +582,14 @@ namespace NinjaTrader.NinjaScript.AddOns
 
         private void RefreshWindow()
         {
+            // A state change CUTS THE NAP SHORT. The nap is about the window, not about the state.
+            if (_snoozed && !_stopping && RenderedState() != _snoozedUnder)
+            {
+                AdapterLog("state changed while the panel was napping - bringing it back");
+                WakeFromSnooze();
+                return;
+            }
+
             var snap = Snapshot();
             RunOnUi(() => _window?.Render(snap));
         }
@@ -604,6 +695,16 @@ namespace NinjaTrader.NinjaScript.AddOns
         private readonly Button _collapseButton = new Button();
         private bool _collapsed;
         private bool _stripAllowed = true;
+        private bool _sealInForce;
+        private bool _allowClose;
+
+        /// <summary>Raised when a close was turned into a nap instead of a refusal. The window cannot
+        /// bring itself back once closed, so the addon owns the timer.</summary>
+        public Action SnoozeRequested;
+
+        /// <summary>Opened by the addon on its own shutdown AND on Windows ending the session. After
+        /// this the window never argues with anything again.</summary>
+        public void AllowClose() { _allowClose = true; }
 
         public GuardianStatusWindow(Func<string> arm, Func<string> export,
                                     Func<UiPrefs> loadPrefs, Action<UiPrefs> savePrefs)
@@ -629,6 +730,10 @@ namespace NinjaTrader.NinjaScript.AddOns
             // tab the trader does not read, and the position stood for five days.
             ShowInTaskbar = true;
             ResizeMode = ResizeMode.NoResize;
+            // Comes back WITHOUT stealing focus. Show() activates by default, and a panel that grabs
+            // the keyboard once a minute from someone sending orders would be worse than the problem
+            // it solves - the same reason Activate() was ruled out.
+            ShowActivated = false;
             WindowStartupLocation = WindowStartupLocation.Manual;
 
             // WHERE THE TRADER PUT IT, not where we like it. Roberto said "me sale en primer plano y
@@ -650,6 +755,26 @@ namespace NinjaTrader.NinjaScript.AddOns
             // Saved on every move rather than on close, because the process can end without one -
             // an F5, a crash, or NinjaTrader going away. A preference kept only in memory is a
             // preference that survives exactly the sessions that did not need it.
+            // STEP 3. Two answers, because the states differ in what they leave the trader.
+            //
+            // Where the panel MAY collapse, closing is refused: the strip is the legitimate way to
+            // reclaim the screen and it is right there. Where it may NOT collapse - needs-a-human,
+            // and the blind FailClosed - refusing would leave no way out at all, and the panel may be
+            // sitting over the very control they need to act with. A permanent exemption would be a
+            // permanent answer to a temporary problem, so the close becomes a NAP: it goes, and it
+            // comes back on its own.
+            //
+            // AND IT NEVER FIGHTS THE OPERATING SYSTEM. _allowClose opens on the addon shutdown and
+            // on Windows ending the session. A window that stalls a logoff is an application that
+            // gets uninstalled that same night - the whole product lost to defend a panel.
+            Closing += (s, e) =>
+            {
+                if (_allowClose || !_sealInForce) return;       // no commitment in force, no argument
+                if (_stripAllowed) { e.Cancel = true; return; } // they have the strip
+                var nap = SnoozeRequested;                      // no strip: let it go, and come back
+                if (nap != null) nap();
+            };
+
             LocationChanged += (s, e) =>
             {
                 if (_repositioning || _savePrefs == null) return;
@@ -815,6 +940,7 @@ namespace NinjaTrader.NinjaScript.AddOns
             // one that needs a person, and the one where the guardian is BLIND - there the trader
             // believes he has a brake and does not, which is worse than knowing his day is over. If
             // the panel is collapsed when either arrives, it opens itself.
+            _sealInForce = v.HasSeal;
             _stripAllowed = PanelCollapse.MayCollapse(v.Kind, v.NeedsHuman, v.Reason);
             if (_collapsed && !_stripAllowed) _collapsed = false;
 
