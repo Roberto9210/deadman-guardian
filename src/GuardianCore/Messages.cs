@@ -131,10 +131,28 @@ namespace GuardianCore
         /// desktop. It exists so that closing the panel stops being the natural way to get the screen
         /// back - candidate 9 - and it will be read more often than anything else this product writes.
         ///
-        /// ARMED carries the number he committed to and when it lifts. LOCKED carries only when it
-        /// lifts: A FIGURE THAT CAN BE UNKNOWN, PRINTED IN A ONE-LINE STRIP, IS THE EXACT GROUND
-        /// "$0.00" GREW FROM, and once locked the actionable fact is the time, which the guardian
-        /// always knows. Absent figures are suppressed here as everywhere else since LT-2.
+        /// ARMED carries the number he committed to and when it lifts. LOCKED carries ONLY when it
+        /// lifts, and that omission has TWO INDEPENDENT REASONS. Both are written here on purpose:
+        /// a "no" with one reason recorded is a "no" that falls over the moment that reason stops
+        /// applying, and whoever knows only one of these could reverse it believing they had weighed
+        /// the whole cost.
+        ///
+        ///   ONE - honesty. A figure that can be UNKNOWN, printed in a one-line strip, is the exact
+        ///   ground "$0.00" grew from. Once locked the actionable fact is the time, and the guardian
+        ///   always knows that one. Absent figures are suppressed here as everywhere since LT-2.
+        ///
+        ///   TWO - it is the only thing keeping a stale book unreadable. On a restart into LOCKED no
+        ///   baseline is adopted (Guardian.cs:273 excludes Locked explicitly), so the book is EMPTY,
+        ///   while OnExecution still applies any fill that arrives (Guardian.cs:574) - and an empty
+        ///   book records a closing fill as an opening one. That stale book is harmless today only
+        ///   because NOTHING READS IT while Locked: both readers, _book.Snapshot and HasObservedFill,
+        ///   sit behind the tick's early return, and ResetDay wipes it at expiry before any read
+        ///   becomes reachable again.
+        ///
+        ///   THAT IS CORRECTNESS BY ORDER, NOT BY CONSTRUCTION. The obvious source for a live loss
+        ///   figure in this strip is _book.Snapshot(), which would make the stale book legible and
+        ///   put a wrong number in front of a locked-out trader. Anyone adding it must first fix the
+        ///   book, not the strip.
         ///
         /// The zone travels with the time, always. It is short and tempting to cut in a strip, and
         /// cutting it is precisely what LT-2 fixed.

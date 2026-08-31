@@ -108,10 +108,24 @@ namespace GuardianCore.Tests
             Assert.Equal("ARMED", neither);        // still grammatical with nothing to say
         }
 
-        /// <summary>No loss figure once locked, and that is a decision rather than an omission: a
-        /// figure that can be UNKNOWN, printed in a one-line strip, is the exact ground $0.00 grew
-        /// from. Once locked the actionable fact is when it lifts, and the guardian always knows
-        /// that one.</summary>
+        /// <summary>No loss figure once locked - a decision with TWO INDEPENDENT REASONS, and both
+        /// are recorded because a "no" with one reason written is a "no" that falls over as soon as
+        /// that reason stops applying.
+        ///
+        /// ONE: a figure that can be UNKNOWN, printed in a one-line strip, is the exact ground $0.00
+        /// grew from. Once locked the actionable fact is when it lifts, and the guardian always knows
+        /// that one.
+        ///
+        /// TWO, and it was only noticed after the power cut of 2026-08-31: a restart into LOCKED
+        /// adopts no baseline (Guardian.cs:273 excludes Locked by name), so the book is EMPTY while
+        /// OnExecution keeps applying fills into it - and an empty book books a closing fill as an
+        /// opening one. That stale book is harmless ONLY because nothing reads it while Locked. The
+        /// natural source for a live loss figure here is _book.Snapshot(), which is precisely the
+        /// read that is unreachable. Adding the figure would make the stale book legible and put a
+        /// wrong number in front of a locked-out trader.
+        ///
+        /// So this test guards two things at once, and the second is not visible from the assertion.
+        /// If it ever goes red, fix the book before touching the strip.</summary>
         [Fact]
         public void UI2g_Locked_says_when_it_lifts_and_carries_no_figure_that_could_be_unknown()
         {
