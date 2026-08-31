@@ -31,6 +31,9 @@ namespace NinjaTrader.NinjaScript.AddOns
         private static readonly string ConfigPath = Path.Combine(HomeDir, "config.json");
         private static readonly string StatePath = Path.Combine(HomeDir, "state.json");
         private static readonly string LedgerPath = Path.Combine(HomeDir, "ledger.jsonl");
+        // Comfort, not commitment. NEVER config.json: that one is SEALED, and a window position that
+        // could write CONFIG_TAMPERED would lock a trader out for tidying their desktop.
+        private static readonly string UiPrefsPath = Path.Combine(HomeDir, "ui.json");
         private static readonly string AdapterLogPath = Path.Combine(HomeDir, "adapter.log");
 
         private readonly object _gate = new object();
@@ -385,11 +388,27 @@ namespace NinjaTrader.NinjaScript.AddOns
 
         // ---------------- the window ----------------
 
+        /// <summary>Both halves swallow everything, by contract. The guardian must be able to LOSE
+        /// this file with no consequence: missing, corrupt, unreadable or unwritable all mean a fresh
+        /// panel in the corner and nothing else. No exception, no fail-closed, no ledger event -
+        /// comfort is not a premise this guardian acts on.</summary>
+        private static UiPrefs LoadUiPrefs()
+        {
+            try { return UiPrefs.Parse(File.Exists(UiPrefsPath) ? File.ReadAllText(UiPrefsPath) : null); }
+            catch { return new UiPrefs(); }
+        }
+
+        private static void SaveUiPrefs(UiPrefs prefs)
+        {
+            try { File.WriteAllText(UiPrefsPath, prefs.Format(), new UTF8Encoding(false)); }
+            catch { }
+        }
+
         private void ShowWindow()
         {
             RunOnUi(() =>
             {
-                _window = new GuardianStatusWindow(Arm, ExportDay);
+                _window = new GuardianStatusWindow(Arm, ExportDay, LoadUiPrefs, SaveUiPrefs);
                 _window.Show();
                 _window.Render(Snapshot());
             });
@@ -573,10 +592,16 @@ namespace NinjaTrader.NinjaScript.AddOns
         private readonly Button _exportButton = new Button();
         private readonly Border _root = new Border();
 
-        public GuardianStatusWindow(Func<string> arm, Func<string> export)
+        private readonly Action<UiPrefs> _savePrefs;
+        private double _appliedWidth;
+        private bool _repositioning;      // true while WE move it, so our own move is not saved as theirs
+
+        public GuardianStatusWindow(Func<string> arm, Func<string> export,
+                                    Func<UiPrefs> loadPrefs, Action<UiPrefs> savePrefs)
         {
             _arm = arm;
             _export = export;
+            _savePrefs = savePrefs;
 
             Title = "deadman-guardian";
             Width = 330;
@@ -596,8 +621,30 @@ namespace NinjaTrader.NinjaScript.AddOns
             ShowInTaskbar = true;
             ResizeMode = ResizeMode.NoResize;
             WindowStartupLocation = WindowStartupLocation.Manual;
-            Left = SystemParameters.WorkArea.Right - Width - 20;
-            Top = SystemParameters.WorkArea.Top + 20;
+
+            // WHERE THE TRADER PUT IT, not where we like it. Roberto said "me sale en primer plano y
+            // lo muevo para una esquina" in the HABITUAL PRESENT: he did that every session, because
+            // the position lived only in this constructor and every F5 rebuilds the window. A panel
+            // that forgets is a panel that has to be tidied away daily, and the thing a trader tidies
+            // away daily is the thing they eventually close.
+            var area = SystemParameters.WorkArea;
+            var prefs = loadPrefs == null ? new UiPrefs() : loadPrefs();
+            var start = prefs.HasPosition
+                ? PanelPlacement.Clamp(prefs.Left.Value, prefs.Top.Value, Width, MinHeight,
+                                       area.Left, area.Top, area.Right, area.Bottom)
+                : PanelPlacement.Default(Width, area.Top, area.Right);
+            Left = start.Left;
+            Top = start.Top;
+            _appliedWidth = Width;
+
+            // Saved on every move rather than on close, because the process can end without one -
+            // an F5, a crash, or NinjaTrader going away. A preference kept only in memory is a
+            // preference that survives exactly the sessions that did not need it.
+            LocationChanged += (s, e) =>
+            {
+                if (_repositioning || _savePrefs == null) return;
+                _savePrefs(new UiPrefs { Left = Left, Top = Top });
+            };
 
             _headline.FontSize = 22;
             _headline.FontWeight = FontWeights.Bold;
@@ -647,6 +694,37 @@ namespace NinjaTrader.NinjaScript.AddOns
             Content = _root;
         }
 
+        /// <summary>Resize WITHOUT moving house. The first draft recomputed Left from the corner of
+        /// the work area, in Render, which runs on every refresh - so a panel the trader had dragged
+        /// would have walked back to the corner about once a second. It was caught by one question
+        /// nobody had asked all day: can the user MOVE this thing? A message review is not a
+        /// manipulation review.
+        ///
+        /// The right edge stays put, so it grows leftward from wherever they left it, and the clamp
+        /// only intervenes if that would put it off screen. And it runs ONLY when the width actually
+        /// changes, so an unchanged panel is never repositioned at all.</summary>
+        private void ApplyWidth(double wanted)
+        {
+            if (Math.Abs(wanted - _appliedWidth) < 0.5) return;
+
+            var area = SystemParameters.WorkArea;
+            var wantedLeft = PanelPlacement.LeftAfterWidthChange(Left, _appliedWidth, wanted);
+            var height = ActualHeight > 0 ? ActualHeight : MinHeight;
+
+            _repositioning = true;
+            try
+            {
+                Width = wanted;
+                var p = PanelPlacement.Clamp(wantedLeft, Top, wanted, height,
+                                             area.Left, area.Top, area.Right, area.Bottom);
+                Left = p.Left;
+                Top = p.Top;
+            }
+            finally { _repositioning = false; }
+
+            _appliedWidth = wanted;
+        }
+
         public void Render(View v)
         {
             if (v == null) return;
@@ -693,12 +771,9 @@ namespace NinjaTrader.NinjaScript.AddOns
                         : Messages.DetailLocked(v.Account, v.Until);
                     // A panel that only changes hue is invisible to someone watching charts. This one
                     // GROWS - bigger headline, wider window - because peripheral vision catches a
-                    // change of shape long before a change of tone. Width is set here rather than once
-                    // in the constructor, so Left must be recomputed: it was derived from Width at
-                    // construction, and widening without this would push the panel off the right edge.
+                    // change of shape long before a change of tone.
                     _headline.FontSize = v.NeedsHuman ? 30 : 22;
-                    Width = v.NeedsHuman ? 430 : 330;
-                    Left = SystemParameters.WorkArea.Right - Width - 20;
+                    ApplyWidth(v.NeedsHuman ? 430 : 330);
                     _armButton.Visibility = Visibility.Collapsed;
                     break;
 
