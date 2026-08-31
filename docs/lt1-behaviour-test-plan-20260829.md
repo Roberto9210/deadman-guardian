@@ -375,6 +375,35 @@ Lo que separa arreglado de roto **no es el conteo, es la terminación**:
 
 ---
 
+## 9b. EL PATRÓN DE ESTE PLAN — anotado el 31-ago, va a `CLAUDE.md` §3 al cerrar la corrida
+
+**Este documento falló tres veces el día que se ejecutó, siempre por la misma causa.**
+
+| # | dónde | qué decía | qué pasaba de verdad |
+|---|---|---|---|
+| 1 | §3, "cerrar la posición antes de armar" | el paso 1 del plan | cerrarla dejaba el realizado de la plataforma en +$18.430 contra 0.00 del libro ⇒ `SourcesDisagree` ⇒ fail-closed **antes de evaluar el límite**. El plan moría en su primer paso. |
+| 2 | §1, "hoy es sábado" | premisa de riesgo | se ejecutó el **lunes 31**. La premisa era cierta el día que se escribió y falsa el día que se usó. |
+| 3 | §10, paso 5 | "verificar el binario por certificado", **antes** de armar | `ExportDay` rehúsa sin sello (`DeadmanGuardianAddOn.cs:306`). El certificado no puede preceder al arme. |
+
+**La causa común, y es una clase, no una anécdota:**
+
+> **UN PLAN DESCRIBE SECUENCIAS QUE NUNCA SE EJECUTARON, CON LA CONFIANZA DE LAS QUE SÍ.**
+
+Es la familia de la casa aplicada al **orden de las operaciones** en vez de al conjunto o al momento.
+Cada paso era individualmente correcto y verificable; lo que nadie verificó fue **que el estado que
+deja un paso sea el que el siguiente necesita**. Un plan es una afirmación sobre una secuencia, y una
+secuencia no ejecutada es exactamente tan no verificada como una premisa no comprobada.
+
+**El agravante que la hace peligrosa**: un plan aprobado se lee como acordado, y lo acordado deja de
+inspeccionarse. Los tres fallos se encontraron sólo porque se fue a mirar el código **antes** de tocar
+la máquina, en pasos que ya estaban aprobados.
+
+**Lo que deja como regla**: antes de ejecutar un plan, recorrer los pasos preguntando *¿qué estado deja
+éste, y es el que el siguiente exige?* — y donde la respuesta no esté verificada, decir "no verificado"
+en el plan mismo, no descubrirlo el día de la corrida.
+
+---
+
 ## 10. Los pasos, en orden
 
 | # | quién | qué |
