@@ -103,8 +103,9 @@ namespace GuardianCore
 
         public static string DetailLocked(string account, string until)
         {
-            return "Daily limit reached on " + Safe(account) + ". Any new order will be cancelled" +
-                   UntilClause(until) + ".";
+            // See LockoutComplete for why "any new order will be cancelled" is gone from every message.
+            return "Daily limit reached on " + Safe(account) + ". This does not block new orders - " +
+                   "nothing here can - but no position will stay open" + UntilClause(until) + ".";
         }
 
         /// <summary>Fail-closed. <paramref name="hasSeal"/> decides the last sentence and it is NOT
@@ -209,9 +210,28 @@ namespace GuardianCore
                 : " The figures this message cannot state are in your record - I was restarted and did " +
                   "not witness them myself.";
 
+            // ------------------------------------------------------------ C of LT-4, 2026-08-31
+            //
+            // What stood here was "Any new order will be cancelled{until}." It was read by a real
+            // person on 2026-08-31 at 09:10:30, one second after FLATTEN_VERIFIED, and it was FALSE
+            // in two separate ways:
+            //
+            //   1. it promised CANCELLATION, which stopped happening with the LT-1 fix, and
+            //   2. it promised PREVENTION, which NO version of this product can deliver - NT8 has no
+            //      pre-submit veto (2,912 types scanned, STEP3_FINDINGS section 4), so an order that
+            //      is sent reaches the market and fills.
+            //
+            // The second half is the important one: the sentence was not made false by a defect, it
+            // was never true. LT4d pins the replacement against a vocabulary of impossibility rather
+            // than against one phrase, because the defect is a WAY OF SPEAKING and the next person to
+            // write a message here will invent their own version of the same false promise.
+            //
+            // What is true under the LT-4 fix is a claim about the OUTCOME, not the mechanism: orders
+            // are not stopped, and exposure does not stand. That is the promise, and it is the whole
+            // promise - no timing, no blocking, no impossibility.
             return "LOCKED. " + cancelled + against + missing +
-                   " Any new order will be cancelled" + UntilClause(until) + ". " +
-                   "This is what you asked for.";
+                   " This does not block new orders - nothing here can - but no position will stay open" +
+                   UntilClause(until) + ". This is what you asked for.";
         }
 
         public static string LockoutImminent(string account, decimal dayLoss, decimal limit)
@@ -228,8 +248,8 @@ namespace GuardianCore
         {
             return "LOCKED. " + Plural(ordersCancelled, "order") + " cancelled and positions closed on " +
                    Safe(account) + ", at $" + Money.Format(dayLoss) + " against a $" + Money.Format(limit) +
-                   " limit. Any new order will be cancelled" + UntilClause(until) + ". " +
-                   "This is what you asked for.";
+                   " limit. This does not block new orders - nothing here can - but no position will " +
+                   "stay open" + UntilClause(until) + ". This is what you asked for.";
         }
 
         /// <summary>ONLY for a TERMINAL LOCKOUT_INCOMPLETE - the one carrying exhausted:true.
@@ -243,9 +263,15 @@ namespace GuardianCore
         /// event. The caller must require the field, never infer it.</summary>
         public static string LockoutStillOpen(string account, int attempts)
         {
+            // "new orders are still being cancelled" was the SAME false clause as LockoutComplete's,
+            // sitting in the message that fires in the WORSE case - the one where the reader most
+            // needs an accurate picture. Fixing message two and leaving this one would have moved the
+            // lie rather than removed it. What is true here: the guardian does not give up. The loop
+            // re-enters every tick while Locked and unverified; MaxFlattenAttempts only lights a flag
+            // (Guardian.cs:1044) and gates nothing.
             return "COULD NOT CLOSE EVERYTHING on " + Safe(account) + " after " +
-                   Plural(attempts, "attempt") + ". The daily limit is reached and new orders are still " +
-                   "being cancelled, but something is still open. CLOSE IT YOURSELF NOW, then check the " +
+                   Plural(attempts, "attempt") + ". The daily limit is reached and the guardian keeps " +
+                   "trying, but something is still open. CLOSE IT YOURSELF NOW, then check the " +
                    "platform. This is the one case where the guardian needs you.";
         }
 

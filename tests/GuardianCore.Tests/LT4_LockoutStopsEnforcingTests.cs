@@ -39,10 +39,21 @@
 // fills, and the position stands until the human closes it or the session ends. Unbounded, on an
 // account the guardian has already declared it is protecting.
 //
-// NOT FIXED HERE. The fix is a design decision - re-verify on every tick, or re-arm the steps when a
-// position appears - and it must not be made in the same breath as the finding. These tests are
-// GREEN BECAUSE THEY DOCUMENT WHAT THE CODE DOES TODAY, the same convention as M4-M7. Each MUST go
-// red when the fix lands; one that stays green means the fix touched nothing.
+// FIXED 2026-08-31, option A: ReopenLockoutIfExposureReturned un-latches when the account is not
+// flat, so RunLockoutSteps re-enters and re-FLATTENS. It cannot re-sweep - the blind cancel lives in
+// EnterLockout and only there - so the naive repair, which IS LT-1, is unreachable by construction.
+// Option B (targeted cancellation through an optional port) is deferred with its trigger written
+// down: reconsider when the LEDGER shows repeated reopening under lockout.
+//
+// The tests that documented the defect were rewritten when they flipped, which is the M4-M7
+// convention working. One of them, LT4a, STAYED GREEN after its own fix and had to be caught by
+// reading it: it passed because it never filled the re-flatten order, and the double does not move a
+// position until filled. A green that meant the opposite of what it said.
+//
+// WHAT THE FIX DOES NOT DO, and the reason LT4d exists: it does not cancel anything. NT8 has no
+// pre-submit veto, so no version of this product can stop an order from reaching the market. The
+// message that promised otherwise was replaced the same day (C), and LT4d holds the replacement to a
+// vocabulary of impossibility rather than to a single phrase.
 
 using System;
 using System.Linq;
@@ -187,7 +198,65 @@ namespace GuardianCore.Tests
             Assert.Equal(sweepsAtLockout, broker.CancelAllCalls);
         }
 
-        /// <summary>THE ONE THAT MAKES LT-4 A BROKEN PROMISE RATHER THAN A GAP.
+        /// <summary>THE PERMANENT CONTAINMENT ON WHAT THE LOCKOUT IS ALLOWED TO PROMISE.
+        ///
+        /// NT8 has no pre-submit veto - 2,912 types scanned in and out of process, STEP3_FINDINGS
+        /// section 4 - so NO version of this product can stop an order from reaching the market. Any
+        /// message that says otherwise is false on the day it is written, not merely made false later
+        /// by a defect. "Any new order will be cancelled" survived until a real person read it on
+        /// 2026-08-31 at 09:10:30.
+        ///
+        /// SO THIS BANS A WAY OF SPEAKING, NOT A SENTENCE. The next person to write a message here
+        /// will not copy that phrase; they will invent their own version of the same promise. The
+        /// list below is what makes this test outlive the phrase it was born from.
+        ///
+        /// AND IT BANS CONSTRUCTIONS, NEVER BARE WORDS - the distinction is the whole design and it
+        /// is not a detail:
+        ///
+        ///     "0 orders cancelled"        TRUE. A past report of a sweep that really happened.
+        ///     "will be cancelled"         FALSE. A promise about orders not yet sent.
+        ///
+        /// "cancelled" is therefore NOT on the list. A ban that cannot tell tense from tense forbids
+        /// the truth along with the lie - and the repair for that is not an exceptions list. An
+        /// exceptions list grows, and in six months someone adds the exception that covers a real lie.
+        /// That is how containments die. Every entry below is a string that can only occur in a
+        /// forward-looking claim.</summary>
+        [Fact]
+        public void LT4d_No_lockout_message_may_promise_that_an_order_will_be_stopped()
+        {
+            var forbidden = new[]
+            {
+                "will be cancelled", "are being cancelled", "will be blocked", "will be prevented",
+                "cannot place", "will not let", "won't be able", "unable to", "any new order will",
+            };
+
+            var withUntil = Messages.Until("17:00", "America/Chicago");
+            var messages = new[]
+            {
+                Messages.LockoutComplete(Harness.Account, 612.40m, 600.00m, 3, withUntil),
+                Messages.LockoutComplete(Harness.Account, (decimal?)null, (decimal?)null, (int?)null, withUntil),
+                Messages.LockoutComplete(Harness.Account, (decimal?)null, (decimal?)null, (int?)null, null),
+                Messages.LockoutImminent(Harness.Account, 612.40m, 600.00m),
+                Messages.LockoutStillOpen(Harness.Account, 3),
+                Messages.DetailLocked(Harness.Account, withUntil),
+                Messages.DetailLocked(Harness.Account, null),          // absent until: still grammatical, still honest
+            };
+
+            foreach (var m in messages)
+                foreach (var phrase in forbidden)
+                    Assert.False(m.IndexOf(phrase, StringComparison.OrdinalIgnoreCase) >= 0,
+                                 "a lockout message promises what no version of this product can do - '" +
+                                 phrase + "' in: " + m);
+
+            // And the containment on the containment: the TRUE past report survives the ban.
+            Assert.Contains("3 orders cancelled",
+                            Messages.LockoutComplete(Harness.Account, 612.40m, 600.00m, 3, withUntil),
+                            StringComparison.Ordinal);
+        }
+
+        /// <summary>Kept from when it recorded the defect: LT-4's fix closes exposure, it does not
+        /// cancel, so the message may not claim cancellation. This asserts the ACT still matches the
+        /// words - nothing is cancelled on observation - which is the other half of LT4d.
         ///
         /// On 2026-08-31 at 09:10:30 the product told a real person, in NinjaTrader's log, verbatim:
         ///
@@ -208,7 +277,7 @@ namespace GuardianCore.Tests
         /// CHECKED - reached through the second one, and in the worst possible place: the single
         /// artefact a human actually reads, at the single moment the product exists for.</summary>
         [Fact]
-        public void LT4d_The_message_promises_new_orders_will_be_cancelled_and_they_are_not()
+        public void LT4f_Nothing_is_cancelled_on_observation_while_locked()
         {
             var h = new Harness();
             var broker = new OrderLifecycleBroker();

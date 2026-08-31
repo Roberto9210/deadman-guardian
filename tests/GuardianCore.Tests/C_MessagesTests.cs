@@ -168,11 +168,34 @@ namespace GuardianCore.Tests
             }
         }
 
+        /// <summary>REWRITTEN 2026-08-31, and HOW it went red is worth more than the test.
+        ///
+        /// It used to assert the messages CONTAIN "will be cancelled" - the positive half of the pair
+        /// above, pinning what the product promises instead of over-promising. That was TRUE when it
+        /// was written: OnOrderObserved cancelled every order seen while locked.
+        ///
+        /// LT-1 removed that on 2026-08-26 and THIS TEST STAYED GREEN FOR FIVE DAYS, because it pins
+        /// the message's wording against ITSELF. Nothing pinned the wording to the behaviour, so the
+        /// suite went on certifying a promise the code had stopped keeping - until a real person read
+        /// it on 2026-08-31.
+        ///
+        /// That is the fifth candidate's shape appearing inside the test suite: WE AUDIT ACTS, NOT
+        /// WORDS. A test asserting that a message says X is worth nothing unless something else
+        /// asserts that X is what happens.
+        ///
+        /// So the promise moved to where the product can keep it - the POSITION, not the order - which
+        /// is what SPEC T7 always said: "the order fills and the next cycle closes it". The code moved
+        /// to match the spec, not the other way round.</summary>
         [Fact]
-        public void What_is_promised_instead_is_what_actually_happens_orders_get_cancelled()
+        public void What_is_promised_instead_is_what_actually_happens_no_position_stays_open()
         {
-            Assert.Contains("will be cancelled", Messages.DetailLocked(Acct, Until), StringComparison.Ordinal);
-            Assert.Contains("will be cancelled", Messages.LockoutComplete(Acct, 1m, 2m, 1, Until), StringComparison.Ordinal);
+            foreach (var m in new[] { Messages.DetailLocked(Acct, Until),
+                                      Messages.LockoutComplete(Acct, 1m, 2m, 1, Until) })
+            {
+                Assert.Contains("no position will stay open", m, StringComparison.Ordinal);
+                // and it says out loud what it cannot do, rather than leaving that to be assumed
+                Assert.Contains("does not block new orders", m, StringComparison.Ordinal);
+            }
         }
 
         /// <summary>The line that works when its reader is looking for someone to blame.</summary>
