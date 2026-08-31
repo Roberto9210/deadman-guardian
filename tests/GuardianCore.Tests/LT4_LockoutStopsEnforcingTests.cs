@@ -115,6 +115,53 @@ namespace GuardianCore.Tests
             Assert.Equal(flattensAtVerification, h.Events().Count(e => e == Ev.FlattenRequested));
         }
 
+        /// <summary>THE ONE THAT MAKES LT-4 A BROKEN PROMISE RATHER THAN A GAP.
+        ///
+        /// On 2026-08-31 at 09:10:30 the product told a real person, in NinjaTrader's log, verbatim:
+        ///
+        ///     "LOCKED. 0 orders cancelled and positions closed on Sim101, at $40.00 against a
+        ///      $40.00 limit. ANY NEW ORDER WILL BE CANCELLED until 17:00 (America/Chicago).
+        ///      This is what you asked for."
+        ///
+        /// It was written one second after FLATTEN_VERIFIED, which is precisely the moment
+        /// LockoutVerified latches true. This test asks the sentence's own question - would a new
+        /// order have been cancelled? - and the answer is no.
+        ///
+        /// The enumeration behind it, small enough to be exhaustive: CancelAllOrders has ONE call
+        /// site in the library (Guardian.cs:916, inside SweepRestingOrders), SweepRestingOrders has
+        /// one caller (EnterLockout), and EnterLockout's breach path (:747) is unreachable while
+        /// Locked because the tick returns at :633-638. Nothing else cancels.
+        ///
+        /// So this is the house's first defect class - TEXT THAT ASSERTS MORE THAN ITS OWN CODE
+        /// CHECKED - reached through the second one, and in the worst possible place: the single
+        /// artefact a human actually reads, at the single moment the product exists for.</summary>
+        [Fact]
+        public void LT4d_The_message_promises_new_orders_will_be_cancelled_and_they_are_not()
+        {
+            var h = new Harness();
+            var broker = new OrderLifecycleBroker();
+            h.BrokerOverride = broker;
+            h.Armed("600.00");
+            broker.SetPosition(Harness.Account, Harness.Instrument, 1);
+            h.LoseExactly(600.00m);
+
+            h.Guardian.Tick();
+            broker.Fill(broker.LastFlattenOrder().OrderId);
+            h.Guardian.Tick();
+            Assert.Contains(Ev.FlattenVerified, h.Events());     // the message goes out HERE
+            var cancelsWhenTheMessageWentOut = broker.CancelAllCalls;   // the sweep's one, at lockout
+
+            // "Any new order will be cancelled." One arrives.
+            var newOrder = broker.PlaceTraderOrder(Harness.Account, Harness.Instrument, "Buy", 1);
+            h.Guardian.OnOrderObserved(broker.SnapshotOf(newOrder));
+            for (int i = 0; i < 5; i++) h.Guardian.Tick();
+
+            Assert.Equal(StateKind.Locked, h.Guardian.Status.Kind);   // still locked, still promising
+            Assert.Equal(cancelsWhenTheMessageWentOut, broker.CancelAllCalls);   // not one more
+            Assert.True(broker.IsWorking(newOrder),
+                        "the message said any new order would be cancelled; this one is still working");
+        }
+
         /// <summary>The containment that keeps LT4a honest: BEFORE the flatten verifies, re-entry
         /// works exactly as designed. The defect is the latch, not the loop - LT-1's own fix relies
         /// on this half continuing to work, and it does.</summary>
