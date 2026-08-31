@@ -303,18 +303,42 @@ decorando.
   Dato que la hace viable: **cambiar esas constantes no toca `GuardianCore.dll`** — los bots son
   NinjaScript y compilan en `NinjaTrader.Custom.dll`, así que el binario bajo prueba no cambia.
 
-### Orden definitivo después de la prueba viva (fijado 2026-08-26)
+### Orden definitivo — REORDENADO 2026-08-31 por la conclusión del día
 
-0. **LT-1** — que sólo se cancele lo que AUMENTA exposición. **Pasó al primer lugar el 26-ago**,
-   por delante de cert-1: es el único defecto abierto que cuesta dinero. Rojo primero, y **contra un
-   doble que modele el ciclo de vida de la orden** — con el doble actual el verde vuelve a mentir.
-1. **cert-1** — acotar el certificado al día que nombra. Mecánico, con maquinaria que ya existe.
-2. **Contrato de extensión del formato, con Ventana B** — ¿el verificador tolera campos desconocidos
-   en un evento conocido, y está escrito? Si la respuesta es que no hay tolerancia, **eso es un
-   hallazgo mayor que el campo** y reordena lo que sigue.
-3. **Hash del binario en `GUARDIAN_STARTED`** — sólo después del punto 2. Nombrado por lo que
-   establece: *el hash del archivo desde el que se cargó el ensamblado*, no "el código corriendo".
-4. **`limitRespected`** — semántica, no alcance. Separado a propósito.
+> **LA AUDIBILIDAD ES INOBSERVABLE DESDE ADENTRO.** El guardián puede leer su configuración de
+> sonido, elegir el mejor camino y probar por dos vías. Lo que **no puede, por construcción y no
+> por falta de ingeniería, es saber si alguien oyó.** Ni volumen maestro, ni silencio en el
+> mezclador, ni parlantes conectados, ni si hay alguien en la habitación.
+>
+> **Por lo tanto: EL ACUSE DE RECIBO NO ES UNA MEJORA DEL CANAL, ES EL ÚNICO MECANISMO QUE CIERRA
+> LA BRECHA.** Sonido, respaldo, chequeo de salud y panel que grita son todos **mejores intentos**;
+> ninguno convierte la promesa en verificable. Sólo el acuse lo hace, porque **es el único que
+> produce una señal DESDE la persona en vez de HACIA ella.**
+
+Eso mueve el contrato de extensión del sexto lugar al camino crítico del defecto número uno.
+
+0. ~~**LT-1**~~ **ARREGLADO 26-ago**, y ~~**LT-4**~~ **ARREGLADO 31-ago** (opción A + C).
+1. **EL CANAL** — sonido (`Globals.PlaySound(Announcement)`, cadencia inmediata + 5 min, plano) y
+   **chequeo de salud** con su contención de vocabulario. **No bloqueado por nada: se puede ya.**
+   Diseño cerrado en `docs/proposals/the-channel-20260831.md`.
+2. **CONTRATO DE EXTENSIÓN con Ventana B — AHORA EN EL CAMINO CRÍTICO.** Sin él no hay acuse, y sin
+   acuse el canal sigue sin ruta de falla. **Y lo que se lleva no es un pedido, es la razón entera**:
+   no es *"necesito un campo"*, es que **el formato tiene que decidir si admite HECHOS SOBRE LA
+   INTERACCIÓN CON EL HUMANO además de hechos sobre la cuenta.** Esa decisión se toma **una vez** y
+   condiciona todo lo que venga: el acuse, el hash en `GUARDIAN_STARTED`, y lo que pida el acotado
+   del certificado.
+3. **ACUSE DE RECIBO** — bloqueado por el 2.
+4. **cert-1** — acotar el certificado al día que nombra. Mecánico, con maquinaria que ya existe.
+5. **Hash del binario en `GUARDIAN_STARTED`** — sólo después del 2. Nombrado por lo que establece:
+   *el hash del archivo desde el que se cargó el ensamblado*, no "el código corriendo".
+6. **`limitRespected`** — semántica, no alcance. Separado a propósito.
+
+**Nota para quien implemente el chequeo de salud**: en la máquina de Roberto el canal está **sano**
+(31-ago: `SoundVolumeSerialize` 50, `Announcement.wav` presente, los 13 archivos existen). Eso
+significa que va a funcionar para él desde el primer día — **y que la máquina de desarrollo no va a
+producir sola el caso roto.** La contención necesita un test que **simule** el canal degradado:
+volumen cero, ruta vacía, y ruta no vacía apuntando a un archivo inexistente (que es el peor,
+porque parece configurado).
 
 **El `.deploy-pin` quedó DESCARTADO**: con el pin puesto y sin correr el instalador —lo que pasó hoy—
 no habría hecho nada. Regla que deja: **un freno cuyo arreglo habitual es "desactivalo" ya dejó de ser
