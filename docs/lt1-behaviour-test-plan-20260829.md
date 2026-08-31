@@ -419,6 +419,43 @@ en el plan mismo, no descubrirlo el día de la corrida.
 | 9 | Roberto | Poner `botA.GO` y dejar correr. |
 | 10 | ambos | Observar contra §4 y §7. |
 | 11 | Claude | Informe con la traza real. Certificado del día. |
-| 12 | — | Después de las **17:00 CT**: restaurar `config.json` a $600, rearmar, reponer `soak.GO`. |
+| 12 | Claude | **LA RESTAURACIÓN.** Ver §11 — es un paso, no una nota al pie. |
+
+---
+
+## 11. PASO 12 — la restauración, escrita ANTES de necesitarla
+
+**Se escribe ahora porque a las 17:00 CT vamos a estar leyendo resultados**, y un paso que se
+improvisa mientras se discute otra cosa es el paso que sale mal. La edición de `config.json` es la
+única acción de esta corrida que deja producción distinta de como la encontró.
+
+**No se ejecuta ni un segundo antes de que el sello expire.** Con sello vigente, restaurar el límite
+más duro se registra como `CONFIG_TAMPERED` — una acusación falsa y permanente en la cadena.
+
+### La condición de entrada, verificable y no cronometrada
+
+No basta con que el reloj diga 17:00. La condición es que **el ledger contenga `SEAL_EXPIRED` con
+`dayKey 2026-08-31`**, seguido de `DAY_CLOSED` y `DISARMED`. Hasta que esas tres líneas existan, el
+sello está vigente aunque el reloj diga otra cosa.
+
+### Los pasos
+
+| | qué | verificación |
+|---|---|---|
+| 12.1 | confirmar `SEAL_EXPIRED`/`DAY_CLOSED`/`DISARMED` con `dayKey 2026-08-31` en el ledger | las tres presentes, o **no se sigue** |
+| 12.2 | confirmar `state.json` en `"state":"DISARMED"` y **sin clave `seal`** | ídem |
+| 12.3 | copiar `config.json.produccion-20260831` sobre `config.json` | — |
+| 12.4 | **verificar que el hash de `config.json` vuelve a `38a15089c889ac09`** | si no coincide, **parar y reportar**: significa que el respaldo no era el original |
+| 12.5 | confirmar `personalDailyLossLimit` = `"600.00"` leyendo el archivo | — |
+| 12.6 | reponer `soak.GO` renombrando `soak.GO.parked-for-livetest` | regresión limpia, según lo acordado |
+
+`38a15089c889ac09` es el hash de producción verificado hoy 31-ago: `config.json` y
+`config.json.produccion-20260826` coinciden en ese valor, así que el número está corroborado por dos
+archivos independientes y no por una sola lectura.
+
+### Lo que NO se hace en el paso 12
+
+**No se rearma.** Volver a armar producción es una decisión aparte, con su propia comprobación de
+que el límite en vigor es el correcto, y no se toma como inercia del cierre de una prueba.
 
 **Nada del 3 al 12 se ejecuta sin tu OK sobre este plan.**
