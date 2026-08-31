@@ -206,6 +206,29 @@ decorando.
   (`DeadmanGuardianAddOn.cs:32-33`). La clase de la casa en forma de esquema — claves que afirman
   configurar algo que no configuran. Consecuencia concreta: una sesión de prueba no se puede desviar
   a un ledger aparte (ver `docs/proposals/live-production-breach-test.md`).
+- **CANDIDATO — un guardián que no puede escribir su estado reporta CERO pérdida, no "no sé"**
+  (observado 31-ago en la corrida de LT-1; planteado por Roberto). El guardián **sandbox** de BOT A
+  entró en fail-closed por contención de archivo sobre su propio temporal de escritura atómica:
+  > `FAIL_CLOSED_CLEARED` … `previousReason: "state is not writable: El proceso no puede obtener`
+  > `acceso al archivo '…\runs\botA-20260831-140706\state.json.tmp' porque está siendo utilizado en`
+  > `otro proceso."`
+
+  Mientras tanto, el log de BOT A imprimió `sandbox dayLoss=0.00` en las vueltas 5, 10, 15, 20, 25,
+  30, 35 y **40** — ocho lecturas seguidas. A las 14:10:22 el fail-closed se levantó y la vuelta 45
+  imprimió **`37.50`**. El **primer** `PNL_CHECKPOINT` del sandbox es el de las 14:10:22
+  (`trigger: "transition"`, `dayLoss 37.50`): durante todo el fail-closed **no escribió ninguno**.
+  > *Un guardián que no puede escribir su estado reporta cero pérdida — no "no sé", **cero**.*
+
+  **Misma familia que [la rama "trivially established"] y que LT-2**: el elemento neutro ocupando el
+  lugar de una ausencia. **Lo que NO está verificado y hay que establecer primero**: el `0.00` sale
+  del log de BOT A, no del ledger del guardián, así que falta saber **cuál de los dos componentes lo
+  produce** — el accesor del bot devolviendo su default, o el snapshot del guardián devolviendo cero
+  estando fail-closed. Son defectos distintos y no se diseña encima hasta saberlo.
+  **Tampoco está atribuida la contención**: quién tenía tomado el `.tmp` no se estableció. El mismo
+  patrón de escritura atómica se observó en producción el 31-ago a las 11:20, con el `.tmp` visible a
+  mitad de camino.
+  **No afecta nada de lo verificado el 31-ago**: producción usa sus propios archivos y su ledger
+  registra los checkpoints completos.
 - **CANDIDATO, no defecto confirmado — la rama "trivially established" del baseline** (anotado
   31-ago, planteado por Roberto). En `TryAdoptBaseline`:
   `if (c == null && p == 0m) { adopted = 0m; }   // nothing happened; trivially established`
