@@ -236,8 +236,14 @@ namespace GuardianCore
             }
             if (CheckExpiry()) return;
 
-            // 5. a lockout that was interrupted resumes here (SPEC 9, G7).
-            if (_state.Kind == StateKind.Locked && !_state.LockoutVerified) RunLockoutSteps();
+            // 5. a lockout that was interrupted resumes here (SPEC 9, G7). LT-4 adds the other way in:
+            // a process that restarts to a LOCKED-and-verified state while a position stands must not
+            // trust the flag over the account.
+            if (_state.Kind == StateKind.Locked)
+            {
+                ReopenLockoutIfExposureReturned();
+                if (!_state.LockoutVerified) RunLockoutSteps();
+            }
 
             // 6. restart baseline (Option A, M2/M3). A same-day seal means the platform remembers a
             // session this process has no memory of. The book must be re-seeded from a corroborated
@@ -632,6 +638,7 @@ namespace GuardianCore
 
             if (_state.Kind == StateKind.Locked)
             {
+                ReopenLockoutIfExposureReturned();      // LT-4
                 if (!_state.LockoutVerified) RunLockoutSteps();
                 Persist();
                 return;
@@ -889,6 +896,67 @@ namespace GuardianCore
             SweepRestingOrders();            // step 2, ONCE - see the method
             RunLockoutSteps();
             Persist();
+        }
+
+        /// <summary>LT-4, 2026-08-31. Enforcement had ONE leg and we removed the other one.
+        ///
+        /// LockoutVerified was never a "we are done enforcing" flag - the archaeology says so. It
+        /// arrived with G7 (commit de3aacd) to answer "is there still a flatten to finish", so a
+        /// process killed mid-flatten resumes and completes it. The SAME commit carried the other
+        /// leg: "every order seen while LOCKED is cancelled and recorded, the fifth one exactly like
+        /// the first". The latch was safe BECAUSE observation cancelled.
+        ///
+        /// LT-1 removed the cancelling leg - correctly, it was blind and it killed the guardian's own
+        /// flatten orders and the trader's exits - and nothing replaced it. So after the first
+        /// verified flatten the guardian stopped acting entirely, while its own message told a real
+        /// person "Any new order will be cancelled until 17:00". LT4d proves that sentence false.
+        ///
+        /// THE FIX REACHES FOR THE MECHANISM THAT REDUCES EXPOSURE, NEVER FOR THE ONE THAT DESTROYS
+        /// ORDERS. Re-entering RunLockoutSteps re-FLATTENS; it cannot re-sweep, because the blind
+        /// sweep lives in EnterLockout and only there (LT1c pins it). That is why this is not LT-1
+        /// coming back: the naive repair - stop returning early, sweep every tick - is LT-1 exactly,
+        /// and it is unreachable from here by construction rather than by discipline.
+        ///
+        /// Option B (targeted cancellation through an optional port) was evaluated and DEFERRED on
+        /// 2026-08-31, with its trigger written down: reconsider when the LEDGER shows repeated
+        /// reopening under lockout. With no pre-submit veto in NT8 (2,912 types scanned,
+        /// STEP3_FINDINGS section 4) no version of this product can prevent a fill, so B buys latency,
+        /// not a different promise - while its failure mode is destroying a protective stop, which is
+        /// worse than the problem it fixes.
+        ///
+        /// FlattenAttempts resets because new exposure is a NEW episode. Without it the counter is
+        /// already at MaxFlattenAttempts and the first re-flatten would report exhausted:true, firing
+        /// "CLOSE IT YOURSELF NOW" at a person whose position is closing correctly.
+        ///
+        /// No new ledger event: the extension contract with Ventana B is still open, and an unknown
+        /// EVENT is a bigger ask than an unknown field. The re-engagement evidences itself - a
+        /// FLATTEN_REQUESTED after a FLATTEN_VERIFIED is exactly what it looks like.</summary>
+        private void ReopenLockoutIfExposureReturned()
+        {
+            if (!_state.LockoutVerified) return;
+
+            var accounts = _config?.Accounts ?? (IReadOnlyList<string>)new List<string>();
+            foreach (var account in accounts)
+            {
+                IReadOnlyList<PositionSnapshot> positions;
+                try { positions = _broker.GetPositions(account); }
+                catch (Exception ex)
+                {
+                    // Cannot read the account: say so and try again next tick. Not un-latching here
+                    // is the conservative half - RunLockoutSteps would re-read and find nothing
+                    // anyway - but a silent failure would be the thing this project refuses.
+                    Log(Ev.LockoutIncomplete, JsonValue.Obj()
+                        .Set("account", account).Set("step", "exposure-check").Set("error", ex.Message));
+                    continue;
+                }
+
+                if (positions != null && positions.Any(p => p.Quantity != 0))
+                {
+                    _state.LockoutVerified = false;
+                    _state.FlattenAttempts = 0;
+                    return;
+                }
+            }
         }
 
         /// <summary>Clears the orders resting AT the moment the lockout begins. It lives here, and not

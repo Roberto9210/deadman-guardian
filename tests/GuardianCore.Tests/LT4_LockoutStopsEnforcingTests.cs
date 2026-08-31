@@ -72,6 +72,7 @@ namespace GuardianCore.Tests
 
             Assert.Contains(Ev.FlattenVerified, h.Events());
             Assert.Equal(0, broker.PositionOf(Harness.Account, Harness.Instrument));
+            var flattensAtVerification = h.Events().Count(e => e == Ev.FlattenRequested);
 
             // The trader is locked out and sends a market order anyway. It fills, because nothing in
             // NT8 can stop it - that is the detect-and-cancel window this product is honest about.
@@ -81,19 +82,34 @@ namespace GuardianCore.Tests
 
             h.Guardian.OnOrderObserved(broker.SnapshotOf(after));
             h.Guardian.Tick();
-            h.Guardian.Tick();
-            h.Guardian.Tick();
 
-            // Still locked, still says so - and the position is still there. THE DEFECT.
+            // FIXED 2026-08-31. It used to assert the position was STILL THERE - the defect - and
+            // when the fix landed it stayed green, which is why it is rewritten rather than deleted:
+            // it went on passing because the test never FILLS the re-flatten order, and
+            // OrderLifecycleBroker does not move a position until it is filled. Three flattens were
+            // being requested and none filled. A GREEN THAT MEANT THE OPPOSITE OF WHAT IT SAID -
+            // exactly the double-simplifies-reality family this file's header warns about.
+            //
+            // So it asserts what the GUARDIAN controls: the latch reopened and a flatten was asked
+            // for. Whether it fills is the venue's half, and LT4e carries that end to end.
             Assert.Equal(StateKind.Locked, h.Guardian.Status.Kind);
-            Assert.Equal(1, broker.PositionOf(Harness.Account, Harness.Instrument));
+            Assert.True(h.Events().Count(e => e == Ev.FlattenRequested) > flattensAtVerification,
+                        "exposure returned and the guardian did not even ask for a flatten - LT-4");
         }
 
-        /// <summary>The mechanism, isolated from the position: after the verified flatten, no further
-        /// FLATTEN_REQUESTED is ever written however many ticks pass. This is the one that says WHY
-        /// LT4a fails rather than just that it does.</summary>
+        /// <summary>REWRITTEN 2026-08-31, and it is now THE CONTAINMENT ON THE FIX rather than a
+        /// record of the defect.
+        ///
+        /// It used to assert that no further flatten is ever attempted after the first verified one -
+        /// LT-4 itself - and it went red the moment the fix landed, which is the convention working.
+        ///
+        /// What it guards now is the fix's own failure mode. Option A was chosen partly BECAUSE it
+        /// fails noisily - repeated flattens - rather than destructively. "Noisy" is only acceptable
+        /// while it stays proportionate: re-flattening an account that is already flat, every tick,
+        /// until the seal expires, would be a flatten storm against the venue and a ledger nobody can
+        /// read. The reopen must be driven by EXPOSURE, not by being Locked.</summary>
         [Fact]
-        public void LT4b_No_further_flatten_is_even_attempted_after_the_first_verified_one()
+        public void LT4b_A_flat_account_is_not_re_flattened_however_many_ticks_pass()
         {
             var h = new Harness();
             var broker = new OrderLifecycleBroker();
@@ -106,13 +122,69 @@ namespace GuardianCore.Tests
             broker.Fill(broker.LastFlattenOrder().OrderId);
             h.Guardian.Tick();
 
-            var flattensAtVerification = h.Events().Count(e => e == Ev.FlattenRequested);
+            var flattensWhenVerified = h.Events().Count(e => e == Ev.FlattenRequested);
+            Assert.Contains(Ev.FlattenVerified, h.Events());
+            Assert.Equal(0, broker.PositionOf(Harness.Account, Harness.Instrument));
+
+            for (int i = 0; i < 10; i++) h.Guardian.Tick();     // ten ticks, still flat
+
+            Assert.Equal(StateKind.Locked, h.Guardian.Status.Kind);
+            Assert.Equal(flattensWhenVerified, h.Events().Count(e => e == Ev.FlattenRequested));
+            Assert.Equal(1, broker.CancelAllCalls);             // and still exactly one blind sweep
+        }
+
+        /// <summary>THE FIX. Written red, before the code, and it is LT4a's reciprocal.
+        ///
+        /// Exposure that appears AFTER the flatten verified is closed by the next cycle - which is
+        /// what the LT-1 fix's own comment always claimed and what LT4a proved was not true.
+        ///
+        /// THE THIRD ASSERT IS THE POINT AND IT SHIPS WITH THE FIRST COMMIT, not after: the naive
+        /// repair for LT-4 - stop returning early while Locked, sweep on every tick - IS LT-1. A
+        /// repeated blind CancelAllOrders destroys exactly what M1's comment named, "a protective
+        /// stop, on an account that may hold real money". Continuous enforcement and blind
+        /// cancellation are not the same thing, and this test is where they stay separated.
+        ///
+        /// What makes the separation structural rather than remembered: the sweep lives in
+        /// EnterLockout, not in RunLockoutSteps (LT1c pins that). Re-entering the steps therefore
+        /// re-flattens and CANNOT re-sweep - so the fix reaches for the mechanism that reduces
+        /// exposure and never for the one that destroys orders.</summary>
+        [Fact]
+        public void LT4e_Exposure_opened_after_the_verified_flatten_is_closed_by_the_next_cycle()
+        {
+            var h = new Harness();
+            var broker = new OrderLifecycleBroker();
+            h.BrokerOverride = broker;
+            h.Armed("600.00");
+            broker.SetPosition(Harness.Account, Harness.Instrument, 1);
+            h.LoseExactly(600.00m);
+
+            h.Guardian.Tick();                                   // breach -> sweep once -> flatten
+            broker.Fill(broker.LastFlattenOrder().OrderId);
+            h.Guardian.Tick();                                   // verified
             Assert.Contains(Ev.FlattenVerified, h.Events());
 
-            broker.SetPosition(Harness.Account, Harness.Instrument, 2);   // exposure, by any route
-            for (int i = 0; i < 10; i++) h.Guardian.Tick();
+            var flattensBefore = h.Events().Count(e => e == Ev.FlattenRequested);
+            var sweepsAtLockout = broker.CancelAllCalls;
 
-            Assert.Equal(flattensAtVerification, h.Events().Count(e => e == Ev.FlattenRequested));
+            // A market order the guardian could not prevent - NT8 has no pre-submit veto - fills and
+            // opens exposure while LOCKED.
+            var after = broker.PlaceTraderOrder(Harness.Account, Harness.Instrument, "Buy", 1);
+            broker.Fill(after);
+            Assert.Equal(1, broker.PositionOf(Harness.Account, Harness.Instrument));
+
+            h.Guardian.OnOrderObserved(broker.SnapshotOf(after));
+            h.Guardian.Tick();                                   // the next cycle notices and flattens
+            var reflatten = broker.LastFlattenOrder();
+            Assert.NotNull(reflatten);
+            broker.Fill(reflatten.OrderId);
+            h.Guardian.Tick();                                   // and verifies again
+
+            Assert.True(h.Events().Count(e => e == Ev.FlattenRequested) > flattensBefore,
+                        "no further flatten was even attempted - LT-4");
+            Assert.Equal(0, broker.PositionOf(Harness.Account, Harness.Instrument));
+
+            // THE CONTAINMENT. Not one blind sweep more than the single one at lockout.
+            Assert.Equal(sweepsAtLockout, broker.CancelAllCalls);
         }
 
         /// <summary>THE ONE THAT MAKES LT-4 A BROKEN PROMISE RATHER THAN A GAP.
