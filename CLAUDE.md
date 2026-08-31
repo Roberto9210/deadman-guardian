@@ -333,6 +333,20 @@ Eso mueve el contrato de extensión del sexto lugar al camino crítico del defec
    *el hash del archivo desde el que se cargó el ensamblado*, no "el código corriendo".
 6. **`limitRespected`** — semántica, no alcance. Separado a propósito.
 
+**ENCOLADO tras el canal, y NO construido todavía — `docs/` (lista viva, no regla)**:
+**INVENTARIO DE LAS CONDICIONES QUE ESTA MÁQUINA NO PUEDE PRODUCIR.** Cada entrada: la condición,
+por qué esta máquina no la produce, y si hay test que la simule. Es la regla del doble de prueba
+vista desde otra altura — *el doble difiere del mundo; la MÁQUINA difiere del campo, y lo que no
+puede producir es invisible* — y a diferencia de la primera tiene corolario accionable.
+**Es además el registro de riesgos de la beta**: el conjunto exacto de cosas que un desconocido va
+a encontrar en su primera semana y que Roberto no encontró en tres.
+**Su trabajo real, verificado el 31-ago al comprobar la lista contra la tabla**: separar
+*"abierto porque nadie lo vio"* de *"abierto porque se decidió"*, que en una tabla de defectos se
+ven idénticos y son riesgos distintos. La marca está en la propia fila — **M4** (*"sin medir"*),
+**M7** (*"sin evidencia"*) y **M21** (*"una vez por instalación"*) son del primer tipo; **M5**,
+**M20** y sobre todo **M6** (*"diseñado así; **ocurrió varias veces**"*) son del segundo, y M6 es el
+contraejemplo que impide leer el patrón como universal.
+
 **Nota para quien implemente el chequeo de salud**: en la máquina de Roberto el canal está **sano**
 (31-ago: `SoundVolumeSerialize` 50, `Announcement.wav` presente, los 13 archivos existen). Eso
 significa que va a funcionar para él desde el primer día — **y que la máquina de desarrollo no va a
