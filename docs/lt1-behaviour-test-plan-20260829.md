@@ -402,6 +402,33 @@ la máquina, en pasos que ya estaban aprobados.
 éste, y es el que el siguiente exige?* — y donde la respuesta no esté verificada, decir "no verificado"
 en el plan mismo, no descubrirlo el día de la corrida.
 
+## 9c. REGLA — anclar toda comprobación sobre el ledger a una secuencia, nunca a `tail -N`
+
+También va a `CLAUDE.md` al cerrar la corrida. La pagó un paso en falso del 31-ago: esperando el
+primer `PNL_CHECKPOINT` posterior al arme, la espera se escribió como
+
+```
+tail -20 ledger.jsonl | grep -c 'PNL_CHECKPOINT'
+```
+
+y salió verde **en el primer ciclo**, contra los checkpoints del 28-ago que seguían dentro de esa
+ventana. La afirmación era literalmente cierta —había `PNL_CHECKPOINT` en las últimas 20 líneas— y
+hablaba de un conjunto que no era ése.
+
+> **Toda comprobación sobre un log append-only se ancla a una SECUENCIA o a una MARCA DE TIEMPO,
+> nunca a un conteo de líneas.**
+>
+> `tail -N` es una ventana cuyo contenido depende de cuánto pasó — que es exactamente la cantidad que
+> la comprobación pretende medir. **El chequeo y su objeto se mueven juntos**, y por eso el chequeo
+> siempre puede salir verde por el motivo equivocado.
+>
+> **`seq > 7978` es una pregunta. `tail -20` es una coincidencia con buena suerte.**
+
+Lo que enseña más allá del comando: es el subtipo *"una afirmación cierta sobre el conjunto
+equivocado"* en tres palabras de shell, escrito por quien llevaba el día entero cazándolo. **El
+cuidado no alcanza** — por eso la regla de la casa es verificar contra el dato real y no redactar el
+chequeo con más atención.
+
 ---
 
 ## 10. Los pasos, en orden
