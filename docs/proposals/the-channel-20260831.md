@@ -99,11 +99,78 @@ Falla en silencio — y ahora es detectable.
 
 **Y el producto puede DECIRLO en el panel:**
 
-> *Intenté avisarte con un sonido y tu volumen está en cero.*
+> *Tu volumen de NinjaTrader está en cero, así que no vas a escuchar nada.*
 
 **Es el guardián informando sobre la salud de su propio canal**, que es exactamente lo contrario
 de lo que hacía esta mañana: creer que había avisado. Convierte una parte de lo inobservable en
 observable **sin pedirle nada al humano**.
+
+### El chequeo mira el ARCHIVO, no sólo el ajuste
+
+`SoundAnnouncement` es un `String`. **Una ruta no vacía que apunta a un archivo inexistente es un
+default plausible mintiendo — y es PEOR que una cadena vacía, porque parece configurada.** El
+chequeo verifica que el archivo exista en disco, no que el ajuste tenga contenido.
+
+**Estado real en la máquina de Roberto, 31-ago** (leído de `Config.xml`): `SoundVolumeSerialize`
+en **50**, `SoundAnnouncement` → `...\sounds\Announcement.wav`, **presente**. Los 13 archivos de
+sonido configurados existen, incluidos los del subdirectorio `es-ES`. **El canal está sano hoy y
+el chequeo pasaría.**
+
+### CONTENCIÓN: el texto dice qué se CHEQUEÓ, nunca qué se concluyó
+
+Leer `SoundVolume` dice cuál es **la configuración**, no si alguien oyó. Volumen en 50 y sonido
+inaudible son perfectamente compatibles: los parlantes pueden estar desenchufados, el dispositivo
+de salida puede apuntar a otro lado, los auriculares pueden estar colgados de una silla.
+
+| | |
+|---|---|
+| **bien** | *"tu volumen de NinjaTrader está en cero, así que no vas a escuchar nada"* |
+| **mal** | *"te avisé con un sonido"* |
+| **mal** | *"el canal de audio funciona"* |
+
+**Sería la clase de la casa estrenándose en la función que construimos justamente para
+arreglarla.** Va con test propio, con la misma forma que la prohibición de vocabulario de los
+mensajes: prohibidas las construcciones `"I warned you"`, `"you were notified"`, `"you will
+hear"`, `"the audio channel works"`, `"the sound was delivered"`.
+
+---
+
+### El chequeo no sólo informa: ELIGE
+
+Los dos caminos de sonido tienen propiedades opuestas:
+
+| | respeta la config del usuario | por eso |
+|---|---|---|
+| `Globals.PlaySound(Announcement, …)` | **sí** | **puede estar rota** |
+| `SystemSounds.Exclamation.Play()` | **no** — ignora la config de NT8 | **casi siempre suena** |
+
+Elegir uno de antemano es aceptar su defecto. **El chequeo de salud es el dato que permite decidir
+en el momento:**
+
+- **canal de NT8 sano** ⇒ usarlo. Es lo que el trader configuró y merece respeto.
+- **canal degradado** ⇒ `SystemSounds`, **y decirlo en el panel**.
+
+Con eso el chequeo deja de ser un reporte y pasa a ser un **respaldo**: el producto respeta la
+configuración del trader cuando puede confiar en ella, y tiene una salida cuando no —
+en vez de respetarla hasta el silencio.
+
+### Y el respaldo NO se promete, porque no se puede verificar
+
+**Lo que el add-on PUEDE observar**: la configuración de sonido de NT8 — volumen y archivo.
+
+**Lo que NO puede observar, y es casi todo lo que decide si algo se oye**: el volumen maestro de
+Windows, si NT8 está silenciado en el mezclador de aplicaciones, si hay parlantes conectados, a
+qué dispositivo sale el audio, y si hay alguien en la habitación.
+
+**Pregunta abierta y NO VERIFICADA**: si `SystemSounds` sale por la sesión *"Sonidos del sistema"*
+del mezclador o por la sesión del proceso que lo llama. Si fuera lo segundo y NT8 estuviera
+silenciado en el mezclador, **el respaldo tampoco sonaría**. Intenté establecerlo por reflexión
+sobre `System.Media.SystemSound` y no lo conseguí: el P/Invoke no está en los tipos que inspeccioné.
+
+**No cambia el diseño, y ése es el punto**: en cualquiera de los dos casos la audibilidad es
+inobservable desde el add-on. Así que el respaldo se describe siempre como **un segundo intento
+por otra vía**, jamás como *"esto lo vas a escuchar"*. La misma contención de arriba, aplicada a la
+pieza que la tentación de prometer es mayor.
 
 ---
 
