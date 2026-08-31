@@ -21,6 +21,7 @@
 // position would only lengthen the interval between re-tidyings from one second to one F5.
 
 using System;
+using GuardianCore;   // StateKind only - this file still references no NinjaTrader type
 
 namespace NinjaTrader.NinjaScript.AddOns.DeadmanGuardian
 {
@@ -78,7 +79,43 @@ namespace NinjaTrader.NinjaScript.AddOns.DeadmanGuardian
         }
     }
 
-    /// <summary>The panel's remembered comfort settings: WHERE the trader put it, and later whether
+    /// <summary>Whether the panel may be reduced to a strip, and whether that choice is remembered.
+    ///
+    /// Pure, and here rather than in the window, for the reason every rule in this codebase is
+    /// extracted: deciding and consulting the world must not be the same code.
+    ///
+    /// TWO STATES MAY NOT COLLAPSE, and the second was nearly missed. The one that needs a human is
+    /// obvious. FailClosed is the one that hides: the guardian is BLIND, and this panel is the only
+    /// sign that the trader is not protected. It is arguably worse than needing a human - there he
+    /// knows his day is over; here he believes he has a brake and does not.
+    ///
+    /// It was missed on the first pass because the review looked at the state that SHOUTS and not at
+    /// the one that is QUIET. "THE GUARDIAN NEEDS YOU" is an imperative in capitals; "CANNOT SEE YOUR
+    /// ACCOUNT" describes a condition and so reads as informational. URGENCY OF TONE IS NOT THE SAME
+    /// AS WHAT IS AT STAKE.</summary>
+    public static class PanelCollapse
+    {
+        public static bool MayCollapse(StateKind kind, bool needsHuman, string reason)
+        {
+            if (needsHuman) return false;
+            if (kind == StateKind.FailClosed) return false;   // blind, or M22: both may stand for hours
+            return true;
+        }
+
+        /// <summary>Collapsed is remembered - except into DISARMED, and that exception is the whole
+        /// product. Collapse on Tuesday, the session close leaves it DISARMED, and on Wednesday
+        /// NinjaTrader opens to a strip reading NOT ARMED that asks for nothing. The guardian becomes
+        /// furniture. This product depends on ONE VOLUNTARY ACT PER DAY, and hiding its only button
+        /// behind a click nobody remembers is how a commitment device stops being used - with nobody
+        /// uninstalling it and nobody deciding to abandon it. Every day starts with the product
+        /// asking for its own.</summary>
+        public static bool RemembersCollapsed(StateKind kind)
+        {
+            return kind != StateKind.Disarmed;
+        }
+    }
+
+    /// <summary>The panel's remembered comfort settings: WHERE the trader put it, and whether
     /// they collapsed it.
     ///
     /// DELIBERATELY NOT config.json. That file is SEALED and belongs to the commitment; this one

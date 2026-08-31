@@ -517,7 +517,8 @@ namespace NinjaTrader.NinjaScript.AddOns
                     HasSeal = s.Sealed,
                     Until = Messages.Until(_guardian.SealedSessionResetLocalTime, _guardian.SealedSessionResetTimeZone),
                     ConfigPath = ConfigPath,
-                    NeedsHuman = _guardian.LockoutNeedsHuman
+                    NeedsHuman = _guardian.LockoutNeedsHuman,
+                    Limit = _guardian.SealedPersonalDailyLossLimit
                 };
             }
         }
@@ -581,6 +582,10 @@ namespace NinjaTrader.NinjaScript.AddOns
             /// <summary>LT-4 / candidate 8. Derived in Core from state that is already persisted, so
             /// it survives a restart - an adapter-side flag would be the LT-2 family again.</summary>
             public bool NeedsHuman;
+
+            /// <summary>From the SEALED config, so it is right after a restore. Nullable because an
+            /// absent figure is suppressed rather than printed as $0.00 (LT-2).</summary>
+            public decimal? Limit;
         }
 
         private readonly Func<string> _arm;
@@ -595,6 +600,10 @@ namespace NinjaTrader.NinjaScript.AddOns
         private readonly Action<UiPrefs> _savePrefs;
         private double _appliedWidth;
         private bool _repositioning;      // true while WE move it, so our own move is not saved as theirs
+        private readonly TextBlock _strip = new TextBlock();
+        private readonly Button _collapseButton = new Button();
+        private bool _collapsed;
+        private bool _stripAllowed = true;
 
         public GuardianStatusWindow(Func<string> arm, Func<string> export,
                                     Func<UiPrefs> loadPrefs, Action<UiPrefs> savePrefs)
@@ -636,6 +645,7 @@ namespace NinjaTrader.NinjaScript.AddOns
             Left = start.Left;
             Top = start.Top;
             _appliedWidth = Width;
+            _collapsed = prefs.Collapsed;
 
             // Saved on every move rather than on close, because the process can end without one -
             // an F5, a crash, or NinjaTrader going away. A preference kept only in memory is a
@@ -643,7 +653,7 @@ namespace NinjaTrader.NinjaScript.AddOns
             LocationChanged += (s, e) =>
             {
                 if (_repositioning || _savePrefs == null) return;
-                _savePrefs(new UiPrefs { Left = Left, Top = Top });
+                SavePrefs();
             };
 
             _headline.FontSize = 22;
@@ -670,6 +680,24 @@ namespace NinjaTrader.NinjaScript.AddOns
                 if (error != null) _detail.Text = "Not armed: " + error;
             };
 
+            // The strip: what stays on screen when the trader takes their desktop back. It is a
+            // button so it is obviously clickable - a line of text that silently expands is a line of
+            // text nobody discovers.
+            _strip.FontSize = 13;
+            _strip.FontWeight = FontWeights.Bold;
+            _strip.Foreground = Brushes.White;
+            _strip.TextWrapping = TextWrapping.NoWrap;
+            _strip.Visibility = Visibility.Collapsed;
+            _strip.Cursor = System.Windows.Input.Cursors.Hand;
+            _strip.MouseLeftButtonUp += (s, e) => SetCollapsed(false);
+
+            _collapseButton.Content = "-";
+            _collapseButton.Width = 22;
+            _collapseButton.Padding = new Thickness(0);
+            _collapseButton.HorizontalAlignment = HorizontalAlignment.Right;
+            _collapseButton.ToolTip = "Shrink to a strip. It stays on screen.";
+            _collapseButton.Click += (s, e) => SetCollapsed(true);
+
             _exportButton.Content = "Export my day";
             _exportButton.Margin = new Thickness(0, 6, 0, 0);
             _exportButton.Padding = new Thickness(8, 3, 8, 3);
@@ -684,6 +712,8 @@ namespace NinjaTrader.NinjaScript.AddOns
             };
 
             var panel = new StackPanel { Margin = new Thickness(14, 14, 14, 18) };
+            panel.Children.Add(_strip);
+            panel.Children.Add(_collapseButton);
             panel.Children.Add(_headline);
             panel.Children.Add(_detail);
             panel.Children.Add(_countdown);
@@ -692,6 +722,54 @@ namespace NinjaTrader.NinjaScript.AddOns
 
             _root.Child = panel;
             Content = _root;
+        }
+
+        /// <summary>Collapse to a strip, or come back. The strip STAYS ON SCREEN - it is not a
+        /// minimise. Minimising to the taskbar would send the only channel that reaches this trader
+        /// into nothing, which is candidate 9 with an official button instead of the X.</summary>
+        private void SetCollapsed(bool collapsed)
+        {
+            _collapsed = collapsed;
+            ApplyCollapsed();
+            SavePrefs();
+        }
+
+        private void ApplyCollapsed()
+        {
+            var showStrip = _collapsed ? Visibility.Visible : Visibility.Collapsed;
+            var showFull = _collapsed ? Visibility.Collapsed : Visibility.Visible;
+
+            _strip.Visibility = showStrip;
+            _headline.Visibility = showFull;
+            _detail.Visibility = showFull;
+            _countdown.Visibility = showFull;
+            // HIDDEN, never disabled, where collapsing is refused. A button that does not respond
+            // reads as a broken product; an absent one reads as a state that does not offer it.
+            _collapseButton.Visibility = (showFull == Visibility.Visible && _stripAllowed)
+                ? Visibility.Visible : Visibility.Collapsed;
+            if (_collapsed) { _armButton.Visibility = Visibility.Collapsed;
+                              _exportButton.Visibility = Visibility.Collapsed; }
+            else if (_exportButton.Visibility != Visibility.Visible) _exportButton.Visibility = Visibility.Visible;
+
+            if (_collapsed)
+            {
+                SizeToContent = SizeToContent.Manual;
+                MinHeight = 0;
+                Height = 40;
+            }
+            else
+            {
+                MinHeight = 190;
+                SizeToContent = SizeToContent.Height;
+            }
+        }
+
+        /// <summary>One writer for the comfort file, so position and collapsed can never be saved
+        /// separately and disagree.</summary>
+        private void SavePrefs()
+        {
+            if (_savePrefs == null) return;
+            _savePrefs(new UiPrefs { Left = Left, Top = Top, Collapsed = _collapsed });
         }
 
         /// <summary>Resize WITHOUT moving house. The first draft recomputed Left from the corner of
@@ -732,6 +810,19 @@ namespace NinjaTrader.NinjaScript.AddOns
             // Free channel, read without switching windows - and until 2026-08-31 it was the constant
             // "deadman-guardian", which tells the reader only what they already know.
             Title = Messages.WindowTitle(v.Kind, v.NeedsHuman);
+
+            // AUTO-EXPAND, and it is not a courtesy. Two states may not be a strip in a corner: the
+            // one that needs a person, and the one where the guardian is BLIND - there the trader
+            // believes he has a brake and does not, which is worse than knowing his day is over. If
+            // the panel is collapsed when either arrives, it opens itself.
+            _stripAllowed = PanelCollapse.MayCollapse(v.Kind, v.NeedsHuman, v.Reason);
+            if (_collapsed && !_stripAllowed) _collapsed = false;
+
+            // And DISARMED always opens. Collapse on Tuesday, the session close leaves it DISARMED,
+            // and Wednesday would open to a strip reading NOT ARMED that asks for nothing - a product
+            // that depends on one voluntary act per day, with its only button behind a click nobody
+            // remembers. Every day starts with the product asking for its own.
+            if (!PanelCollapse.RemembersCollapsed(v.Kind)) _collapsed = false;
 
             switch (v.Kind)
             {
@@ -806,6 +897,11 @@ namespace NinjaTrader.NinjaScript.AddOns
                     _armButton.Visibility = Visibility.Visible;
                     break;
             }
+
+            // AFTER the switch on purpose: the switch sets button visibility per state, and the
+            // collapsed panel has no buttons at all.
+            _strip.Text = Messages.Strip(v.Kind, v.NeedsHuman, v.Reason, v.Limit, v.Until);
+            ApplyCollapsed();
 
             if (v.SecondsToExpiry >= 0)
             {

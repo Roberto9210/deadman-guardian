@@ -127,6 +127,36 @@ namespace GuardianCore
                    "then check the platform.";
         }
 
+        /// <summary>The collapsed panel: one line that stays on screen when the trader reclaims their
+        /// desktop. It exists so that closing the panel stops being the natural way to get the screen
+        /// back - candidate 9 - and it will be read more often than anything else this product writes.
+        ///
+        /// ARMED carries the number he committed to and when it lifts. LOCKED carries only when it
+        /// lifts: A FIGURE THAT CAN BE UNKNOWN, PRINTED IN A ONE-LINE STRIP, IS THE EXACT GROUND
+        /// "$0.00" GREW FROM, and once locked the actionable fact is the time, which the guardian
+        /// always knows. Absent figures are suppressed here as everywhere else since LT-2.
+        ///
+        /// The zone travels with the time, always. It is short and tempting to cut in a strip, and
+        /// cutting it is precisely what LT-2 fixed.
+        ///
+        /// ASCII, like every string in this file - a middle dot would read better and this file has
+        /// been through patch scripts that mangle non-ASCII more than once.</summary>
+        public static string Strip(StateKind kind, bool needsHuman, string reason,
+                                   decimal? limit, string until)
+        {
+            if (needsHuman) return HeadlineNeedsYou;
+            if (kind == StateKind.FailClosed) return Headline(kind, reason);
+            if (kind == StateKind.Disarmed) return HeadlineNotArmed;
+
+            if (kind == StateKind.Locked)
+                return HeadlineLocked + (string.IsNullOrWhiteSpace(until) ? "" : " - until " + until);
+
+            var parts = HeadlineArmed;
+            if (limit.HasValue) parts += " - $" + Money.Format(limit.Value);
+            if (!string.IsNullOrWhiteSpace(until)) parts += (limit.HasValue ? " until " : " - until ") + until;
+            return parts;
+        }
+
         /// <summary>The taskbar and Alt-Tab title: the only text a person reads WITHOUT switching to
         /// the window. It was the constant "deadman-guardian" - the product's own name, which the
         /// reader already knows - so a free channel carried nothing.
