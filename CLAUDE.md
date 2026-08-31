@@ -206,6 +206,24 @@ decorando.
   (`DeadmanGuardianAddOn.cs:32-33`). La clase de la casa en forma de esquema — claves que afirman
   configurar algo que no configuran. Consecuencia concreta: una sesión de prueba no se puede desviar
   a un ledger aparte (ver `docs/proposals/live-production-breach-test.md`).
+- **CANDIDATO, no defecto confirmado — la rama "trivially established" del baseline** (anotado
+  31-ago, planteado por Roberto). En `TryAdoptBaseline`:
+  `if (c == null && p == 0m) { adopted = 0m; }   // nothing happened; trivially established`
+  > *Es una adopción de una sola fuente vestida de sin-riesgo. El comentario dice trivial; lo que hace
+  > es adoptar una línea base con corroboración CERO porque el valor casualmente es el elemento neutro.
+  > Nuestra propia doctrina dice que un default plausible miente y una ausencia dice la verdad
+  > callándose — y **cero es el default más plausible que existe**.*
+
+  La rama de al lado, con `c == null` y `p != 0`, **rehúsa** y nombra el motivo: *"fills while this
+  guardian was not running and a platform session reset are indistinguishable"*. **Ese mismo
+  argumento no se aplica cuando `p == 0`**, y nadie escribió por qué no.
+  **Lo que acota el candidato y hay que decirlo**: `p == 0m` no puede ser "no sé". Tres líneas antes,
+  `if (!platform.GrossRealized.HasValue) return;` deja pendiente la adopción cuando la plataforma no
+  reporta. Así que `p == 0` es un **cero afirmado por la plataforma**, no un hueco. El candidato se
+  reduce a: *¿es un 0 afirmado corroboración suficiente por sí solo, cuando un no-cero afirmado no lo
+  es?* — que sigue siendo una pregunta legítima y sin responder.
+  **Nadie lo interrogó**, y la corrida del 31-ago **lo esquiva a propósito** (se espera el primer
+  `PNL_CHECKPOINT` antes del F5 para que la adopción sea corroborada), así que no va a traer evidencia.
 - **La cuenta de los bots está cableada, y es la misma familia** (verificado 29-ago). La REGLA es
   genérica —`BotAccountRule.Decide(accounts, target)` toma el objetivo por parámetro y no nombra
   ninguna cuenta— pero **los cinco llamadores son constantes de compilación**:
