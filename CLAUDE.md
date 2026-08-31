@@ -206,6 +206,19 @@ decorando.
   (`DeadmanGuardianAddOn.cs:32-33`). La clase de la casa en forma de esquema — claves que afirman
   configurar algo que no configuran. Consecuencia concreta: una sesión de prueba no se puede desviar
   a un ledger aparte (ver `docs/proposals/live-production-breach-test.md`).
+- **CANDIDATO 11 — `NinjaTrader.Adapter.AccountLockoutNotifications`** (anotado 31-ago, **no
+  perseguido**). Tipo **público** de `NinjaTrader.Core.dll`, con evento `Push` y método `Raise`.
+  Apareció en el barrido de sonido fuera de proceso. Un tipo de NT8 con ese nombre exacto está
+  demasiado cerca de lo que hace este producto para mirarlo con un sello corriendo. En el mismo
+  barrido apareció `Globals.RmsOptions` (Risk Management System); mismo criterio.
+- **REGLA DE FRONTERA — ¿esto necesita la PLATAFORMA, o sólo Windows / el disco?** (31-ago, tras
+  fallar tres veces el mismo día). Dije que hacía falta esperar a NT8 para: verificar
+  `ShowInTaskbar` con `ToolWindow` (**era WPF puro**: dos ventanas de sonda lo contestaron en tres
+  segundos) y correr el escaneo de tipos (**`STEP3_FINDINGS §4` ya lo había hecho fuera de
+  proceso**, por reflexión sobre el disco). Lo que de verdad exige estar dentro de NT8 es sólo la
+  conducta en runtime: si un evento **dispara**, si NT8 **suprime** algo, valores vivos, y si un
+  sonido **se oye**. Todo *"¿qué existe y con qué firma?"* se contesta desde el disco.
+  **La pregunta se hace ANTES de decir que algo espera**, no después.
 - **CANDIDATO — EL LEDGER AUDITA LOS HECHOS DEL GUARDIÁN, NO SUS PALABRAS** (31-ago; formulación de
   Roberto). Los dos mensajes del lockout del 31-ago existen **completos y textuales** — pero en
   `log.20260831.00001.es.txt`, el log de NinjaTrader. Buscados en el **ledger**: 0 coincidencias. En
