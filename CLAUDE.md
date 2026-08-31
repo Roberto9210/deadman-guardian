@@ -206,6 +206,21 @@ decorando.
   (`DeadmanGuardianAddOn.cs:32-33`). La clase de la casa en forma de esquema — claves que afirman
   configurar algo que no configuran. Consecuencia concreta: una sesión de prueba no se puede desviar
   a un ledger aparte (ver `docs/proposals/live-production-breach-test.md`).
+- **CANDIDATO — la serie de checkpoints de un día que termina en lockout cierra en `0.00`**
+  (observado 31-ago). Estando `Locked`, el tick retorna antes del checkpoint
+  (`Guardian.cs:633-638`), así que **no se escribe ninguno más ese día**. Verificado en la corrida:
+  el último `PNL_CHECKPOINT` del 31-ago es el de las 14:06:21 con `dayLoss 0.00` y
+  `gross {"Sim101":"0.00"}`; el día realizó **−$40,00** cuatro minutos después. Lo mismo vale para
+  `FailClosed`, que también retorna antes.
+  **El ledger NO miente**: `LIMIT_BREACHED` lleva la cifra real (`dayLoss 40.00`). Lo que engaña es
+  que **la serie que *parece* el registro del día** termina en cero.
+  **Alcance real, y hay que decirlo porque acota el candidato**: quien la consume es
+  `LoadSameDayCheckpointGross`, y no se encontró daño alcanzable hoy — estando `Locked` no hay
+  adopción de baseline, y al día siguiente `c == null` porque falta el `DAY_OPENED` del dayKey nuevo.
+  En el caso que sí la leería (reinicio durante `FailClosed`), un `c` viejo de `0.00` contra un `p`
+  real diverge más que la tolerancia y **se rehúsa**, que es el desenlace seguro.
+  **Dónde sí importa: cert-1.** Al acotar el certificado al día, cualquier cómputo del P&L del día
+  sobre la serie de checkpoints leería `0.00` para un día que perdió $40. Se revisa junto con cert-1.
 - **CANDIDATO — un guardián que no puede escribir su estado reporta CERO pérdida, no "no sé"**
   (observado 31-ago en la corrida de LT-1; planteado por Roberto). El guardián **sandbox** de BOT A
   entró en fail-closed por contención de archivo sobre su propio temporal de escritura atómica:
