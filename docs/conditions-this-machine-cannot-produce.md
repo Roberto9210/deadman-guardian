@@ -30,6 +30,32 @@ La marca ya estaba escrita en cada fila de la serie M desde antes, sin que nadie
 **`M6` es el contraejemplo que impide leer el patrón como universal**: esta máquina lo produce
 seguido —desconexiones del feed, varias por semana— y sigue abierto igual, porque es una decisión.
 
+## Y hay un TERCERO, que es el más engañoso de los tres
+
+| | |
+|---|---|
+| **SIMULADA PERO NO PRODUCIDA** | verde contra nuestro **modelo** de la condición |
+
+Los dos de arriba se separan por una decisión, y los dos **se ven como riesgo**. Éste no: **se ve
+como una tranquilidad.** Dice *"sí"* en la columna que el lector usa para relajarse.
+
+> ### Un test no es la condición. Es lo que CREEMOS que la condición hace.
+
+`G13a`-`G13d` no prueban que el guardián sobreviva a una suspensión: prueban que sobrevive **al salto
+de reloj que escribimos nosotros**. Si una suspensión real trae además el feed volviendo con
+timestamps viejos, un `Account` re-creado, o dos relojes que discrepan al despertar, nada de eso está
+en el test **porque no está en nuestra cabeza**. Una fila con test y sin ocurrencia está verificada
+contra la condición que imaginamos, no contra la que va a llegar.
+
+Es **el problema del doble de prueba con la forma de una tranquilidad**, y por eso es peor que el
+doble: **el doble se declara doble.** Un `sí` en la columna de test se lee como cobertura y es una
+hipótesis en verde.
+
+**La consecuencia operativa, que es lo único que hay que recordar**: una fila *"nadie lo vio"* con
+test **sigue siendo** *"nadie lo vio"*. El test abarata el arreglo cuando la condición llegue; **no
+baja la probabilidad de que llegue por un camino que no imaginamos.** En el registro de riesgos de la
+beta, una fila con test **no vale menos** que una sin test.
+
 ## ⇒ Esta lista ES el registro de riesgos de la beta
 
 **El conjunto exacto de cosas que un desconocido va a encontrar en su primera semana y que Roberto
@@ -40,7 +66,8 @@ no encontró en tres.** Antes de dejar entrar a alguien, esto decide qué se pru
 ## El inventario
 
 Tres columnas que importan: por qué esta máquina no la produce, si hay test que la **simule**, y por
-qué está abierta.
+qué está abierta. **Un *"sí"* en la del medio es una hipótesis en verde, no cobertura** — ver el
+tercer estado, arriba.
 
 ### Entorno y plataforma
 

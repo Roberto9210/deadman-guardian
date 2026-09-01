@@ -21,13 +21,33 @@ una mano humana, ninguna decisión ajena tomada sola. **Se respetaron todas.**
 
 ### ⚠ Divergencia, y por qué esta vez SÍ importa
 
-El repo tiene **cert-1 y el canal de sonido**; lo desplegado **no**. Y `bin\Release` está atrasado
-respecto al fuente (build 19:09, `Messages.cs` 19:41), así que **`install.ps1` daría `exit 5`** —
-la guarda de build viejo. **Lo dejé así a propósito**: fuerza recompilar antes de desplegar.
+El repo tiene **cert-1 y el canal de sonido**; lo desplegado **no**.
 
 La regla dice que la divergencia sólo se reporta cuando hay *verificación pendiente sobre un binario
 específico*. **La hay**: los tres gestos del panel están pendientes de confirmación sobre
 **`12fff6f6c76d838c`**. Hasta que se confirmen, ese binario es el sujeto de una afirmación abierta.
+
+### DECISIÓN — `bin\Release` queda atrasado a propósito
+
+`src\GuardianCore\bin\Release\net48\GuardianCore.dll` es de las **19:09**; `Certificate.cs` (19:38) y
+`Messages.cs` (19:41) son posteriores. **`install.ps1` daría `exit 5`**, la guarda de build viejo, y
+no copiaría nada.
+
+**No es que lo haya roto: es que no lo reconstruí, y NO RECONSTRUIRLO FUE LA DECISIÓN.** El motivo no
+es la prolijidad. Con un DLL fresco ahí, la próxima corrida de `install.ps1` **desplegaría cert-1 y
+el canal de sonido sin que nadie lo haya decidido** — código escrito sin operador presente, entrando
+en NT8 por inercia, en una corrida que alguien lanzó para otra cosa. La guarda de build viejo
+convierte esa inercia en una pregunta. Con el operador ausente, el `exit 5` es la respuesta correcta.
+
+**Se deshace sola, y sólo hacia adelante**: quien decida desplegar corre
+`dotnet build src\GuardianCore\GuardianCore.csproj -c Release` y la guarda deja de disparar. Nadie
+tiene que acordarse de deshacer nada.
+
+**Y está escrita también donde se tropieza con ella**: `STALE-ON-PURPOSE.txt`, en ese mismo
+directorio, junto al DLL. Un directorio no se lee con el informe al lado, y **un estado dejado a
+propósito que parece un descuido es una trampa para quien llegue después — yo mañana incluida.** La
+nota nombra la fecha exacta del DLL que describe, así que **deja de aplicar sola** en cuanto alguien
+reconstruye: no puede sobrevivirse a sí misma convertida en mentira.
 
 ---
 
@@ -58,6 +78,19 @@ quien emite, y funciona sobre ledgers ya escritos.
 **Mi primer borrador estuvo mal y lo atraparon cuatro C-tests existentes**: `[min,max]` sobre
 entradas con `dayKey` termina en `DAY_OPENED` en un día todavía **abierto** — que es justo el que un
 trader exporta a las 16:55. La regla 3b funcionando: los rojos afirmaban algo real.
+
+> #### El caso que lo rompía era el MÁS COMÚN, no el raro.
+
+Un día abierto no es un borde: es el estado del ledger **durante toda la sesión**, y las 16:55 —el
+trader mirando su jornada antes de cerrarla— es el momento más probable en que alguien pide un
+certificado. El borrador funcionaba para el día de ayer y fallaba para el de hoy.
+
+Y **la suite se ganó el sueldo sobre un cambio que la tocaba de costado**: los cuatro rojos no
+salieron de `Cert1_DayScopeTests` —ésos los escribí yo, sabiendo lo que buscaba— sino de
+`C_CertificateEmitterTests`, escrito para otra cosa por completo (hash, JSON canónico, limitaciones,
+render HTML). Sus fixturas arman **lo ordinario**, una jornada que termina donde termina el registro,
+sin ninguna intención de probar el alcance del día. **Por eso pudieron contradecirme**: nadie las
+escribió con mi definición en la cabeza.
 
 **Las dos trampas, adentro del arreglo y no descubiertas después:**
 
