@@ -273,12 +273,27 @@ este dato, y las miré a todas?* Un arreglo que no puede nombrar sus canales es 
   `"unknown"` ni una vez** — cert-1 no la escribió y no la había antes; las dos de `Guardian.cs`
   (`:455`, `:1100`) viven **dentro de frases** y **no llegan a un campo del certificado**, porque
   `reasons` lleva nombres de evento con conteo y `Certificate.cs:216-217` fija el trigger
-  posicionalmente, *"never inferred from the text of `reason`"*. Lo que sí hay son **seis `?? ""`**,
-  y **uno dispara desde estado ordinario del producto**: `session.timezone` sale `""` cuando el
+  posicionalmente, *"never inferred from the text of `reason`"*. Lo que sí hay son **SIETE `?? ""`**
+  —**corregido el 1-sep: dije seis y son siete**, `gaps` y `anchors` aportan cinco, no cuatro— y
+  **uno solo dispara desde estado ordinario del producto**: `session.timezone` sale `""` cuando el
   snapshot no trae `sessionResetTimeZone` — **la familia de LT-2**, el reinicio que restaura `ARMED`
-  desde el sello y deja los campos de referencia sin poblar. Los otros: `signature.keyId ?? ""` (una
-  firma que no nombra su clave, sólo en la ruta firmada) y cuatro en `gaps`/`anchors` que dependen
-  de que el llamador arme un registro con nulos. **Es el tercer subtipo de §3 con otra ropa**: un
+  desde el sello y deja los campos de referencia sin poblar. **Los otros seis son INALCANZABLES hoy**
+  (verificado 1-sep): nada en `src/` ni en `nt/` asigna `Gaps`, `Anchors` ni `KeyId`, así que las dos
+  estructuras salen siempre vacías y el bloque `signature` no se emite nunca.
+  **CLASIFICACIÓN pedida por el operador el 1-sep, con el criterio de la librería** (*se omite un
+  campo que lleva un VALOR, nunca uno que lleva un ALCANCE: omitir una clave de alcance APAGA un
+  chequeo en silencio*): **seis de los siete son ALCANCE y uno solo es VALOR.**
+  `session.timezone` **es alcance** —declara el marco en el que `dayKey` significa algo, y es el
+  vecino literal de la clave que allá midieron—; `signature.keyId` **es alcance** porque habilita la
+  verificación de la firma, y para ése la respuesta ya está escrita cuatro líneas más arriba en su
+  propio archivo (`Certificate.cs:358`: *"an unsigned certificate is honest, a half-signed one is
+  not"*) ⇒ **rehusar**, no omitir ni vaciar; `gaps[].dayKey` y los tres de `anchors` **son alcance**
+  ⇒ un elemento que no puede nombrar su día o lo que ancla **no se emite**. **El único VALOR es
+  `gaps[].reason`**, prosa que explica un hueco: omitirlo saca una explicación, no un chequeo.
+  **Y la duda del operador sobre `gaps` es correcta un nivel más arriba**: el que lleva el alcance es
+  el CONTENEDOR. `gaps: []` afirma *"no hay huecos"* en los 12 certificados ya emitidos **y nadie los
+  calcula** — *"no hay"* contra *"no sé"*, exactamente, y pasando hoy, no el día que alguien llene el
+  arreglo (`docs/auditoria-frenos-20260901.md` §4.4). **Es el tercer subtipo de §3 con otra ropa**: un
   campo presente con un valor que no vale nada, donde el TIPO permitía callarse. **No lo cambié a
   propósito**: omitir una clave cambia la forma del documento para un verificador que no es nuestro.
   **DEPENDENCIA EXPLÍCITA: bloqueado por el punto 2 de la cola — el contrato de extensión con
