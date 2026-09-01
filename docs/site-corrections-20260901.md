@@ -20,7 +20,8 @@ and recorded as `ORDER_REJECTED_LOCKED`."* **Ni se cancela, ni se registra, ni s
 | `OnOrderObserved` estando `Locked` **retorna sin actuar** | ídem |
 | **`ORDER_REJECTED_LOCKED` no tiene escritor** en `src/` | ídem |
 | **Un (1) `FLATTEN_VERIFIED`** en toda la vida del producto | ledger, 8.034 entradas |
-| **Un episodio de 167 intentos** terminado en `exhausted: true` **sin cerrar la posición** | ledger, 2026-08-26 |
+| **Un episodio de 167 intentos sin cerrar la posición** | ledger, 2026-08-26 |
+| **`MaxFlattenAttempts = 3` NO gobierna ningún bucle**: sólo prende el flag `exhausted` y `LockoutNeedsHuman`. El flag prendió en el intento **3** y el guardián siguió **164 veces más** — 165 de los 169 llevan `exhausted: true` | `Guardian.cs`, `Constants` + ledger |
 | El `LOCKOUT_INCOMPLETE` que disparó **no lleva causa**: `{accounts, attempts, exhausted}` | ledger, 169 de 169 |
 
 **Bajar una afirmación no necesita evidencia; afirmar una cota sí, y no la tenemos.** Por eso el texto
@@ -44,14 +45,23 @@ fill</strong>: the guard neither cancels it nor records it.</p>
 every cycle it asks the platform to flatten, then reads the positions back, and if they are not flat it
 writes <code>LOCKOUT_INCOMPLETE</code> and tries again. <strong>Here is what that has actually done, in
 full.</strong> In the product's entire recorded life there is <strong>one</strong> verified flatten. There
-is also one episode — 2026-08-26, on a simulated account — where <strong>167 attempts were exhausted and
-the position never closed</strong>. That episode had a cause we found and fixed the same day, and it is
+is also one episode — 2026-08-26, on a simulated account — where it tried <strong>167 times and the
+position never closed</strong>. <strong>It did not give up, because it has no limit to give up at:</strong>
+from the third attempt onwards it marks the failure and tells you it needs you, and then it keeps
+trying — that day, 164 more times. The episode had a cause we found and fixed the same day, and it is
 also the only large sample we have. <strong>So "the position gets closed" is not something this page can
-promise you: it is something the guard attempts, and reports honestly when it fails.</strong></p>
+promise you: it is something the guard attempts, reports honestly when it fails, and never stops
+attempting.</strong></p>
 
 <p>The failure is also, today, <strong>undiagnosable from the record</strong>: the event carries a
 counter and no reason, so a broker that did not confirm and a position that reopened look identical in
 the log. That is an open defect, and it is named here rather than left for you to discover.</p>
+
+<p><strong>Which means this does not replace watching your platform, and it is not built to.</strong>
+If the guard says it needs you — that is the panel turning red and writing
+<code>LOCKOUT_INCOMPLETE</code> — <strong>go and check the flatten yourself in NinjaTrader</strong>.
+When the last brake does not verify, a person is what closes the gap, and that is the one instruction
+this page can honestly give you today.</p>
 
 <p>Until 2026-08-26 the guard did cancel on sight, and a live test showed what that costs: it cancelled
 <strong>its own flatten orders</strong> and the trader's own exits — twelve of them inside six seconds,
@@ -117,8 +127,10 @@ build and it has been taken down rather than restated.</p>
   <li><strong>A single flatten is not a lockout — and nothing is cancelled while locked.</strong>
   Entering the lockout sweeps the resting orders once; after that a new order reaches your broker and
   can fill. The guard then keeps trying to flatten and verifies rather than assumes — and the honest
-  record is one verified flatten in the product's life, plus one episode where 167 attempts were
-  exhausted without closing the position. <a href="how-it-works.html">What that means, in full →</a></li>
+  record is one verified flatten in the product's life, plus one episode where it tried 167 times
+  without closing the position. <strong>So it does not replace watching your platform: if it says it
+  needs you, check the flatten yourself.</strong> <a href="how-it-works.html">What that means, in
+  full →</a></li>
 ```
 
 ## 6 · `index.html` — "It does not bound your loss"
@@ -164,3 +176,11 @@ verify.
   real de esos intentos. La cota *"bounded by one cycle"* existe en `AMENDMENTS.md` A11 y tiene **n=1**;
   no se repite acá.
 - **No promete que el defecto del registro se va a arreglar.** Lo nombra.
+- **No usa la palabra `exhausted`.** El flag existe en el payload y **anuncia un tope que no existe**:
+  `MaxFlattenAttempts = 3` no gobierna ningún bucle. Decir *"167 attempts were exhausted"* en la página
+  afirmaría que había un límite y se alcanzó — **la misma clase que la página existe para corregir**.
+- **No agrega NADA nuevo sobre el certificado.** La única frase que lo menciona
+  —`ordersRejectedWhileLocked` en `0`— es verdadera y ya estaba. **Pero el certificado tiene hoy un campo
+  que sabemos mal** (`lockoutsTriggered` no cuenta `CONFIG_TAMPERED` ni `SEAL_MISMATCH`, y
+  `limitRespected` cuelga de él), y una página pública que avala un campo **le presta credibilidad a la
+  tabla entera**. Nada más sobre el certificado hasta que el contador esté arreglado.

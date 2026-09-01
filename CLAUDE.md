@@ -253,6 +253,34 @@ motivo: **nadie enumeró las salidas.**
 **Pregunta de cacería, antes de dar una familia por cerrada:** *¿por cuántas salidas puede aparecer
 este dato, y las miré a todas?* Un arreglo que no puede nombrar sus canales es un arreglo de uno.
 
+### Un FLAG que anuncia un límite que no existe — y el comentario honesto no lo salva (1-sep)
+
+> **`exhausted: true` afirma que había un tope y se alcanzó. `MaxFlattenAttempts = 3` NO gobierna
+> ningún bucle: sólo prende ese flag.**
+
+Medido: los intentos corrieron **1 → 167**, el flag prendió en el **3**, y el guardián siguió
+**164 veces más**. **165 de los 169 `LOCKOUT_INCOMPLETE` llevan `exhausted: true`** y ninguno agotó
+nada. **El guardián nunca se rinde** — que es la conducta correcta; lo que está mal es la palabra.
+
+**Y acá está la vuelta que lo vuelve una cara nueva de §3.** El código **ya lo dice de sí mismo**, en
+`Guardian.cs` junto a `LockoutNeedsHuman`: *"BOTH names assert more than their code does: the guardian
+never gives up — MaxFlattenAttempts gates no loop, it only lights that flag"*, y `Messages.cs` lo
+repite dos veces.
+
+> **El COMENTARIO es honesto y el DATO QUE EMITE no.** Un lector del código ve la verdad; un lector del
+> **ledger** —que es el artefacto que sobrevive, viaja y se cita— ve `exhausted: true`. **Y la prosa
+> que alguien escriba encima hereda la mentira del dato, no la verdad del comentario.**
+> Casi pasa: la primera redacción de la página pública decía *"167 attempts were exhausted"*.
+
+**Tres ventanas, la misma semana, el mismo defecto**: el OCG de ALAYA (un freno que no puede fallar
+firmando que protegió), las claves ensombrecidas por literales, y este flag. **La familia es "un
+nombre que promete un mecanismo que no existe"**, y el sitio donde más duele es siempre el mismo: el
+registro que alguien va a leer sin el código al lado.
+
+**Pendiente, no arreglado**: o el flag se llama por lo que es (`needsHumanFromHere`, o el umbral
+explícito), o `MaxFlattenAttempts` gobierna algo. **No se toca hoy** — está en el payload de 169
+entradas ya escritas y cambiar el nombre de un campo del ledger es contrato con el verificador.
+
 ### La cara sin texto de la clase madre, y es la única que GENERA TRABAJO (1-sep)
 
 > **UN GUARDIA SOBRE UN CASO IMPOSIBLE NO ES INOFENSIVO: ES UNA AFIRMACIÓN TÁCITA DE QUE EL CASO
