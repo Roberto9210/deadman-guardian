@@ -95,6 +95,22 @@ que le sellaron.
    ALAYA era inalcanzable **y el motor firmaba con él**. **El daño no está en la puerta cerrada;
    está en la firma.**
    *(La regla numerada que esto corrige vive en el mapa de ALAYA, no en éste — acá no hay regla 18.)*
+10. **DOS FUENTES DE CALIDAD DISTINTA NO SE SUMAN** (regla de Ventana B, adoptada el 1-sep; aplica a
+   las tres ventanas por igual). **Una medición más una afirmación no dan una confirmación: el
+   resultado hereda la calidad de la peor mitad, y la palabra "confirmado" hace exactamente lo
+   contrario** — presenta como corroborado lo que se apoya en el eslabón que nadie midió.
+   **LA SEÑAL DE ALARMA ES LA CONVENIENCIA.** Lo traicionero es que **la mitad medida es verdadera**,
+   así que todo lo comprobable comprueba, y **lo que no aguanta es justo la mitad que aportaba la
+   urgencia**. ⇒ **la afirmación que asciende un hallazgo a urgencia, que desbloquea, o que genera un
+   paso que a uno le toca hacer, se relee con la procedencia delante.**
+   Procedencia de la regla, dicha por quien la escribió: **el operador** combinó una afirmación de
+   esta ventana con una medición de Ventana B y lo llamó *"confirmado desde los dos lados"*.
+   **La regla sale de ese error, no del de las ventanas.** El caso completo vive en el `CLAUDE.md` del
+   repo `deadman`; acá va la regla con referencia cruzada, no el caso.
+   **Ejemplo propio del mismo día, por si hiciera falta uno de esta casa**: mi afirmación de que
+   `session.timezone` salía `""` *"desde estado ordinario"* se combinó con la medición correcta de
+   Ventana B de que `""` da `exit 1`. La medición era verdadera; **la mitad que producía la urgencia
+   era mía y era falsa** — y era la que generaba el trabajo.
 
 ## 3. La clase de defecto de la casa
 **TEXTO QUE AFIRMA MÁS DE LO QUE SU PROPIO CÓDIGO COMPROBÓ.**
@@ -213,6 +229,31 @@ motivo: **nadie enumeró las salidas.**
 
 **Pregunta de cacería, antes de dar una familia por cerrada:** *¿por cuántas salidas puede aparecer
 este dato, y las miré a todas?* Un arreglo que no puede nombrar sus canales es un arreglo de uno.
+
+### La cara sin texto de la clase madre, y es la única que GENERA TRABAJO (1-sep)
+
+> **UN GUARDIA SOBRE UN CASO IMPOSIBLE NO ES INOFENSIVO: ES UNA AFIRMACIÓN TÁCITA DE QUE EL CASO
+> EXISTE.**
+
+Hasta acá la clase era **un TEXTO que afirma más de lo que su código comprobó**. Ésta es **el CÓDIGO
+afirmando, sin una sola palabra**, y el destinatario no es el usuario: **es el próximo que lo lea.**
+
+**Y es peor en una dimensión propia: una frase falsa cuesta confianza; un guardia falso cuesta
+TRABAJO.** El `?? ""` de `session.timezone` nos hizo armar un plan a dos ventanas, le dio a Ventana B
+un paso 0 que no existía, y difundió una urgencia inventada. **Ninguna de las frases que arreglamos
+el 31-ago costó eso.**
+
+**La forma accionable, y el test es la distinción entre imposible y no-cableado:**
+
+> **Al escribir `?? default`, preguntá si la rama es ALCANZABLE.**
+> - **Imposible por ESQUEMA** ⇒ el guardia es una afirmación falsa: **se borra el `??`**, no se le
+>   cambia el valor. Cambiarlo a `null` conserva la mentira con mejor ortografía.
+> - **Inalcanzable sólo por CABLEADO** ⇒ es **preparación legítima y el `??` se queda** —borrarlo lo
+>   rompe el día que alguien conecte el llamador— **pero tiene que DECIRLO en una nota.** Sin la
+>   nota, el próximo lector repite nuestro error.
+
+Aplicado en `Certificate.cs`: la zona perdió el `??` (imposible por `RequiredKeys`); `keyId`, los dos
+de `gaps` y los tres de `anchors` lo conservan **con la nota de preparación declarada**.
 
 ### Sexto subtipo, y es el más difícil de VER de todos (1-sep)
 

@@ -386,6 +386,12 @@ namespace GuardianCore
                     return CertificateResult.Refused("CERT_SIGN_FAILED: the signer returned nothing; an unsigned certificate is honest, a half-signed one is not");
                 full = full.Set("signature", JsonValue.Obj()
                     .Set("alg", "Ed25519")
+                    // PREPARATION, DECLARED: nothing wires a signer today, so this branch cannot run -
+                    // but it is unreachable by WIRING, not impossible by schema, so the `??` stays. The
+                    // day someone passes a signer, request.KeyId can genuinely be null and this line
+                    // runs. What it does then is still WRONG and is an open decision (1-sep): a
+                    // signature that does not name its key is a half-signature, which the check four
+                    // lines above already refuses to emit. Blanking it here contradicts that refusal.
                     .Set("keyId", request.KeyId ?? "")
                     .Set("value", value));
             }
@@ -455,11 +461,29 @@ namespace GuardianCore
                 .Set("ledgerRange", JsonValue.Obj().Set("fromSeq", claims.FromSeq).Set("toSeq", claims.ToSeq))
                 .Set("ledgerVerified", claims.ChainVerified);
 
+            // PREPARATION, DECLARED (1-sep). NOTHING IN THIS PRODUCT POPULATES req.Gaps: the addon
+            // never sets it, so `gaps` is [] in all twelve certificates issued so far. The `??` stays
+            // because these are unreachable by WIRING and not impossible by schema - AnchorRecord and
+            // the gap fields are free strings, so a caller that computes gaps tomorrow can hand over a
+            // null and this line runs. Deleting the fallback would break it on the day it connects.
+            //
+            // WHAT IT DOES THEN IS AN OPEN DECISION, and both fields are SCOPE rather than value:
+            // a gap that cannot name its day is not information, it is a hole shaped like information,
+            // and it should be refused rather than emitted blank. `reason` is the one VALUE here -
+            // prose explaining a gap - so omitting it removes an explanation, not a check.
+            //
+            // AND THE LIVE PART IS ONE LEVEL UP: `gaps: []` asserts "there are no gaps" while nothing
+            // computes them. That is section 3's sixth subtype and it bites today, not on the day the
+            // caller arrives.
             var gaps = JsonValue.Arr();
             if (req.Gaps != null)
                 foreach (var g in req.Gaps)
                     gaps.Add(JsonValue.Obj().Set("dayKey", g.DayKey ?? "").Set("reason", g.Reason ?? ""));
 
+            // PREPARATION, DECLARED (1-sep). Same as gaps: nothing sets req.Anchors, so `anchors` is
+            // always [] and trustLevel is therefore always "L1". All three fallbacks are SCOPE - an
+            // anchor with no hash anchors nothing, and a verifier that checks `if hash:` would skip it
+            // silently - so the treatment when this connects is to refuse the element, not to blank it.
             var anchors = JsonValue.Arr();
             if (req.Anchors != null)
                 foreach (var a in req.Anchors)
@@ -479,10 +503,20 @@ namespace GuardianCore
                 .Set("session", JsonValue.Obj()
                     .Set("dayKey", req.DayKey)
                     .Set("openedUtc", Iso.Utc(seal.ArmedAtUtc))
-                    // No fallback on purpose (cert-2). Issue refuses before reaching here if the
-                    // snapshot does not parse or carries no zone, so this reads the seal plainly -
-                    // and the question is asked in exactly one place instead of being half-answered
-                    // in two.
+                    // NO FALLBACK ON PURPOSE, AND THIS IS THE ONE FIELD THAT GETS NONE (cert-2, 1-sep).
+                    // It had `?? ""` and the `??` was DELETED rather than changed to null, because
+                    // sessionResetTimeZone is in GuardianConfig.RequiredKeys and is validated at parse
+                    // time: a seal without it CANNOT EXIST. A guard over a case the schema forbids is
+                    // not a safety net, it is a silent assertion that the case happens - and it was
+                    // read that way by two people who planned work on top of it.
+                    //
+                    // Which is exactly why the six fallbacks elsewhere in this file STAY: those are
+                    // unreachable by WIRING, not impossible by schema, so their branch exists the day
+                    // someone connects the caller. The test is the distinction, not the emptiness.
+                    //
+                    // Issue refuses before reaching here if the snapshot does not parse or carries no
+                    // zone, so this reads the seal plainly and the question is asked in exactly one
+                    // place instead of being half-answered in two.
                     .Set("timezone", snapshot.GetString("sessionResetTimeZone")))
                 .Set("continuity", JsonValue.Obj().Set("daysCovered", daysCovered).Set("gaps", gaps))
                 .Set("commitment", commitment)
