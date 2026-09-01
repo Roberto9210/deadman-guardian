@@ -154,6 +154,27 @@ Corolario hermano: **un chequeo que existe no es un chequeo que corre.** Antes d
 protección, buscar su productor y correrla. Y un chequeo inalcanzable se borra — no se deja
 decorando.
 
+### Cuarto subtipo, y éste apunta a la VERIFICACIÓN misma (31-ago)
+
+> **UN TEST ESCRITO PARA COMPROBAR TU PROPIA DEFINICIÓN HEREDA TU DEFINICIÓN. Los únicos que pueden
+> contradecirte son los que se escribieron SIN tu idea en la cabeza.**
+
+El caso: el acotado por día de cert-1. `Cert1_DayScopeTests` lo escribí yo, sabiendo qué buscaba —
+**no podía sorprenderme, porque compartía mi error**. Los cuatro rojos salieron de
+`C_CertificateEmitterTests`, que estaba ahí por hash, JSON canónico, limitaciones y render HTML,
+**sin ningún interés en el alcance del día**: sus fixturas arman **lo ordinario** —una jornada que
+termina donde termina el registro— y justamente por eso pudieron decirme que no.
+
+**El corolario, que es lo accionable: después de cambiar una DEFINICIÓN, el veredicto NO está en los
+tests que escribiste para ella. Está en lo que se rompe entre los que ya existían por otros motivos.**
+
+Y si ahí no se rompe nada, hay **dos** explicaciones y no son la misma: **o la definición es
+correcta, o nadie la estaba ejercitando.** Averiguar cuál es parte del trabajo — el verde de la
+segunda es indistinguible del de la primera hasta que alguien mira quién tocaba ese código.
+
+Es hermana del segundo subtipo y apunta a otro lado: **aquél dice que tu MODELO DEL MUNDO puede
+estar mal; éste dice que tu VERIFICACIÓN puede compartir tu error.**
+
 ## 4. Operativa
 - **Instalar**: `.\nt\install.ps1 -WithSoak -WithBots`. Se niega **antes de mutar** en tres casos y
   **revierte** en el cuarto:
