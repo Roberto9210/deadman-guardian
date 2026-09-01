@@ -103,7 +103,7 @@ una lista parcial sería peor que ninguna.
 | campo | de dónde sale | riesgo de colisión |
 |---|---|---|
 | **`subject.alias`** | **texto libre elegido por el usuario** (`alias.txt`); el emisor sólo rehúsa si falta (`C7_no_alias_is_refused_rather_than_invented`) | **el único punto donde un literal con forma de relleno puede aparecer legítimamente.** Si alguien se pone de alias `unknown`, `none` o `n/a`, el certificado lo lleva. **Decisión de ustedes**: excluir `subject.alias` del barrido, o que el emisor rehúse alias con forma de relleno |
-| **`session.timezone`** | id IANA del snapshot sellado — **o la cadena vacía `""`** (`Certificate.cs:456`) | **colisión viva HOY si `""` está en su lista.** Sale `""` cuando el snapshot no trae `sessionResetTimeZone`: es la familia de LT-2, el reinicio que restaura `ARMED` desde el sello. Es el único de los siete `?? ""` del emisor que puede dispararse hoy |
+| **`session.timezone`** | id IANA del snapshot sellado | **CORREGIDO 1-sep — ver abajo. NO puede salir `""`.** |
 | `commitment.personalDailyLossLimit` / `firmDailyLossLimit` | texto del config sellado (`"600.00"`) | numérico en la práctica; sin validación de forma |
 | `issuer.version` / `issuer.buildHash` / `issuer.keyId` | los pone el llamador. En producción: `"0.1.0"` y 16 hex | **nuestros C-tests emiten `buildHash: "test"`** — si barren nuestras fixturas, lo van a ver |
 | `continuity.gaps[].dayKey` / `.reason` | del llamador | **nada los llena hoy**: `gaps` sale `[]` en los 12 certificados emitidos |
@@ -111,6 +111,27 @@ una lista parcial sería peor que ninguna.
 | `limitations[]` | 5 cadenas fijas de prosa (`Certificate.cs:135-155`) | prosa, no valores |
 
 ---
+
+### ⚠ CORRECCIÓN — `session.timezone` NO puede salir `""` (1-sep, mismo día, después de verificar)
+
+**Lo que decía la versión anterior de este documento era mío y era falso**: que `session.timezone`
+podía salir `""` por la ruta de LT-2, y que ésa era *"una colisión viva hoy"*. **No lo es**, y la
+corrección viene por dos caminos independientes:
+
+1. **`sessionResetTimeZone` está en `GuardianConfig.RequiredKeys`** (`GuardianConfig.cs:18-22`). Un
+   config que no lo trae **no parsea**, así que **nunca llega a ser un sello**. El emisor lee la zona
+   del **snapshot sellado**, que es la misma fuente que usa Core tras un reinicio ⇒ **nunca hubo
+   hueco de plomería en este canal.**
+2. **Medición**: los **6 certificados** emitidos en esta máquina traen `"America/Chicago"`. Ninguno
+   vacío.
+
+**Y desde hoy la rama no existe**: el `?? ""` se reemplazó por una **negativa** — `Issue` devuelve
+`CERT_TIMEZONE_MISSING` (o `CERT_SNAPSHOT_UNPARSEABLE`) y **no emite documento**. Tests:
+`Cert2_SealedSnapshotTests`. **No desplegado todavía.**
+
+**Lo que sí conviene que sepan igual**: su medición de que `""` da `exit 1` sigue siendo información
+útil sobre el verificador. Lo que cambia es que **este emisor no puede producirlo**, ni antes por
+config válido ni ahora por construcción.
 
 ## 5 · Los conjuntos cerrados que sí podemos garantizar
 

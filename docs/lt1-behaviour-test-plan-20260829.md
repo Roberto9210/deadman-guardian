@@ -491,6 +491,18 @@ sello está vigente aunque el reloj diga otra cosa.
 > que ejecutaba era el segundo. Se revirtió antes de tener consecuencia — la compuerta se lee en
 > `State.Configure` y no hubo F5 —, y la compuerta quedó como
 > `soak.GO.parked-pending-assertion-decision`, que dice por qué está aparcada y no sólo que lo está.
+>
+> #### ✅ DECIDIDO el 2026-09-01 — opción (a). Y el paso 12.6 SIGUE sin ejecutarse.
+>
+> La aserción se **re-apuntó a lo que el producto hace hoy**: observar una orden estando `LOCKED`
+> **no cancela nada y no escribe nada**. Es de **dos lados a propósito** — si algún día llega la
+> cancelación selectiva, el escenario se pone **rojo** y obliga a revisitarlo; ésa es la propiedad
+> que descartó borrarlo. El motivo de la vieja quedó escrito **en el archivo**, arriba del método,
+> para que dentro de un año nadie la "restaure" creyendo que se perdió.
+>
+> **La aserción deja de bloquear, pero la compuerta NO se repone acá**: reponerla es decisión de
+> Roberto y **viaja con un despliegue**. El archivo sigue llamándose
+> `soak.GO.parked-pending-assertion-decision`; el nombre se corrige cuando se reponga, no antes.
 
 `38a15089c889ac09` es el hash de producción verificado hoy 31-ago: `config.json` y
 `config.json.produccion-20260826` coinciden en ese valor, así que el número está corroborado por dos

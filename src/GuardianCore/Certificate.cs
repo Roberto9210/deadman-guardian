@@ -347,6 +347,32 @@ namespace GuardianCore
             var hasAnchors = request.Anchors != null && request.Anchors.Count > 0;
             var trustLevel = hasAnchors ? "L2" : "L1";
 
+            // cert-2: THE SEALED SNAPSHOT IS THE SOURCE FOR EVERYTHING THIS DOCUMENT SAYS ABOUT THE
+            // SESSION - the guarded accounts, both limits, and the zone the day is measured in. When it
+            // cannot answer, the honest move is the one this file already makes a few lines below for a
+            // half-signature, and one C7 away for a missing alias: REFUSE.
+            //
+            // What this replaces was not an absence being represented. It was an impossible state
+            // dressed as data: `?? ""` for the zone - the exact value the public verifier rejects as
+            // decorative filler - and, worse because it reads as a fact about the trader, an EMPTY
+            // ACCOUNTS ARRAY whenever the snapshot did not parse. An empty collection asserts absence.
+            //
+            // Neither branch is reachable today, and that is not a reason to leave them: a config
+            // without sessionResetTimeZone never parses (GuardianConfig.RequiredKeys), so it never
+            // becomes a seal, and Start refuses to run on a snapshot whose hash does not match
+            // (Guardian.cs:224). Unreachable is what these are; SILENT is what they must not be.
+            var sealedConfig = ParseSnapshot(state.Seal.ConfigSnapshot);
+            if (sealedConfig == null)
+                return CertificateResult.Refused(
+                    "CERT_SNAPSHOT_UNPARSEABLE: the sealed configuration in state.json does not parse, so " +
+                    "the accounts, the limits and the session's time zone cannot be read. A certificate " +
+                    "without them would assert an empty session rather than report a broken seal.");
+            if (string.IsNullOrEmpty(sealedConfig.GetString("sessionResetTimeZone")))
+                return CertificateResult.Refused(
+                    "CERT_TIMEZONE_MISSING: the sealed configuration carries no 'sessionResetTimeZone', so " +
+                    "the day this certificate names has no boundaries. It is a required key, so a seal " +
+                    "without it was not written by a configuration this build would accept.");
+
             var doc = BuildDocument(state, request, claims, trustLevel, daysCovered);
 
             var certHash = Hashing.Sha256Hex(doc.ToCanonical());
@@ -453,7 +479,11 @@ namespace GuardianCore
                 .Set("session", JsonValue.Obj()
                     .Set("dayKey", req.DayKey)
                     .Set("openedUtc", Iso.Utc(seal.ArmedAtUtc))
-                    .Set("timezone", snapshot == null ? "" : (snapshot.GetString("sessionResetTimeZone") ?? "")))
+                    // No fallback on purpose (cert-2). Issue refuses before reaching here if the
+                    // snapshot does not parse or carries no zone, so this reads the seal plainly -
+                    // and the question is asked in exactly one place instead of being half-answered
+                    // in two.
+                    .Set("timezone", snapshot.GetString("sessionResetTimeZone")))
                 .Set("continuity", JsonValue.Obj().Set("daysCovered", daysCovered).Set("gaps", gaps))
                 .Set("commitment", commitment)
                 .Set("claims", claimsObj)

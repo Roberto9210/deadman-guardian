@@ -40,6 +40,12 @@ namespace NinjaTrader.NinjaScript.AddOns
         private const decimal PersonalLimit = 600.00m;
         private const decimal FirmLimit = 1000.00m;
 
+        // Named once because four call sites report the same scenario, and a scenario whose name
+        // drifts between its skip path and its verdict is a scenario nobody can grep for later.
+        private const string ObservedOrderScenario = "observing an order while locked cancels nothing";
+        private const string ObservedOrderExpectation =
+            "the order is still working and no ORDER_REJECTED_LOCKED was written";
+
         private static readonly string SoakDir =
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
                          "NinjaTrader 8", "deadman-guardian-soak");
@@ -182,12 +188,35 @@ namespace NinjaTrader.NinjaScript.AddOns
                    sb.VerifyChain());
         }
 
-        /// <summary>SPEC §9.5: a single flatten is not a lockout. A real resting order on Sim101,
-        /// unfillable, observed by a LOCKED guardian, must be cancelled.</summary>
+        /// <summary>Observing an order while LOCKED cancels nothing - and that is the behaviour, not
+        /// a gap. Re-aimed 2026-09-01.
+        ///
+        /// WHAT THIS ASSERTION USED TO SAY, AND WHY IT IS NO LONGER THE BEHAVIOUR - written down on
+        /// purpose, because an assertion retired without its reason gets "restored" a year later by
+        /// someone who assumes it was lost rather than retired:
+        ///
+        ///     old: "ORDER_REJECTED_LOCKED logged and the order no longer working"  (SPEC 9.5)
+        ///
+        /// True until 2026-08-26. The guardian cancelled every order it saw while locked, and LT-1
+        /// removed that leg because it was BLIND: it cancelled the trader's own exits and the
+        /// guardian's OWN flatten orders. Nothing replaced it, so ORDER_REJECTED_LOCKED lost its only
+        /// writer - the certificate says exactly this in its own `limitations` - and an order that is
+        /// merely observed is now left alone.
+        ///
+        /// So this pins today's behaviour from BOTH sides: nothing is cancelled, and nothing is
+        /// logged. Two-sided on purpose - if selective cancellation ever lands, this scenario turns
+        /// RED and forces someone to revisit it. That property is why it was re-aimed rather than
+        /// deleted: a deleted scenario tells the future nothing, and a permanently red one teaches
+        /// people to ignore the suite.
+        ///
+        /// WHAT IT DOES NOT COVER, named so a green is not read as more than it is: the resting order
+        /// is unfillable by construction, so this says nothing about an order that FILLS. Exposure
+        /// returning after a verified flatten is LT-4, covered by LT4_LockoutStopsEnforcingTests,
+        /// where a fill is simulated without leaving a live order on a real account.</summary>
         private void ScenarioOrderWhileLockedIsCancelled(Account account)
         {
             if (_ordersPlaced >= MaxOrdersPerSession)
-            { Record("order while locked is cancelled", "cancelled and logged", "skipped: session order budget spent", true, "n/a"); return; }
+            { Record(ObservedOrderScenario, "left alone, nothing logged", "skipped: session order budget spent", true, "n/a"); return; }
 
             // The REAL broker, scoped to orders this suite tagged. The first run used the synthetic one
             // and the cancel never left the process - see REMOJO_REPORT.md, run 2026-08-21 12:13Z.
@@ -195,30 +224,34 @@ namespace NinjaTrader.NinjaScript.AddOns
             sb.Arm();
             sb.Lose(PersonalLimit);
             if (sb.Guardian.Status.Kind != StateKind.Locked)
-            { Record("order while locked is cancelled", "guardian LOCKED first", "guardian was " + sb.Guardian.Status.Kind, false, sb.VerifyChain()); return; }
+            { Record(ObservedOrderScenario, "guardian LOCKED first", "guardian was " + sb.Guardian.Status.Kind, false, sb.VerifyChain()); return; }
 
             string invalidReason;
             var order = PlaceUnfillableLimit(account, out invalidReason);
             if (invalidReason != null)
-            { RecordInvalid("order while locked is cancelled", "ORDER_REJECTED_LOCKED logged and the order no longer working", invalidReason, sb.VerifyChain()); return; }
+            { RecordInvalid(ObservedOrderScenario, ObservedOrderExpectation, invalidReason, sb.VerifyChain()); return; }
             if (order == null)
-            { Record("order while locked is cancelled", "one resting limit order", "could not place one - see log", false, sb.VerifyChain()); return; }
+            { Record(ObservedOrderScenario, "one resting limit order", "could not place one - see log", false, sb.VerifyChain()); return; }
 
             Thread.Sleep(1500);
             var snapshot = new OrderSnapshot(TargetAccount, order.OrderId ?? order.Id.ToString(CultureInfo.InvariantCulture),
                                              order.Instrument == null ? "?" : order.Instrument.FullName,
                                              order.OrderAction.ToString());
             sb.Guardian.OnOrderObserved(snapshot);
-            Thread.Sleep(3000);   // measured cancel round trip was ~130 ms; this is generous
+            // Was 3000 "generous" against a measured ~130 ms cancel round trip. It stays generous for
+            // the opposite reason now: this waits to see whether anything cancels, and a short wait
+            // would let a slow cancellation pass as "nothing happened".
+            Thread.Sleep(3000);
 
             var stillWorking = account.Orders.Any(o => o.Id == order.Id && Accounts.IsWorking(o.OrderState));
+            var logged = sb.HasEvent(Ev.OrderRejectedLocked);
             // belt and braces: whatever happened, this suite does not leave orders behind
             CancelIfAlive(account, order);
 
-            Record("order while locked is cancelled",
-                   "ORDER_REJECTED_LOCKED logged and the order no longer working",
-                   "logged=" + sb.HasEvent(Ev.OrderRejectedLocked) + ", stillWorking=" + stillWorking,
-                   sb.HasEvent(Ev.OrderRejectedLocked) && !stillWorking,
+            Record(ObservedOrderScenario,
+                   ObservedOrderExpectation,
+                   "stillWorking=" + stillWorking + ", ORDER_REJECTED_LOCKED logged=" + logged,
+                   stillWorking && !logged,
                    sb.VerifyChain());
         }
 

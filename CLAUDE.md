@@ -309,6 +309,17 @@ legítimo con significado propio. Las únicas ausencias honestas son **omitir el
   (`DeadmanGuardianAddOn.cs:32-33`). La clase de la casa en forma de esquema — claves que afirman
   configurar algo que no configuran. Consecuencia concreta: una sesión de prueba no se puede desviar
   a un ledger aparte (ver `docs/proposals/live-production-breach-test.md`).
+  **HAY UNA PREGUNTA ANTERIOR, Y VA PRIMERO** (operador, 1-sep): hoy la ruta fija garantiza **UNA
+  SOLA CADENA CONTINUA**. Si se honrara `ledgerPath`, un trader podría armar cada día con una ruta
+  distinta y tener **un ledger nuevo sin historia**. **Esa propiedad la está protegiendo el defecto,
+  por accidente, y nadie la declaró.** ⇒ primero: *¿queremos que el ledger sea una cadena continua
+  única?* Si sí, **honrar la ruta necesita una restricción, no un arreglo**. Misma forma que
+  `TargetAccount` cableado: un límite que parece descuido y resulta ser garantía.
+  **Y el dato que lo vuelve urgente por el otro lado** (medido el 1-sep en el sello de producción):
+  las dos claves **están DENTRO del snapshot sellado**. O sea que hoy **no hacen nada y sin embargo
+  están selladas**: un beta tester que las configure y después las corrija recibe un
+  **`CONFIG_TAMPERED` y un bloqueo por editar un campo inerte**. Eso no es protección accidental —
+  **es un castigo por tocar algo que no sirve.**
 - **`?? ""` EN EL EMISOR — la cadena vacía es el relleno de esta casa, no `"unknown"`** (verificado
   31-ago a pedido de Ventana B, **no arreglado**). `Certificate.cs` **no contiene la cadena
   `"unknown"` ni una vez** — cert-1 no la escribió y no la había antes; las dos de `Guardian.cs`
@@ -316,9 +327,17 @@ legítimo con significado propio. Las únicas ausencias honestas son **omitir el
   `reasons` lleva nombres de evento con conteo y `Certificate.cs:216-217` fija el trigger
   posicionalmente, *"never inferred from the text of `reason`"*. Lo que sí hay son **SIETE `?? ""`**
   —**corregido el 1-sep: dije seis y son siete**, `gaps` y `anchors` aportan cinco, no cuatro— y
-  **uno solo dispara desde estado ordinario del producto**: `session.timezone` sale `""` cuando el
-  snapshot no trae `sessionResetTimeZone` — **la familia de LT-2**, el reinicio que restaura `ARMED`
-  desde el sello y deja los campos de referencia sin poblar. **Los otros seis son INALCANZABLES hoy**
+  **NINGUNO dispara — corregido el 1-sep, y la afirmación anterior era mía y era falsa.** Dije que
+  `session.timezone` salía `""` *"desde estado ordinario del producto, la familia de LT-2"*. **No.**
+  `sessionResetTimeZone` está en `GuardianConfig.RequiredKeys` (`:18-22`) ⇒ un config que no lo trae
+  **no parsea y nunca llega a ser un sello**, y el emisor lee la zona del **snapshot sellado**, que es
+  la misma fuente que Core usa tras un reinicio: **en este canal nunca hubo hueco de plomería**.
+  Medición que lo confirma por otro camino: los **6 certificados emitidos traen `America/Chicago`**,
+  ninguno vacío. **ARREGLADO IGUAL el 1-sep (cert-2), y no por el vacío sino por lo que el vacío
+  tapaba**: `Issue` ahora **rehúsa** —`CERT_TIMEZONE_MISSING`, `CERT_SNAPSHOT_UNPARSEABLE`— en vez de
+  emitir un documento con la zona en blanco **y `accounts: []`**, que es la sexta subclase de §3
+  afirmando que el trader no guardaba ninguna cuenta. Tests: `Cert2_SealedSnapshotTests` (6, cuatro
+  rojos primero). **No desplegado.** **Los otros seis `?? ""` son INALCANZABLES hoy**
   (verificado 1-sep): nada en `src/` ni en `nt/` asigna `Gaps`, `Anchors` ni `KeyId`, así que las dos
   estructuras salen siempre vacías y el bloque `signature` no se emite nunca.
   **CLASIFICACIÓN pedida por el operador el 1-sep, con el criterio de la librería** (*se omite un
