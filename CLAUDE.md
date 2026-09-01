@@ -175,6 +175,23 @@ segunda es indistinguible del de la primera hasta que alguien mira quién tocaba
 Es hermana del segundo subtipo y apunta a otro lado: **aquél dice que tu MODELO DEL MUNDO puede
 estar mal; éste dice que tu VERIFICACIÓN puede compartir tu error.**
 
+### Quinto subtipo, y éste no es sobre lo que AFIRMÁS sino sobre lo que ARREGLÁS (31-ago)
+
+> **UN ARREGLO POR CANAL DEJA LA FAMILIA ABIERTA EN TODOS LOS CANALES QUE NO MIRASTE.**
+
+LT-2 son los campos de referencia que un reinicio deja sin poblar. Arreglamos los **mensajes** —los
+tres de config salen de Core desde el 27-ago— y dimos la familia por cerrada. **Estaba cerrada en un
+canal.** El campo seguía sin poblar y el 31-ago apareció por otra salida: `session.timezone: ""` en
+un certificado (`Certificate.cs:456`). **Y encontró la peor de todas, porque el certificado es el
+único artefacto que va a un tercero.**
+
+Es hermana de la regla del canal del mismo día y apunta al otro lado: **aquélla dice que un MENSAJE
+puede no llegar; ésta dice que un ARREGLO puede no llegar a todas partes** — y las dos por el mismo
+motivo: **nadie enumeró las salidas.**
+
+**Pregunta de cacería, antes de dar una familia por cerrada:** *¿por cuántas salidas puede aparecer
+este dato, y las miré a todas?* Un arreglo que no puede nombrar sus canales es un arreglo de uno.
+
 ## 4. Operativa
 - **Instalar**: `.\nt\install.ps1 -WithSoak -WithBots`. Se niega **antes de mutar** en tres casos y
   **revierte** en el cuarto:
