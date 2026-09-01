@@ -169,6 +169,27 @@ binario, adyacentes en el tiempo.**
 entremedio. **Si Roberto hubiera cerrado limpio estando armado, `state.json` habría quedado idéntico a
 como lo dejó el corte.**
 
+### Tercera terminación del mismo día, y completa el control
+
+Roberto cerró NT8 a las **23:21:49Z** para no desplegar hoy. **Tres terminaciones, mismo día, mismo
+binario, mismo disco: dos limpias y una violenta.**
+
+| | **el corte** (violenta) | **cierre 22:54:47Z** (limpia) | **cierre 23:21:49Z** (limpia) |
+|---|---|---|---|
+| último evento del ledger | `PNL_CHECKPOINT` 18:56:00Z | **`GUARDIAN_STOPPED`** seq 8098 | **`GUARDIAN_STOPPED`** seq **8101** |
+| estado al morir | **`ARMED`** + sello vivo | `DISARMED` (el sello acababa de expirar) | **`DISARMED`**, sin sello desde hacía 27 min |
+| `state.json` que dejó | `ARMED` + sello | `DISARMED`, sin sello | `DISARMED`, sin sello |
+| `lastSeenUtc` vs el final | ~1 s antes del corte | 22:54:46.4 vs 22:54:47.1 (**0,7 s**) | 23:21:49.4 vs 23:21:49.8 (**0,4 s**) |
+| `adapter.log` | sin línea de cierre | `shutdown complete` | `shutdown complete` |
+
+**Lo que agrega la tercera**: los dos cierres limpios dejaron un `state.json` **idéntico en forma** al
+que dejó el corte —mismos campos, mismo `lastSeenUtc` de hace menos de un segundo— y la única
+diferencia real entre los tres archivos de estado **viene del sello, no de cómo terminó el proceso**.
+
+**Y el `GUARDIAN_STOPPED` del tercero desmintió una frase mía de seis minutos antes** —*"desarmado no
+escribe nada"*—: **desarmado no escribe nada mientras CORRE; al morir sí.** Corregido en
+`docs/frontera-binario-20260901.md`, que es donde el número importaba.
+
 ### ¿Alguien que mira sólo el disco puede distinguirlas?
 
 > **Desde los archivos de ESTADO, no.** `state.json` guarda lo mismo en los dos casos, y su

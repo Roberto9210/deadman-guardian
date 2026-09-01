@@ -9,17 +9,28 @@ que fecha el corte.
 
 ---
 
-## 1 · ANTES del despliegue — medido 2026-09-01 ~23:15Z
+## 1 · ANTES del despliegue — **valor final, con NT8 CERRADO**
 
 | | |
 |---|---|
-| **último `seq` escrito por el binario viejo** | **8100** (`STATE_RESTORED`, 2026-09-01T22:58:03.499Z) |
+| **último `seq` escrito por el binario viejo** | **8101** — `GUARDIAN_STOPPED`, 2026-09-01T23:21:49.837Z |
 | **hash del binario viejo** | **`12fff6f6c76d838c`** (`GuardianCore.dll`, net48, 2026-08-31 19:09:03) |
-| estado del guardián al medir | `DISARMED`, sin sello, `dayKey 2026-09-01` |
+| estado en disco al cerrar | `DISARMED`, sin sello, `dayKey 2026-09-01`, `lastSeenUtc` 23:21:49.416Z |
+| NT8 | **cerrado** — verificado en `tasklist` |
 
-> **El 8100 es estable mientras el guardián siga `DISARMED`**, porque desarmado **no escribe nada** —
-> comprobado: cero entradas nuevas entre las 22:58 y las 23:15 con NT8 abierto y ticando cada segundo.
-> **Si alguien arma antes de desplegar, este número hay que volver a medirlo.**
+> ### ⚠ CORRECCIÓN, y el error era de mi propia frase
+>
+> Esta tabla decía **8100** y agregaba que era *"estable mientras el guardián siga `DISARMED`, porque
+> desarmado no escribe nada"*. **Eso era falso, y lo desmintió el cierre 6 minutos después:**
+> `GUARDIAN_STOPPED` es un evento **de CICLO DE VIDA**, no de estado. Un guardián desarmado no escribe
+> nada **mientras corre** — pero **sí escribe al morir**.
+>
+> **El número correcto es 8101**, y es definitivo: NT8 está cerrado y el binario viejo no va a escribir
+> nada más.
+>
+> **La familia del día, una vez más**: la nota se escribió **verdadera** y el mundo siguió moviéndose
+> debajo. Un documento cuyo único trabajo es registrar un número exacto, **equivocado en ese número, es
+> peor que no tenerlo** — porque se lee con la confianza de una medición.
 
 ## 2 · DESPUÉS del despliegue — a completar en el momento
 
