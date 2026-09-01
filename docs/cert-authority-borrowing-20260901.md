@@ -104,6 +104,65 @@ de este repo.
 
 ---
 
+## 5b · `limitRespected` es un booleano y los hechos son TRES (1-sep, tarde)
+
+Hoy: `BreachLockouts == 0 && ningún episodio fail-closed abierto && ChainVerified`.
+
+**No son tres condiciones del mismo hecho: son tres hechos sobre sujetos distintos**, y sólo el
+primero habla del trader.
+
+| término | de quién habla | qué significa `false` |
+|---|---|---|
+| `BreachLockouts == 0` | **del trader** | incumplió su límite |
+| ningún episodio abierto | **del guardián** | **no pudo saberlo** |
+| `ChainVerified` | **de la evidencia** | el registro no se puede verificar |
+
+**Los tres salen impresos idénticos.** Un `false` acusa al trader de algo que en dos de los tres casos
+no hizo — la clase de la casa en el campo del que cuelga la promesa entera.
+
+### Alcanzabilidad, medida sobre el ledger
+
+| | |
+|---|---|
+| episodios fail-closed | **13 — y los 13 CERRARON.** Ninguno quedó abierto jamás |
+| cuándo | **todos el 2026-08-21 y 22.** Ninguno en los últimos 10 días |
+| duración típica | 5–20 segundos |
+| **el más largo** | **1 h 01 m 45 s** (22-ago, 19:58:16 → 21:00:01Z); tres pasaron los 30 min |
+
+⇒ **nunca se capturó un episodio abierto en un certificado, y sin embargo es alcanzable de sobra**: un
+certificado emitido dentro de aquella hora habría impreso `limitRespected: false` **sobre un día sin
+ninguna brecha**. Y las 16:55 —el trader exportando su jornada— es justo el tipo de momento.
+**Matiz que corresponde**: los 2.946 `ACCOUNT_UNKNOWN` **no** son 2.946 episodios; un episodio cubre
+muchos ticks. La condición común es la desconexión; el episodio es raro y **largo**.
+
+### Mi lectura de las tres salidas
+
+**Contra la tercera (que `Issue` rehúse), y coincido con el operador — con un motivo más.** Las dos
+negativas que sí escribí hoy —zona ausente, sello que no coincide— son de otra clase: ahí **el sujeto
+del documento era ilegible**. Acá **un campo queda indeterminado y el resto del día está perfecto**, y
+rehusar tiraría también la brecha real, los episodios y el rango. **La negativa tiene que ser
+proporcional a lo que no se sabe.**
+
+**Contra la segunda (dos booleanos), y el motivo es un peligro concreto.** Si `limitRespected` pasa a
+ser sólo `BreachLockouts == 0`, entonces un día con la cadena rota y sin brecha imprime **`true`**, y
+un consumidor viejo que lea sólo ese campo ve *"limpio"* sobre un registro que no se puede verificar.
+**Eso mueve la mentira al lado que parece más seguro, que es peor que donde está hoy.** Sólo funciona
+si leer `determinable` fuera obligatorio, y eso no se puede imponer.
+
+**A favor de la primera (tres valores: `respected` / `breached` / `undetermined`)**, y el argumento que
+decide no es de tipos sino **de quién lee**:
+
+> **El certificado también lo lee un humano, en el HTML.** Una omisión **no se ve** en una tabla —
+> nadie nota una fila que no está. **`undetermined` se imprime**, ocupa su renglón, y alguien puede
+> preguntar por él.
+
+Ésa es la diferencia con la forma de omitir que esta casa usa en otros campos (`issuer.keyId`,
+`toSeq`, `triggerEvent`): **ahí el lector es una máquina; acá es una persona con una tabla delante.**
+
+**Costo, dicho sin adornos**: es un **cambio de tipo** (`bool` → cadena), el más duro para un
+verificador, y por eso va entero a la pila del contrato. **Y la cadena rota debe mapear a
+`undetermined`, no a `true`** — si no, se reintroduce el peligro de la opción 2 por la puerta de atrás.
+
 ## 6 · Lo que esta lista NO dice
 
 1. **No dice que ningún valor sea falso hoy.** Dice **cuáles no fueron comprobados por quien los

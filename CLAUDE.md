@@ -286,6 +286,21 @@ qué importaba, lo dejó documentado — y el ledger salió con la mentira igual
 certificado, página— y comprobarlas una por una, que es la misma pregunta de cacería que la regla del
 canal (*¿por cuántas salidas puede aparecer este dato, y las miré a todas?*).
 
+> #### ⚠ Y esa enumeración es, ella misma, la CUARTA instancia de esta regla — cometida dentro de su solución (operador, 1-sep)
+>
+> **"Enumerar las superficies y comprobarlas una por una" es una lista de chequeo, y una lista se
+> cumple mientras alguien se acuerde.** Queda anotada como **frágil a propósito**: se espera que
+> falle algún día, y decirlo es más honesto que presentarla como solución.
+>
+> **La versión mecánica existe donde hay un cruce puntual**, y en este caso lo hay: el payload se
+> escribe en `Guardian.RunLockoutSteps` y el concepto vive en `Guardian.LockoutNeedsHuman`.
+> **Un test que afirme que la clave del payload coincide con el nombre de la propiedad de Core es UNA
+> aserción, y falla exactamente cuando las dos superficies se separan** — que es la frase del daño.
+> Se escribe **cuando se aplique el renombre**, no antes.
+>
+> La lista queda **para las superficies que NO tienen un cruce puntual** — el panel, la página, la
+> prosa— con esa etiqueta encima.
+
 ### Un FLAG que anuncia un límite que no existe — y el comentario honesto no lo salva (1-sep)
 
 > **`exhausted: true` afirma que había un tope y se alcanzó. `MaxFlattenAttempts = 3` NO gobierna
