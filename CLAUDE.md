@@ -122,6 +122,18 @@ que le sellaron.
    `session.timezone` salía `""` *"desde estado ordinario"* se combinó con la medición correcta de
    Ventana B de que `""` da `exit 1`. La medición era verdadera; **la mitad que producía la urgencia
    era mía y era falsa** — y era la que generaba el trabajo.
+11. **UNA CITA DE LÍNEA ES EL HASH DE UN MOMENTO** (1-sep, encontrada por Ventana B leyendo este repo).
+   **DECISIÓN: se cita por NOMBRE DE SÍMBOLO** —función, campo, constante, mensaje literal—, que
+   sobrevive al movimiento. **El número de línea es acompañante opcional y NUNCA va solo**, y quien lo
+   lea debe saber que **se pudre**.
+   El caso: este archivo citaba `Certificate.cs:380` y `:363` para los dos `keyId`; el mismo día ya
+   eran `:427` y `:410`, **las dos corridas exactamente 47 líneas**. Como el desplazamiento fue
+   idéntico, **la relación «a 17 líneas» sobrevivió intacta y la cita se seguía leyendo correcta** —
+   una afirmación cierta sobre el conjunto equivocado (§3), detectable sólo abriendo el archivo.
+   **Y no es un caso: es una propiedad del formato**, porque este mapa está construido sobre
+   `archivo:línea`. Las citas viejas **se dejan** —reescribirlas todas hoy es peor uso del tiempo que
+   arreglar lo que denuncian— pero **quedan declaradas perecederas**: un número que no coincide es
+   deriva, no mentira, y **la referencia buena es siempre el nombre**.
 
 ## 3. La clase de defecto de la casa
 **TEXTO QUE AFIRMA MÁS DE LO QUE SU PROPIO CÓDIGO COMPROBÓ.**
@@ -265,6 +277,25 @@ el 31-ago costó eso.**
 
 Aplicado en `Certificate.cs`: la zona perdió el `??` (imposible por `RequiredKeys`); `keyId`, los dos
 de `gaps` y los tres de `anchors` lo conservan **con la nota de preparación declarada**.
+
+### La conclusión correcta con la razón falsa, que es MÁS frágil que equivocarse (1-sep)
+
+> **UNA CONCLUSIÓN CORRECTA APOYADA EN UNA RAZÓN FALSA ES MÁS FRÁGIL QUE UNA CONCLUSIÓN EQUIVOCADA:
+> el día que alguien corrija la razón, se lleva puesta la conclusión.**
+
+Una conclusión equivocada la tumba el primero que la mira. Ésta **aguanta todas las revisiones**
+—porque la conclusión es correcta— **hasta que alguien hace lo correcto con la razón**, y entonces
+cae algo que estaba bien.
+
+Caso: clasifiqué `signature.keyId` como ALCANCE *"porque habilita la verificación de la firma"*.
+**Ventana B midió que su verificador no lee ese campo ni una vez**: lo que habilita la verificación
+es `--pubkey`, que aporta el receptor. La conclusión —**rehusar** en vez de vaciar— **es correcta**, y
+la sostiene mejor una frase que ya estaba en el mismo archivo: *"an unsigned certificate is honest, a
+half-signed one is not"*. **Una firma que no nombra su clave es media firma.**
+
+**Corolario operativo**: cuando una conclusión se apoye en una razón que no medimos nosotros,
+**buscarle una razón que viva en el mismo repositorio**. La de al lado suele ser mejor y no depende de
+nadie.
 
 ### Y el lugar donde la mentira entra mejor disfrazada que en ningún otro (1-sep)
 
@@ -421,17 +452,23 @@ legítimo con significado propio. Las únicas ausencias honestas son **omitir el
   esquema**. `Gaps`, `Anchors` y `KeyId` los provee el llamador y sus campos son libres ⇒ **el día
   que alguien cablee un firmante o calcule huecos, el nulo es posible**. No son decoración: son
   manejo prematuro y con la forma equivocada (ver la clasificación de abajo).
-  **Y `keyId` tiene la contradicción escrita en el mismo archivo, a 17 líneas**: `issuer.keyId`
-  **se omite** cuando viene vacío (`Certificate.cs:380`), y `signature.keyId` **lo vacía** (`:363`).
+  **Y `keyId` tiene la contradicción escrita en el mismo archivo, a 17 líneas**: en `BuildDocument`,
+  `issuer.keyId` **se omite** cuando viene vacío, y en el bloque `signature` de `Issue`
+  `signature.keyId` **lo vacía**. *(Citaba `:380` y `:363`; el 1-sep estaban en `:427` y `:410` —
+  las dos corridas exactamente 47 líneas, ver la regla 11. Se citan por símbolo desde ahora.)*
   El mismo campo del mismo request, tratado de dos maneras opuestas en un bloque y en el otro.
   **CLASIFICACIÓN pedida por el operador el 1-sep, con el criterio de la librería** (*se omite un
   campo que lleva un VALOR, nunca uno que lleva un ALCANCE: omitir una clave de alcance APAGA un
   chequeo en silencio*): **seis de los siete son ALCANCE y uno solo es VALOR.**
   `session.timezone` **es alcance** —declara el marco en el que `dayKey` significa algo, y es el
-  vecino literal de la clave que allá midieron—; `signature.keyId` **es alcance** porque habilita la
-  verificación de la firma, y para ése la respuesta ya está escrita cuatro líneas más arriba en su
-  propio archivo (`Certificate.cs:358`: *"an unsigned certificate is honest, a half-signed one is
-  not"*) ⇒ **rehusar**, no omitir ni vaciar; `gaps[].dayKey` y los tres de `anchors` **son alcance**
+  vecino literal de la clave que allá midieron—; **`signature.keyId` se rehúsa, y la RAZÓN cambió el
+  1-sep sin que cambiara la conclusión**: escribí *"porque habilita la verificación de la firma"* y
+  **eso es falso** — Ventana B midió que su verificador **no lee ese campo ni una vez**; la
+  verificación la habilita `--pubkey`, que aporta el receptor. **La razón que sí la sostiene está en
+  el propio archivo**, en el `CertificateResult.Refused` del camino de firma: *"an unsigned
+  certificate is honest, a half-signed one is not"* — **una firma que no nombra su clave es media
+  firma**, y este archivo ya se niega a emitir media firma unas líneas antes ⇒ **rehusar**, no omitir
+  ni vaciar; `gaps[].dayKey` y los tres de `anchors` **son alcance**
   ⇒ un elemento que no puede nombrar su día o lo que ancla **no se emite**. **El único VALOR es
   `gaps[].reason`**, prosa que explica un hueco: omitirlo saca una explicación, no un chequeo.
   **Y la duda del operador sobre `gaps` es correcta un nivel más arriba**: el que lleva el alcance es
@@ -610,6 +647,13 @@ Eso mueve el contrato de extensión del sexto lugar al camino crítico del defec
    límite estando sellado*; el conjunto contado es *clics de más en un botón*.
 5. **Hash del binario en `GUARDIAN_STARTED`** — sólo después del 2. Nombrado por lo que establece:
    *el hash del archivo desde el que se cargó el ensamblado*, no "el código corriendo".
+   **`GUARDIAN_STARTED` TIENE DOS SITIOS DE EMISIÓN Y DOS FORMAS** (encontrado por Ventana B el 1-sep,
+   verificado acá): el arranque en frío emite `{state:"DISARMED", fresh:true}` y el arranque con
+   estado previo emite `{state}` solo — o sea que **las dos descripciones que circulaban eran ciertas
+   sobre sitios distintos**. ⇒ **el `buildHash` va en LOS DOS, no en uno.** Medido en el ledger de
+   producción: de **70** `GUARDIAN_STARTED`, **exactamente 1** lleva `fresh` — la forma rara es de las
+   de *"una vez por instalación"* (familia de M21), así que **esta máquina ya gastó la suya** y no la
+   volverá a producir.
 6. **`limitRespected`** — semántica, no alcance. Separado a propósito.
 
 **ENTRADA DE OTRA CLASE PARA ESE INVENTARIO, y hay que escribirla ahí** (31-ago):
