@@ -1,20 +1,24 @@
 # deadman-guardian — mapa para sesiones futuras (actualizar al cierre de cada tanda)
 
-Última actualización: 2026-08-29 (LT-4 encontrado; plan de la prueba de conducta de LT-1 escrito).
+Última actualización: 2026-08-31 (**la prueba de conducta de LT-1 CORRIDA y pasada; LT-4 arreglado;
+el panel reconstruido; todo desplegado**). Bitácora del día: `docs/log-20260831.md`.
 
-**ESTADO OPERATIVO AL 29-ago 11:20 CT — verificado, no recordado:**
-- **NinjaTrader está ABIERTO** (PID 39112, desde el jue 27-ago 19:55). Guardián vivo y `DISARMED`:
-  el sello de $600 expiró el 28-ago 17:00 CT (`SEAL_EXPIRED` seq 7963 → `DAY_CLOSED` → `DISARMED`).
-- **`config.json` es el de PRODUCCIÓN ($600)** y **no hay sello vigente**, así que hoy sí se puede
-  editar. Respaldo previo: `config.json.produccion-20260826`.
-- **Hay una POSICIÓN ABIERTA en Sim101** — `positionsAdopted: 1`, +$18.430 no realizados al último
-  checkpoint del viernes. **Es la que LT-1 dejó varada el 26-ago** (32 `FLATTEN_REQUESTED`, 32
-  `LOCKOUT_INCOMPLETE`, cero `FLATTEN_VERIFIED`). Cerrarla antes de cualquier prueba: el no realizado
-  entra crudo en `DayPnl`, y con +$18k **ningún límite es alcanzable**.
-- **Divergencia pendiente**: desplegado `fc8fda6e514bb921` (LT-1), `bin\Release` en
-  `104dbca67f19f709` (LT-2). Ver §4, "cuándo la divergencia importa".
-- Sin compuertas `.GO`; `soak.GO` sigue aparcado como `soak.GO.parked-for-livetest`.
-- 268 tests, 0 fallos. Plan de hoy: `docs/lt1-behaviour-test-plan-20260829.md`.
+**ESTADO OPERATIVO AL 31-ago 19:2x CT — verificado, no recordado:**
+- **NinjaTrader ABIERTO y compilado** con todo lo del día. Guardián **`DISARMED`**, sin sello.
+  **NO está armado**, y armar es una decisión del operador, nunca inercia de un despliegue.
+- **`config.json` es el de PRODUCCIÓN ($600)**, hash `38a15089c889ac09`, restaurado por el §11 tras
+  la corrida. Respaldo del día: `config.json.produccion-20260831`.
+- **Sim101 en cero**, sin posiciones. La que LT-1 dejó varada el 26-ago se limpió con un reset de la
+  cuenta (08:06 del 31-ago) — NT8 lo registró: *"Cuenta de simulacion ''Sim101'' restablecida"*.
+- **Desplegado `12fff6f6c76d838c`** (`GuardianCore.dll`) más los 8 `.cs`, los 8 idénticos al repo.
+  **Sin divergencia pendiente.**
+- Sin compuertas `.GO`. `soak.GO` está como **`soak.GO.parked-pending-assertion-decision`**: su
+  aserción exige `ORDER_REJECTED_LOCKED` y una orden muerta, y desde LT-1 **no ocurre ninguna de las
+  dos**. Reponerla daría un FAIL conocido disfrazado de regresión. **Decidir qué prueba antes.**
+- **304 tests, 0 fallos.** Ledger: 8.023 entradas, cadena íntegra (verificada tras un corte de luz).
+- **Pendiente de confirmación humana**: los tres gestos del panel nuevo — que el chevron se vea, que
+  el botón siga visible colapsado, y que la franja no se abra sola. El add-on carga limpio, y eso no
+  prueba nada sobre el botón.
 Es un mapa, no un manual. El historial forense está en `git log`; la especificación en `SPEC.md`,
 las decisiones revisadas en `AMENDMENTS.md`, y el diagnóstico del error espejo en
 `docs/error_espejo.md`.
