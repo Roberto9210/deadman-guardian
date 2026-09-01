@@ -79,6 +79,7 @@ Roberto.
 |---|---|---|
 | **`GUARDIAN_STARTED` en frío** (`fresh:true`) | ya ocurrió, el 2026-08-21, y no vuelve | el primer arranque de cada instalación |
 | **NinjaTrader en inglés** | el de Roberto está en español | cualquier tester anglófono, desde el minuto uno |
+| **Episodios fail-closed por cuenta desconectada** (1-sep) | se activó **connect on startup** el 2026-08-22 14:57:28Z (`Config.xml.before-connectonstartup-20260822-095728`); **cero commits el 22, 23 y 24** ⇒ no fue el guardián. Ninguno en 10 días | **NT8 no se conecta al arrancar por defecto** ⇒ toda instalación nueva empieza ahí. **Y es lo primero que se le va a romper a un usuario nuevo**: un certificado emitido dentro de un episodio lee `limitRespected: false` sobre un día impecable |
 
 ⇒ **no baja de prioridad por inalcanzable: sube.** Los dos le pegan al **primer beta que no sea
 Roberto**, y ninguno de los dos se puede ensayar acá sin instalar de cero.

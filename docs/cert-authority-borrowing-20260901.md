@@ -199,6 +199,19 @@ Los 13 episodios son del 21 y 22 de agosto y no hubo ninguno en 10 días. Medido
 ⇒ **va al CUARTO estado del inventario: *no producible acá, universal afuera*.** Y confirma la
 indicación: **se construye en un test**, como el canal de sonido roto, en vez de esperar a que vuelva.
 
+> ### Y eso cambia la PRIORIDAD, no sólo la clasificación (operador, 1-sep)
+>
+> **El primer beta que no sea Roberto va a tener episodios fail-closed desde el minuto uno.** Y si
+> emite un certificado dentro de uno, **va a leer `limitRespected: false` sobre un día impecable.**
+>
+> **Deja de ser un arreglo elegante y pasa a ser LO PRIMERO QUE SE VA A ROMPER PARA UN USUARIO
+> NUEVO** ⇒ sube por encima de casi todo lo demás del certificado.
+>
+> **Los tres miembros del cuarto estado, juntos a propósito**: los episodios fail-closed de una
+> instalación sin *connect on startup*, el `fresh: true` de un arranque en frío, y los docs en inglés
+> con un NT8 en español. **Los tres comparten que esta máquina ya no puede producirlos porque ya pasó
+> por ahí, y que afuera son universales.**
+
 ## 6 · Lo que esta lista NO dice
 
 1. **No dice que ningún valor sea falso hoy.** Dice **cuáles no fueron comprobados por quien los

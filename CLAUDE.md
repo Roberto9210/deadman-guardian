@@ -88,7 +88,12 @@ que le sellaron.
      una fila de este mismo archivo se escribió con `python -c "..."` y cada identificador
      entre backticks —`dayKey`, `DAY_OPENED`, `limitRespected`— se ejecutó como comando y quedó
      **reemplazado por nada**. La fila salió con huecos justo donde iban sus términos técnicos.
-   **Ninguna de las dos ocurre si el script vive en un archivo**, que es la regla que ya estaba
+   - **los MENSAJES DE COMMIT, desde el 1-sep.** Cuarto incidente de la semana, **tercera ventana**:
+     un mensaje en línea con comillas dobles adentro (`"shutdown complete"`, `"the state"`) rompió el
+     parseo y `git` lo tomó como rutas. **De acá en más el mensaje va SIEMPRE a un archivo y se usa
+     `git commit -F`, sin excepción, igual que el código.** El criterio caso por caso ya falló cuatro
+     veces; no se negocia por ser un mensaje corto.
+   **Ninguna de las tres ocurre si el contenido vive en un archivo**, que es la regla que ya estaba
    escrita y que no seguí por tratarse de una sola línea.
 9. **ANTE UN FRENO, LA PREGUNTA NO ES «¿FUNCIONA?» SINO «¿EXISTE UN INPUT ALCANZABLE QUE LO HAGA
    DECIR QUE NO?»** — y después, por separado: **¿alguna vez lo dijo?** Traída de ALAYA el 1-sep,
@@ -743,7 +748,14 @@ Eso mueve el contrato de extensión del sexto lugar al camino crítico del defec
    **`GUARDIAN_STARTED` TIENE DOS SITIOS DE EMISIÓN Y DOS FORMAS** (encontrado por Ventana B el 1-sep,
    verificado acá): el arranque en frío emite `{state:"DISARMED", fresh:true}` y el arranque con
    estado previo emite `{state}` solo — o sea que **las dos descripciones que circulaban eran ciertas
-   sobre sitios distintos**. ⇒ **el `buildHash` va en LOS DOS, no en uno.** Medido en el ledger de
+   sobre sitios distintos**. ⇒ **cuando este ítem se implemente, el `buildHash` va en LOS DOS sitios,
+   no en uno.**
+   **ACLARACIÓN 1-sep, porque esta frase se leyó como un hecho y no lo es**: es una **instrucción de
+   diseño para cuando esto se haga**, dentro de un ítem que empieza con *"sólo después del 2"*. **HOY
+   `GUARDIAN_STARTED` NO LLEVA `buildHash`** — sus dos formas completas son `{state, fresh}` y
+   `{state}`, medido. El hash que sí existe hoy vive en el **certificado**, campo `issuer.buildHash`,
+   y de ahí venía la sensación de que el dato ya estaba: **está, pero en el otro artefacto.**
+   Consecuencia práctica anotada aparte: `docs/frontera-binario-20260901.md`. Medido en el ledger de
    producción: de **70** `GUARDIAN_STARTED`, **exactamente 1** lleva `fresh` — la forma rara es de las
    de *"una vez por instalación"* (familia de M21), así que **esta máquina ya gastó la suya** y no la
    volverá a producir.
