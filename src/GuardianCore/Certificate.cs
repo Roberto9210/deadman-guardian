@@ -162,6 +162,19 @@ namespace GuardianCore
             // and it belongs to the field's owner and the verifier's, not to this file. What belongs
             // here is refusing to let the silence pass as a quiet day - the same move candidate 6 made
             // above, and the reason this list exists.
+            // 2026-09-01, the half of the authority-borrowing ruling where marking provenance IS the
+            // answer: these four have no truth to be checked against, so the only honest move is to
+            // say what they are. Marking provenance was REJECTED for ledgerVerified - there the fix
+            // was to make the sentence true - and accepted here, and the difference is exactly whether
+            // something could have been verified and was not.
+            "The alias is the trader's own word about themselves. This document does not verify it " +
+            "against anything: it is the name they chose, not an identity anyone checked.",
+            "The trust level is L1 and does not rise on its own. L2 would mean anchors held by a third " +
+            "party, and this build produces none.",
+            "An empty list of gaps does not mean the record has none: this build does not compute " +
+            "gaps, so the list is empty in every certificate it issues. The same is true of anchors.",
+            "This build issues unsigned certificates - nothing here holds a signing key, so the " +
+            "signature block does not appear at all. Its absence is not evidence of anything.",
             "This does not report a lockout caused by configuration tampering. Only a daily-loss " +
             "breach writes LIMIT_BREACHED, so a day on which the guardian locked the account because " +
             "the configuration was edited while sealed reads here as lockoutsTriggered 0 with " +
@@ -271,6 +284,14 @@ namespace GuardianCore
 
         /// <summary>Builds the certificate. Called ONLY from an explicit trader action
         /// (SPEC section 3c) - nothing in the engine calls this on a timer or an event.</summary>
+        /// <param name="chainVerified">SUPERSEDED AND IGNORED since cert-4 (2026-09-01). The chain is
+        /// verified here, over the entries this document is built from, rather than taken on the
+        /// caller's word about a different read.
+        ///
+        /// It stays in the signature on the same grounds already written two fields above for
+        /// CertificateRequest.DaysCovered: removing a parameter breaks the adapter that is ALREADY
+        /// COMPILED, in the window between deploying the DLL and the human pressing F5. Coordinated
+        /// removal, not a tidy-up.</param>
         public static CertificateResult Issue(IReadOnlyList<JsonObject> entries,
                                               PersistedState state,
                                               CertificateRequest request,
@@ -337,7 +358,19 @@ namespace GuardianCore
                 .Min();
             long toSeq = nextDayStart < 0 ? seqs.Max() : inDay.Max();
 
-            var claims = Recompute(entries, fromSeq, toSeq, chainVerified);
+            // cert-4, 2026-09-01: CERTIFY THE BYTES YOU READ.
+            //
+            // `chainVerified` is the CALLER's word about a DIFFERENT read. The addon established it
+            // with Ledger.Verify(), which re-reads the file, and then handed over a second read from
+            // Ledger.ReadAll() - with a live guardian appending between the two. So `ledgerVerified`
+            // was true of one set of bytes and printed over another, and when it came out right it
+            // came out right by coincidence.
+            //
+            // It is verified HERE now, over the entries this document is actually built from, through
+            // the same per-entry rule the file door uses (Ledger.CheckLink, one implementation, two
+            // entry points). `ledgerVerified` says what its name says.
+            var chainVerifiedHere = Ledger.VerifyEntries(entries).Ok;
+            var claims = Recompute(entries, fromSeq, toSeq, chainVerifiedHere);
 
             // TRUE BY CONSTRUCTION, never typed: count the distinct dayKeys actually inside the span.
             // For a correct span that is 1, and if the span ever leaked into another day it would say
@@ -376,6 +409,25 @@ namespace GuardianCore
             // without sessionResetTimeZone never parses (GuardianConfig.RequiredKeys), so it never
             // becomes a seal, and Start refuses to run on a snapshot whose hash does not match
             // (Guardian.cs:224). Unreachable is what these are; SILENT is what they must not be.
+            // cert-4, the same defect as the ledger one and in the same method of the caller: the seal
+            // read AT ISSUE TIME is not the seal read at boot. ExportDay re-reads state.json and
+            // PersistedState.TryParse does not check the hash, while Seal.SnapshotMatchesHash has
+            // exactly one caller in the whole repo - Guardian.Start. So the SEAL_MISMATCH lockout is
+            // true of the file version the guardian read when it started, not of the version this
+            // document prints; and the guardian rewrites that file all session, so the two reads
+            // differ WITHOUT AN ADVERSARY.
+            //
+            // The limits and the zone below come out of this snapshot. If it no longer hashes to its
+            // own SealHash, they are not the numbers that were committed to, and there is nothing
+            // honest left to publish. Refuse - the same move the signing path makes a few lines on:
+            // an unsigned certificate is honest, a half-signed one is not.
+            if (!state.Seal.SnapshotMatchesHash())
+                return CertificateResult.Refused(
+                    "CERT_SEAL_MISMATCH: the sealed configuration no longer hashes to the seal's own " +
+                    "sealHash, so the limits and the session's time zone in this document would not be " +
+                    "the ones that were committed to. Nothing is certified over a seal that does not " +
+                    "match itself.");
+
             var sealedConfig = ParseSnapshot(state.Seal.ConfigSnapshot);
             if (sealedConfig == null)
                 return CertificateResult.Refused(

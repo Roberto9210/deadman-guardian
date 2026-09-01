@@ -37,38 +37,34 @@ namespace GuardianCore.Tests
     public class Cert3_TamperLockoutTests : Harness
     {
         private const string TestSalt = "0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f0";
-        private const string Today = "2026-08-31";
 
-        private static CertificateRequest Req() => new CertificateRequest
+        private CertificateRequest Req() => new CertificateRequest
         {
-            Alias = "roberto", DayKey = Today, IssuerVersion = "0.1.0",
+            Alias = "roberto", DayKey = Guardian.Status.DayKey, IssuerVersion = "0.1.0",
             IssuerBuildHash = "test", AccountSalt = TestSalt,
         };
 
-        private static JsonObject E(int seq, string ev, string dayKey = null)
-        {
-            var payload = JsonValue.Obj();
-            if (dayKey != null) payload.Set("dayKey", dayKey);
-            return JsonValue.Obj()
-                .Set("seq", seq).Set("event", ev)
-                .Set("tsUtc", "2026-08-31T12:00:0" + (seq % 10) + ".000Z")
-                .Set("payload", payload);
-        }
-
         /// <summary>A day shaped exactly like the one that matters: armed, then the config edited
         /// while sealed, then the lockout. No LIMIT_BREACHED anywhere, because no limit was breached -
-        /// the trader was stopped BEFORE that, which is the point.</summary>
-        private static List<JsonObject> ATamperedDay() => new List<JsonObject>
+        /// the trader was stopped BEFORE that, which is the point.
+        ///
+        /// WRITTEN THROUGH THE PRODUCTION WRITER, not hand-built (changed for cert-4). Since the
+        /// emitter verifies the chain of what it is handed, a fixture of loose JsonObjects would come
+        /// back "ledgerVerified: false" for a reason that has nothing to do with what these tests are
+        /// about - and Cert3a would have failed for the wrong reason, which is worse than not having
+        /// it. A new Ledger over the same store resumes the existing chain (LoadHead in its
+        /// constructor), so these events continue the ones Armed() already wrote.</summary>
+        private List<JsonObject> ATamperedDay()
         {
-            E(1, Ev.ConfigLoaded),
-            E(2, Ev.Armed,           Today),
-            E(3, Ev.SealCreated),
-            E(4, Ev.DayOpened,       Today),
-            E(5, Ev.ConfigTampered),                 // the trader raises their own limit
-            E(6, Ev.OrdersCancelled),                // and the guardian locks the account for it
-            E(7, Ev.FlattenRequested),
-            E(8, Ev.FlattenVerified),
-        };
+            if (Guardian == null || Guardian.Status.Kind != StateKind.Armed) Armed("600.00");
+            var ledger = new Ledger(Store, LedgerPath);
+            var at = Clock.UtcNow;
+            ledger.Append(Ev.ConfigTampered, at, JsonValue.Obj());     // the trader raises their limit
+            ledger.Append(Ev.OrdersCancelled, at, JsonValue.Obj());    // the guardian locks for it
+            ledger.Append(Ev.FlattenRequested, at, JsonValue.Obj());
+            ledger.Append(Ev.FlattenVerified, at, JsonValue.Obj());
+            return LedgerEntries();
+        }
 
         private PersistedState State()
         {
@@ -111,8 +107,9 @@ namespace GuardianCore.Tests
         [Fact]
         public void Cert3b_the_same_day_with_a_real_breach_does_count_it()
         {
-            var day = ATamperedDay();
-            day.Add(E(9, Ev.LimitBreached));
+            ATamperedDay();
+            new Ledger(Store, LedgerPath).Append(Ev.LimitBreached, Clock.UtcNow, JsonValue.Obj());
+            var day = LedgerEntries();
 
             var doc = Parse(Certificate.Issue(day, State(), Req(), true).Json);
             var claims = (JsonObject)doc["claims"];

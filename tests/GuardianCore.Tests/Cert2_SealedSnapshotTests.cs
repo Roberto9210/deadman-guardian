@@ -70,15 +70,21 @@ namespace GuardianCore.Tests
             return s;
         }
 
-        /// <summary>The same state, with the sealed snapshot replaced. The seal's own hash is left
-        /// alone on purpose: Issue does not check SnapshotMatchesHash - Start does, and it locks out
-        /// (Guardian.cs:224-229). What is under test here is the emitter, not the tamper detector.</summary>
+        /// <summary>The same state with the sealed snapshot replaced, AND ITS SEALHASH RECOMPUTED.
+        ///
+        /// The hash used to be left alone here, because Issue did not check it. Since cert-4 it does
+        /// (CERT_SEAL_MISMATCH), and that check runs FIRST - correctly, because a seal that does not
+        /// match itself makes every question below it moot. Leaving the old hash would mean these
+        /// tests all exercised the seal check and none of them reached what they are named after.
+        ///
+        /// So the fixture is now a seal that IS internally consistent and whose CONTENT still cannot
+        /// answer - which is the only shape in which the cert-2 guards are the ones under test.</summary>
         private PersistedState StateWithSnapshot(string snapshot)
         {
             var st = State();
             var s = st.Seal;
-            st.Seal = new Seal(s.SealHash, snapshot, s.ArmedAtUtc, s.ExpiresAtUtc, s.DayKey,
-                               s.LedgerHeadHash, s.MonoAtArmMs, s.SealDurationMs, s.RunId);
+            st.Seal = new Seal(Hashing.Sha256Hex(snapshot ?? ""), snapshot, s.ArmedAtUtc, s.ExpiresAtUtc,
+                               s.DayKey, s.LedgerHeadHash, s.MonoAtArmMs, s.SealDurationMs, s.RunId);
             return st;
         }
 

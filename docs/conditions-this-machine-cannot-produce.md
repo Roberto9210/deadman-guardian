@@ -56,6 +56,33 @@ test **sigue siendo** *"nadie lo vio"*. El test abarata el arreglo cuando la con
 baja la probabilidad de que llegue por un camino que no imaginamos.** En el registro de riesgos de la
 beta, una fila con test **no vale menos** que una sin test.
 
+## Y un CUARTO estado, que sube de prioridad en vez de bajar (1-sep)
+
+| | |
+|---|---|
+| **NO PRODUCIBLE ACÁ, UNIVERSAL AFUERA** | esta máquina ya pasó por ahí; **todo usuario nuevo pasa por ahí primero** |
+
+**Una forma que ocurre UNA VEZ POR INSTALACIÓN se lee RARA desde adentro de una instalación y
+UNIVERSAL desde la población.** Es la trampa de perspectiva de esta lista entera: medimos desde
+adentro de la única instalación que tenemos.
+
+**El caso que lo encontró**: `GUARDIAN_STARTED` tiene dos formas, y la del arranque en frío
+—`{state:"DISARMED", fresh:true}`— aparece **1 vez en 70** en el ledger de producción. Leerlo como
+*"rara, esta máquina ya gastó la suya"* es correcto **y es la mitad equivocada de la frase**: es el
+**primer evento que va a escribir todo usuario nuevo, sin excepción**, y la única manera de volver a
+observarla es **una instalación nueva** — que es exactamente lo que hace el primer beta que no sea
+Roberto.
+
+**Los dos miembros de este estado hoy, y comparten vecino a propósito:**
+
+| condición | por qué esta máquina no la produce | por qué es universal afuera |
+|---|---|---|
+| **`GUARDIAN_STARTED` en frío** (`fresh:true`) | ya ocurrió, el 2026-08-21, y no vuelve | el primer arranque de cada instalación |
+| **NinjaTrader en inglés** | el de Roberto está en español | cualquier tester anglófono, desde el minuto uno |
+
+⇒ **no baja de prioridad por inalcanzable: sube.** Los dos le pegan al **primer beta que no sea
+Roberto**, y ninguno de los dos se puede ensayar acá sin instalar de cero.
+
 ## ⇒ Esta lista ES el registro de riesgos de la beta
 
 **El conjunto exacto de cosas que un desconocido va a encontrar en su primera semana y que Roberto

@@ -10,9 +10,9 @@
 
 | | |
 |---|---|
-| **Conformance statement, exact** | **26 of 26 named guarantees implemented; 165 collected test cases, 165 passing, 0 failing, 0 skipped.** Not "it works", not "all tests green" |
+| **Conformance statement, exact** | **26 of 26 named guarantees implemented**, 0 failing, 0 skipped. Not "it works", not "all tests green". *(A test COUNT used to stand here and was removed on 2026-09-01 rather than updated: the number climbs on its own, says nothing about coverage, and is wrong again the following week. A claim that expires by itself is a trap for whoever reads it next. The guarantee count is stable and checkable, so it is the one that stays.)* |
 | **Session certificate** | **18 of 18 in scope; 19 defined; 1 excluded and named.** C15b (verification against a key we publish) is declared out of scope in v1 — [`CERT_CONFORMANCE.md`](CERT_CONFORMANCE.md) argues the exclusion instead of dropping it from the denominator |
-| **Soak** | **6 of 6 scenarios passed, twice, on 2026-08-21** (runs 12:26:47Z and 12:28:13Z) against real NinjaTrader on `Sim101` — [nt/soak/REMOJO_REPORT.md](nt/soak/REMOJO_REPORT.md) |
+| **Soak** | **6 of 6 scenarios passed, twice, on 2026-08-21** (runs 12:26:47Z and 12:28:13Z) against real NinjaTrader on `Sim101` — [nt/soak/REMOJO_REPORT.md](nt/soak/REMOJO_REPORT.md). **READ THE DATE: that evidence is from 2026-08-21 and it PREDATES the three behaviour findings that followed — LT-1 (26-ago), LT-2 (27-ago) and LT-4 (31-ago), the last of which proved the guardian stopped enforcing after its first verified flatten. It is kept rather than deleted because it happened, and it is not refreshed because IT CANNOT BE RE-RUN TODAY: one of its assertions describes behaviour LT-1 removed, so the suite is deliberately parked until that assertion is re-aimed and a human decides to restore its gate.** |
 | **Earlier soak runs** | 5 of 6, twice, the same morning — published above the passing ones, not replaced by them. The failing scenario and its fix are in the report |
 | **Release** | none. No tag, no binary, no package |
 | **Users** | none |
@@ -30,7 +30,7 @@ outside its sight, and firm minimum-hold rules. A guarantee is worth what its st
 **A risk team can read all of it without installing anything.** The whole decision layer is
 [`src/GuardianCore/`](src/GuardianCore/) — pure C#, no NinjaTrader, no network, no I/O except through four
 injected ports — and the specification it was written against is in this repository, dated before the code.
-`dotnet test` runs the 165 cases with no platform, no account and no connection. Nothing here needs to touch
+`dotnet test` runs the whole suite with no platform, no account and no connection. Nothing here needs to touch
 a broker to be audited.
 
 ---
@@ -65,7 +65,7 @@ src/GuardianCore/        pure C#, netstandard2.0, zero package dependencies, zer
   TimeZoneMap.cs         the IANA -> Windows map that makes the session boundary work inside NT8
   Json.cs, Money.cs, Hashing.cs, Ports.cs, TradingDay.cs
   Certificate.cs         the session certificate emitter: it counts, it never invents, it cannot send
-tests/GuardianCore.Tests/  165 tests, one file per guarantee group, fakes for all four ports
+tests/GuardianCore.Tests/  one file per guarantee group, fakes for all four ports
 
 nt/addon/                the NinjaTrader adapter: subscribes, reports, cancels. It holds no decisions —
                          SPEC §3.2 makes a conditional about money or state inside the adapter a rejected change
@@ -91,6 +91,11 @@ process mid-lockout, submits orders while locked, and pushes the clock past expi
 back **5 of 6** — and the failing scenario was the one that matters most, an order surviving while `LOCKED`.
 The cause was a defect in the soak's own cancel path, not in the guardian, and the fix is in the report along
 with the runs that failed. They are published above the passing runs, in order, not replaced by them.
+
+**Read that paragraph with its date on: it is from 2026-08-21.** "An order surviving while `LOCKED`" was a
+failure then, because the guardian cancelled on sight then. **Since 2026-08-26 it is the expected behaviour**
+— see the enforcement bullets above — so that scenario has been re-aimed to assert what the product now does,
+and the soak's gate stays parked until a human decides to restore it.
 
 ## Documentation
 
@@ -122,10 +127,23 @@ Every claim in [SPEC](SPEC.md) that depended on NinjaTrader behaving a certain w
 running process, not on a bench. The results are in [nt/STEP3_FINDINGS.md](nt/STEP3_FINDINGS.md):
 
 - **There is no pre-submit hook.** 2,912 types scanned at runtime, zero events that could veto an order
-  before submission. Enforcement is detect-and-cancel, and this README will not claim otherwise.
-- **Detect-and-cancel takes 14.4 ms** from seeing a live order to submitting the cancel — inside a cycle
-  that took **315.9 ms** end to end, of which 301 ms belong to the venue and the platform. That is the
-  arithmetic behind the warning: a fast guard does not shrink the market's 300 ms.
+  before submission. Nothing here can stop an order from reaching the venue, and this README will not claim otherwise.
+- **NOTHING IS CANCELLED WHILE LOCKED, and this is the sentence to read twice.** Entering the lockout
+  sweeps the resting orders **once** — that sweep is the only call to `CancelAllOrders` in the codebase,
+  and its only caller is `EnterLockout`. After that, an order the guardian sees is **neither cancelled
+  nor recorded**: the observation path returns without acting. **So an order sent after the lockout
+  reaches the venue and can fill.** What the guardian bounds is how long the position that order opens
+  survives — the next cycle's flatten closes it — not whether the order goes out. Any wording of ours
+  that says orders are "cancelled on sight" describes a mechanism this build does not have.
+- **It is weaker than it used to be, deliberately.** Until 2026-08-26 the guardian did cancel every order
+  it saw while locked, and a live test showed the price: it cancelled **its own flatten orders** and the
+  trader's own exits — twelve of them, inside six seconds, all `Sell` / `SellShort` / `BuyToCover`.
+  Cancelling wrongly can trap someone in a sinking position, which is unbounded and caused by us; not
+  cancelling costs one order's worth of exposure for one cycle. **The `14.4 ms` figure this README used to
+  publish measured that removed mechanism, so it is not a claim about this build**, and
+  `ordersRejectedWhileLocked` is `0` in every certificate issued since — truthfully, because nothing
+  rejects anything. There has been **no `ORDER_REJECTED_LOCKED` since 2026-08-26 23:44Z**, and there
+  cannot be: the event has no writer left in the source.
 - **`America/Chicago` throws inside NinjaTrader.** The runtime resolves Windows time zone ids only, so the
   embedded IANA map is what makes the session boundary work at all.
 - **Sleep does not stop the monotonic clock.** Two real S3 suspends moved wall-vs-monotonic by 41 and 53 ms,

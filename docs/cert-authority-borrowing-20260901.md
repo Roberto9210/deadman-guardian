@@ -1,5 +1,10 @@
 # Campos que piden prestada credibilidad — certificado, lado emisor
 
+> **Las citas `archivo:linea` de este documento se midieron contra el commit `5d5eb27`.**
+> Una cita de linea es el hash de un momento (regla 11 del metodo): si un numero no coincide,
+> es **deriva**, no mentira — compara commits y usa el **nombre del simbolo**, que es la
+> referencia buena. Esta linea caduca sola: en cuanto el archivo se mueve, el lector lo ve.
+
 **2026-09-01. Sólo la lista, ningún arreglo** (pedido del operador).
 Regla que la origina, medida en el verificador por Ventana B:
 

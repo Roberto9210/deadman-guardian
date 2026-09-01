@@ -175,7 +175,7 @@ namespace GuardianCore
             return entry;
         }
 
-        /// <summary>SPEC 11.3: Ok, or the seq of the first broken link.</summary>
+        /// <summary>SPEC 11.3: Ok, or the seq of the first broken link. Walks the FILE.</summary>
         public LedgerVerifyResult Verify()
         {
             if (!_store.Exists(_path)) return LedgerVerifyResult.Good();
@@ -187,29 +187,78 @@ namespace GuardianCore
                 if (!JsonParser.TryParse(line, out var v, out var err) || !(v is JsonObject o))
                     return LedgerVerifyResult.Broken(expectedSeq, "unparseable line: " + err);
 
-                var seq = o.GetInt("seq");
-                var hash = o.GetString("hash");
-                var prevField = o.GetString("prev");
-                var ev = o.GetString("event");
-                var tsText = o.GetString("tsUtc");
-                var schema = o.GetInt("schemaVersion");
-                if (!seq.HasValue || hash == null || prevField == null || ev == null || tsText == null || !schema.HasValue)
-                    return LedgerVerifyResult.Broken(expectedSeq, "missing required field");
-                if (seq.Value != expectedSeq)
-                    return LedgerVerifyResult.Broken(expectedSeq, "sequence jumped to " + seq.Value.ToString(CultureInfo.InvariantCulture));
-                if (prevField != prev)
-                    return LedgerVerifyResult.Broken(seq.Value, "prev does not match the previous hash");
-
-                var copy = JsonValue.Obj();
-                foreach (var k in o.Keys) if (k != "hash") copy.Set(k, o[k]);
-                var recomputed = Hashing.Sha256Hex(copy.ToCanonical());
-                if (recomputed != hash)
-                    return LedgerVerifyResult.Broken(seq.Value, "hash does not match the entry contents");
-
-                prev = hash;
+                var broken = CheckLink(o, expectedSeq, prev, out prev);
+                if (broken != null) return broken;
                 expectedSeq++;
             }
             return LedgerVerifyResult.Good();
+        }
+
+        /// <summary>THE SAME CHAIN CHECK, over a collection ALREADY IN MEMORY (2026-09-01).
+        ///
+        /// WHY IT EXISTS. The certificate emitter used to be told the chain was fine by whoever called
+        /// it, and the addon established that with `ledger.Verify()` - which re-reads the FILE - and
+        /// then handed over a SECOND read from `ledger.ReadAll()`. Two reads, with a live guardian
+        /// appending between them: the sentence "ledgerVerified: true" was true of a set of bytes that
+        /// was not the set the document described. When it came out right, it came out right by
+        /// coincidence.
+        ///
+        /// The rule now is CERTIFY THE BYTES YOU READ: one read, verified, and everything printed
+        /// derived from that read.
+        ///
+        /// AND IT IS NOT A SECOND IMPLEMENTATION, deliberately. CheckLink below is the only place the
+        /// chain rule exists, reached from two entry points. Two independent implementations of the
+        /// same wrong rule always agree, and their agreement reads as corroboration.
+        ///
+        /// One honest difference between the doors, named rather than hidden: this one cannot see an
+        /// UNPARSEABLE line, because a caller that parsed already dropped it (ReadAll skips silently).
+        /// What catches that here is the sequence: a dropped line makes seq jump, and a jump is a
+        /// break. A file whose LAST line is garbage is the exception - the file door reports it and
+        /// this one sees a shorter chain that is internally sound. It certifies what it read, which is
+        /// the whole point, and it is why the two doors are not interchangeable for every purpose.</summary>
+        public static LedgerVerifyResult VerifyEntries(IReadOnlyList<JsonObject> entries)
+        {
+            if (entries == null || entries.Count == 0) return LedgerVerifyResult.Good();
+            string prev = Hashing.Genesis;
+            long expectedSeq = 1;
+            foreach (var o in entries)
+            {
+                if (o == null) return LedgerVerifyResult.Broken(expectedSeq, "null entry");
+                var broken = CheckLink(o, expectedSeq, prev, out prev);
+                if (broken != null) return broken;
+                expectedSeq++;
+            }
+            return LedgerVerifyResult.Good();
+        }
+
+        /// <summary>One link of the chain: the required fields, the sequence, the back-pointer and the
+        /// recomputed hash. Returns null when the link holds, and hands back this entry's hash so the
+        /// caller can carry it forward.</summary>
+        private static LedgerVerifyResult CheckLink(JsonObject o, long expectedSeq, string expectedPrev,
+                                                    out string hashForNext)
+        {
+            hashForNext = expectedPrev;
+
+            var seq = o.GetInt("seq");
+            var hash = o.GetString("hash");
+            var prevField = o.GetString("prev");
+            var ev = o.GetString("event");
+            var tsText = o.GetString("tsUtc");
+            var schema = o.GetInt("schemaVersion");
+            if (!seq.HasValue || hash == null || prevField == null || ev == null || tsText == null || !schema.HasValue)
+                return LedgerVerifyResult.Broken(expectedSeq, "missing required field");
+            if (seq.Value != expectedSeq)
+                return LedgerVerifyResult.Broken(expectedSeq, "sequence jumped to " + seq.Value.ToString(CultureInfo.InvariantCulture));
+            if (prevField != expectedPrev)
+                return LedgerVerifyResult.Broken(seq.Value, "prev does not match the previous hash");
+
+            var copy = JsonValue.Obj();
+            foreach (var k in o.Keys) if (k != "hash") copy.Set(k, o[k]);
+            if (Hashing.Sha256Hex(copy.ToCanonical()) != hash)
+                return LedgerVerifyResult.Broken(seq.Value, "hash does not match the entry contents");
+
+            hashForNext = hash;
+            return null;
         }
 
         public IEnumerable<JsonObject> ReadAll()

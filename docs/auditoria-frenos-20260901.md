@@ -1,5 +1,10 @@
 # Auditoría de frenos — 2026-09-01
 
+> **Las citas `archivo:linea` de este documento se midieron contra el commit `b477d83`.**
+> Una cita de linea es el hash de un momento (regla 11 del metodo): si un numero no coincide,
+> es **deriva**, no mentira — compara commits y usa el **nombre del simbolo**, que es la
+> referencia buena. Esta linea caduca sola: en cuanto el archivo se mueve, el lector lo ve.
+
 **Sólo lectura. Ninguna decisión, ningún arreglo, ningún cambio de código.**
 Encargada tras un hallazgo de ALAYA, aplicado a este repositorio.
 

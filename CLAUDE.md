@@ -297,6 +297,23 @@ half-signed one is not"*. **Una firma que no nombra su clave es media firma.**
 **buscarle una razón que viva en el mismo repositorio**. La de al lado suele ser mejor y no depende de
 nadie.
 
+**Y EL ORDEN, que es lo que separa esto de ir de compras** (operador, 1-sep). El corolario de arriba
+habla de PROCEDENCIA y calla sobre el ORDEN — y **si te quedás con la conclusión y salís a buscar
+razón, la vas a encontrar**: el repositorio es grande y las líneas son citables. **Eso es exactamente
+la forma de la conveniencia**, que es nuestra señal de alarma (regla 10).
+
+> **La razón de reemplazo tiene que ser una que HABRÍA PRODUCIDO la conclusión, no una que meramente
+> es compatible con ella.**
+
+**Prueba concreta, dos partes:** *(a)* la razón nueva, **aplicada sola**, llega a la misma conclusión;
+*(b)* **tiene trabajo propio en otro lado que podamos comprobar**. Si una razón sólo se usa para
+sostener esta conclusión, **es una racionalización con domicilio local**.
+
+**El caso de `keyId` PASA la prueba, y por eso vale como precedente y no sólo como arreglo**: *"an
+unsigned certificate is honest, a half-signed one is not"* **ya hacía trabajo** unas líneas antes,
+negándose a emitir media firma, **en otra aplicación**. La razón tenía empleo **antes** de que la
+necesitáramos.
+
 ### Y el lugar donde la mentira entra mejor disfrazada que en ningún otro (1-sep)
 
 > **UNA LIMITACIÓN QUE CONSUELA ES EL DEFECTO DE LA CASA VESTIDO DE HONESTIDAD.**

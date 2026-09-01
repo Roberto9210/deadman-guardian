@@ -1,5 +1,10 @@
 # Literales que pueden llegar a un certificado como VALOR de un campo
 
+> **Las citas `archivo:linea` de este documento se midieron contra el commit `231a1ea`.**
+> Una cita de linea es el hash de un momento (regla 11 del metodo): si un numero no coincide,
+> es **deriva**, no mentira — compara commits y usa el **nombre del simbolo**, que es la
+> referencia buena. Esta linea caduca sola: en cuanto el archivo se mueve, el lector lo ve.
+
 **Para Ventana B — ítem 6 del aviso. 2026-09-01. Enumeración completa, no muestra.**
 Lado emisor: `src/GuardianCore/Certificate.cs` y `src/GuardianCore/Ledger.cs`.
 

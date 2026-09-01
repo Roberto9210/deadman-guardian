@@ -304,8 +304,15 @@ namespace GuardianCore.Tests
             Assert.Contains(doc.GetString("trustLevel"), html);
 
             // And it carries the limitations and the way to contradict it.
+            //
+            // The apostrophe replacement that used to be here was an assumption the renderer never
+            // satisfied: Escape handles & < > and the double quote, and NOT the apostrophe - which is
+            // right, because these land in text content and not inside a single-quoted attribute. It
+            // never mattered until 2026-09-01, when the first limitation containing an apostrophe was
+            // written and this test failed for a reason that had nothing to do with the page. A dead
+            // expectation that wakes on an input nobody had written yet is the day's own theme.
             foreach (var l in Certificate.Limitations)
-                Assert.Contains(l.Replace("'", "&#39;").Replace("\"", "&quot;").Substring(0, 30), html);
+                Assert.Contains(l.Replace("\"", "&quot;").Substring(0, 30), html);
             Assert.Contains("python -m deadman.verify_certificate", html);
         }
 
