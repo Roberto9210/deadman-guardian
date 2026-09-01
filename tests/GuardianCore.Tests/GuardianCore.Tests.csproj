@@ -31,6 +31,7 @@
     <Compile Include="..\..\nt\bots\BotAccountRule.cs" Link="Bots\BotAccountRule.cs" />
     <Compile Include="..\..\nt\addon\GuardedAccountRule.cs" Link="Addon\GuardedAccountRule.cs" />
     <Compile Include="..\..\nt\addon\PanelPlacement.cs" Link="Addon\PanelPlacement.cs" />
+    <Compile Include="..\..\nt\addon\SoundChannel.cs" Link="Addon\SoundChannel.cs" />
   </ItemGroup>
 
 </Project>

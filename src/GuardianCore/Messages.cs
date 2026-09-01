@@ -20,6 +20,18 @@ using System.Globalization;
 
 namespace GuardianCore
 {
+    /// <summary>What the guardian can establish about NinjaTrader's own sound channel. Never about
+    /// whether a human heard anything - that is unobservable from inside, and the acknowledgement is
+    /// the only thing that would close it.</summary>
+    public enum SoundChannelHealth
+    {
+        Healthy,
+        Muted,            // volume at zero
+        FileMissing,      // a path is configured and the file is not there - the plausible default lying
+        NotConfigured,    // no path at all
+        Unknown,          // the settings could not be read; never collapsed into Healthy
+    }
+
     public static class Messages
     {
         // ---------------------------------------------------------------- headlines
@@ -92,6 +104,43 @@ namespace GuardianCore
                 case StateKind.Locked: return HeadlineLocked;
                 case StateKind.FailClosed: return HeadlineCannotSee;
                 default: return HeadlineNotArmed;
+            }
+        }
+
+        /// <summary>The panel line about the guardian's OWN alert channel, and the containment is the
+        /// whole design: IT SAYS WHAT WAS CHECKED, NEVER WHAT WAS CONCLUDED.
+        ///
+        /// Reading SoundVolume establishes the CONFIGURATION, not that anyone heard. Volume at 50 and
+        /// an inaudible alert are perfectly compatible - unplugged speakers, output pointed at another
+        /// device, headphones on a chair. So "your NinjaTrader volume is at zero" is allowed and "I
+        /// warned you with a sound" is not, and neither is "the audio channel works".
+        ///
+        /// It would be this house's own defect class making its debut inside the function built to fix
+        /// it - which is why it has a test, in the same shape as the lockout vocabulary ban.
+        ///
+        /// AND IT NEVER PROMISES THE FALLBACK. When NinjaTrader's channel is degraded the alert goes
+        /// out through Windows instead, and that is stated as an ACTION TAKEN, followed by the limit
+        /// said out loud: the guardian cannot tell whether either one is heard. Saying "you will hear
+        /// this" about the fallback would be the same lie one layer down.</summary>
+        public static string DetailSoundChannel(SoundChannelHealth health)
+        {
+            switch (health)
+            {
+                case SoundChannelHealth.Healthy:
+                    return null;      // nothing to report, and a line that appears always is a line nobody reads
+                case SoundChannelHealth.Muted:
+                    return "NinjaTrader's sound volume is at zero, so its own alert would be silent. " +
+                           "I am alerting through Windows instead - I cannot tell whether you hear either one.";
+                case SoundChannelHealth.FileMissing:
+                    return "The alert sound NinjaTrader is configured with is not on disk. " +
+                           "I am alerting through Windows instead - I cannot tell whether you hear either one.";
+                case SoundChannelHealth.NotConfigured:
+                    return "NinjaTrader has no alert sound configured. " +
+                           "I am alerting through Windows instead - I cannot tell whether you hear either one.";
+                default:
+                    return "I could not read NinjaTrader's sound settings, so I do not know whether its " +
+                           "alert would be heard. I am alerting through Windows as well - I cannot tell " +
+                           "whether you hear either one.";
             }
         }
 

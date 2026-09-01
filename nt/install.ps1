@@ -30,7 +30,8 @@ $home8   = Join-Path $ntUser "deadman-guardian"
 # green over a set that was no longer the artifact list - the same animal, sixth appearance.
 # PanelPlacement.cs joined on 2026-08-31, and it is the same shape as the line above: a new pure-C#
 # file the addon references. Adding it here is what the exit-4 completeness check exists to force.
-$sources = @("GuardedAccountRule.cs", "PanelPlacement.cs", "GuardianPorts.cs", "DeadmanGuardianAddOn.cs")
+$sources = @("GuardedAccountRule.cs", "PanelPlacement.cs", "SoundChannel.cs",
+             "GuardianPorts.cs", "DeadmanGuardianAddOn.cs")
 # The soak suite is opt-in: it is an attacker, it places (unfillable) orders on Sim101, and it has no
 # business on a machine that is not being soaked. -WithSoak adds it.
 $soakSources = @("SoakSandbox.cs", "DeadmanGuardianSoak.cs")
