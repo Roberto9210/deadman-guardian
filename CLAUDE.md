@@ -359,7 +359,7 @@ estaba en **cómo la ventana la aplicaba**, más un glifo que **prometía la ún
 producto se niega a tener**. Es una condición no producible de otra familia que las de arriba: no
 falta un estado del entorno, falta **un humano con una expectativa**.
 
-**ENCOLADO tras el canal, y NO construido todavía — `docs/` (lista viva, no regla)**:
+**CONSTRUIDO 31-ago — `docs/conditions-this-machine-cannot-produce.md`**:
 **INVENTARIO DE LAS CONDICIONES QUE ESTA MÁQUINA NO PUEDE PRODUCIR.** Cada entrada: la condición,
 por qué esta máquina no la produce, y si hay test que la simule. Es la regla del doble de prueba
 vista desde otra altura — *el doble difiere del mundo; la MÁQUINA difiere del campo, y lo que no
