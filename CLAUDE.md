@@ -251,6 +251,27 @@ estar mal; éste dice que tu VERIFICACIÓN puede compartir tu error.**
   (`DeadmanGuardianAddOn.cs:32-33`). La clase de la casa en forma de esquema — claves que afirman
   configurar algo que no configuran. Consecuencia concreta: una sesión de prueba no se puede desviar
   a un ledger aparte (ver `docs/proposals/live-production-breach-test.md`).
+- **`?? ""` EN EL EMISOR — la cadena vacía es el relleno de esta casa, no `"unknown"`** (verificado
+  31-ago a pedido de Ventana B, **no arreglado**). `Certificate.cs` **no contiene la cadena
+  `"unknown"` ni una vez** — cert-1 no la escribió y no la había antes; las dos de `Guardian.cs`
+  (`:455`, `:1100`) viven **dentro de frases** y **no llegan a un campo del certificado**, porque
+  `reasons` lleva nombres de evento con conteo y `Certificate.cs:216-217` fija el trigger
+  posicionalmente, *"never inferred from the text of `reason`"*. Lo que sí hay son **seis `?? ""`**,
+  y **uno dispara desde estado ordinario del producto**: `session.timezone` sale `""` cuando el
+  snapshot no trae `sessionResetTimeZone` — **la familia de LT-2**, el reinicio que restaura `ARMED`
+  desde el sello y deja los campos de referencia sin poblar. Los otros: `signature.keyId ?? ""` (una
+  firma que no nombra su clave, sólo en la ruta firmada) y cuatro en `gaps`/`anchors` que dependen
+  de que el llamador arme un registro con nulos. **Es el tercer subtipo de §3 con otra ropa**: un
+  campo presente con un valor que no vale nada, donde el TIPO permitía callarse. **No lo cambié a
+  propósito**: omitir una clave cambia la forma del documento para un verificador que no es nuestro
+  ⇒ va con el contrato de extensión, no por decisión mía. **Contraejemplo dentro del mismo archivo**:
+  `triggerEvent` ya se **omite** si es nulo (`:417`), que es la conducta correcta.
+- **AVISO A VENTANA B — `ACCOUNT_UNKNOWN` es un valor LEGÍTIMO, no relleno** (31-ago). Es el nombre
+  de evento `Ledger.cs:28`, y llega al certificado **como valor** en `triggerEvent` y como clave en
+  `reasons`. Si `DECORATIVE_FILLER` se compara **sin distinguir mayúsculas o por subcadena**, el
+  primer certificado real con un episodio de desconexión **falla la verificación** — y las
+  desconexiones son **M6**, la única condición que esta máquina sí produce, varias veces por semana.
+  La comparación tiene que ser **exacta, sensible a mayúsculas y sobre valores**.
 - **CANDIDATO 11 — `NinjaTrader.Adapter.AccountLockoutNotifications`** (anotado 31-ago, **no
   perseguido**). Tipo **público** de `NinjaTrader.Core.dll`, con evento `Push` y método `Raise`.
   Apareció en el barrido de sonido fuera de proceso. Un tipo de NT8 con ese nombre exacto está
