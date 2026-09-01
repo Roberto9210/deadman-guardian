@@ -828,7 +828,12 @@ namespace NinjaTrader.NinjaScript.AddOns
             _strip.FontSize = 13;
             _strip.FontWeight = FontWeights.Bold;
             _strip.Foreground = Brushes.White;
-            _strip.TextWrapping = TextWrapping.NoWrap;
+            // WRAP, not NoWrap. At 330px minus the chevron, "ARMED - $600.00 until 17:00
+            // (America/Chicago)" does not fit on one line, and NoWrap would cut it SILENTLY from
+            // the right - losing the timezone first, which is the one thing LT-2 established is
+            // never dropped from a time. Wrapping costs a second line and loses nothing; the window
+            // sizes to content, so it just gets slightly taller.
+            _strip.TextWrapping = TextWrapping.Wrap;
             _strip.Visibility = Visibility.Collapsed;
             _strip.Cursor = System.Windows.Input.Cursors.Hand;
             _strip.MouseLeftButtonUp += (s, e) => SetCollapsed(false);
@@ -867,9 +872,17 @@ namespace NinjaTrader.NinjaScript.AddOns
                     : "Not exported: " + error;
             };
 
+            // The strip and the chevron share ONE ROW. Stacked vertically they needed vertical
+            // space the collapsed panel does not have, and the button - second in the stack - was
+            // simply clipped off the bottom. Roberto: "luego que lo minimise no me da la opcion de
+            // maximisarlo". It was not unresponsive; it was not on screen.
+            var topRow = new DockPanel { LastChildFill = true };
+            DockPanel.SetDock(_collapseButton, Dock.Right);
+            topRow.Children.Add(_collapseButton);
+            topRow.Children.Add(_strip);
+
             var panel = new StackPanel { Margin = new Thickness(14, 14, 14, 18) };
-            panel.Children.Add(_strip);
-            panel.Children.Add(_collapseButton);
+            panel.Children.Add(topRow);
             panel.Children.Add(_headline);
             panel.Children.Add(_detail);
             panel.Children.Add(_countdown);
@@ -912,17 +925,13 @@ namespace NinjaTrader.NinjaScript.AddOns
                               _exportButton.Visibility = Visibility.Collapsed; }
             else if (_exportButton.Visibility != Visibility.Visible) _exportButton.Visibility = Visibility.Visible;
 
-            if (_collapsed)
-            {
-                SizeToContent = SizeToContent.Manual;
-                MinHeight = 0;
-                Height = 40;
-            }
-            else
-            {
-                MinHeight = 190;
-                SizeToContent = SizeToContent.Height;
-            }
+            // NEVER A FIXED HEIGHT, and the constructor says why twenty lines up: "the first real
+            // run clipped the Arm button to about 8 visible pixels - the one control the trader has
+            // to press". The first draft of this method set Height = 40 and reintroduced exactly
+            // that, in the same file, against a warning already written in it. Only MinHeight moves;
+            // the content decides the rest, in both modes.
+            MinHeight = _collapsed ? 0 : 190;
+            SizeToContent = SizeToContent.Height;
         }
 
         /// <summary>One writer for the comfort file, so position and collapsed can never be saved
