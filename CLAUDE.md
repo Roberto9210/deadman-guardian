@@ -563,6 +563,16 @@ Eso mueve el contrato de extensión del sexto lugar al camino crítico del defec
    **Ese es EL día que un trader querría poder mostrar** —la prueba de que alguien intentó aflojarse
    el freno y no pudo— y es el único que el documento no sabe contar. **cert-1 arregló lo que el
    certificado decía de MÁS; esto arregla lo que no sabe decir.**
+   **MITIGADO EN PARTE el 1-sep, y dicho con precisión para que nadie lo lea como cerrado**: el hueco
+   **sigue abierto** —hacerlo reportable es decidir qué debe decir el documento, y eso es del dueño
+   del campo y del verificador, no de una sesión—, pero **el silencio dejó de ser silencioso**: el
+   certificado ahora **declara el punto ciego** en `limitations`, que es el mismo movimiento que hizo
+   el candidato 6 y el motivo por el que esa lista existe. Tests: **`Cert3_TamperLockoutTests`** — dos
+   **verdes sobre el defecto** (convención M4-M7) que fijan `lockoutsTriggered: 0`,
+   `changeAttemptsWhileSealed: 0` y `limitRespected: true` en un día bloqueado por manipulación, **y
+   que se pondrán ROJOS el día que llegue el arreglo real**, obligando a volver acá; más el espejo
+   —un día con brecha real **sí** se cuenta, así que el punto ciego es específico y no general— y la
+   contención del texto (una limitación no tranquiliza ni promete el arreglo). **No desplegado.**
 4b. **`changeAttemptsWhileSealed` cuenta otra cosa que la que su nombre promete** (anotado aparte del
    4 a propósito, son dos defectos y no uno). Su única fuente es `CONFIG_CHANGE_REJECTED`
    (`Certificate.cs:193`), que sólo emite `TryChangeConfig` — **método público sin ningún llamador en

@@ -152,6 +152,21 @@ namespace GuardianCore
             "statement about the software rather than about the trader: since 2026-08-26 the guardian " +
             "does not cancel an order on sight, so nothing produces that record. It will mean what it " +
             "says when selective cancellation lands.",
+            // cert-3b, 2026-09-01. EnterLockout has three callers and only the daily-loss one writes
+            // LIMIT_BREACHED, which is the single event `lockoutsTriggered` counts. So the two TAMPER
+            // lockouts - config.json edited while sealed, and the sealed snapshot edited by hand - are
+            // invisible here, and limitRespected (LockoutsTriggered == 0 && ...) reads true.
+            //
+            // THE DAY THIS HIDES IS THE ONE THE PRODUCT EXISTS FOR: someone tried to loosen the brake
+            // and was stopped. Making it REPORTABLE is a decision about what the document should say
+            // and it belongs to the field's owner and the verifier's, not to this file. What belongs
+            // here is refusing to let the silence pass as a quiet day - the same move candidate 6 made
+            // above, and the reason this list exists.
+            "This does not report a lockout caused by configuration tampering. Only a daily-loss " +
+            "breach writes LIMIT_BREACHED, so a day on which the guardian locked the account because " +
+            "the configuration was edited while sealed reads here as lockoutsTriggered 0 with " +
+            "limitRespected true. Those lockouts are in the ledger as CONFIG_TAMPERED and " +
+            "SEAL_MISMATCH; this document does not count them.",
         };
 
         private static readonly string[] Boundaries = { Ev.FailClosedEntered, Ev.FailClosedCleared };
