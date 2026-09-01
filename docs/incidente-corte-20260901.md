@@ -98,15 +98,88 @@ corta posterior.
 
 ## 6 · Qué produjo este incidente, y qué no
 
-**Lo que produjo, y no es poco:**
+### ⚠ CORRECCIÓN 2026-09-01 (tarde): junté dos hallazgos de fuerza MUY distinta
 
-> **La condición `STATE_CORRUPT` pasó de *"plausible, sin evidencia"* a *"ocurrió el caso y el sistema
-> lo aguantó"*.** Corte real, producción armada, escrituras cada 5 min, 8.091 entradas: **cadena
-> íntegra, estado parseable, sello verificado al volver.**
+La versión anterior de esta sección decía que la condición `STATE_CORRUPT` pasó a *"ocurrió el caso y
+el sistema lo aguantó"*. **Eso está mal, y el motivo es aritmético.**
 
-Es la primera vez que esa fila del inventario tiene evidencia de campo, y la evidencia es **a favor**.
-**No la mueve a "no puede pasar"** — un corte no cayó dentro de una escritura, que es otra cosa que
-sigue sin evidencia.
+**El sello sobrevivió: evidencia real y fuerte.** Estaba escrito en disco, la máquina murió de golpe, y
+después `SEAL_VERIFIED` comprobó su hash y dio bien. **Eso prueba durabilidad de un archivo YA ESCRITO
+frente a un corte duro**, y es la primera vez que lo tenemos.
+
+**El ledger no se partió: casi no vale nada.** Los `PNL_CHECKPOINT` van **cada 5 minutos** y la
+escritura de una línea dura **microsegundos**. La probabilidad de que un corte caiga DENTRO de una
+escritura es del orden de microsegundos sobre 300 segundos. **Sobrevivir dos cortes es exactamente lo
+esperado tanto si el escritor es seguro como si no lo es** ⇒ los dos cortes **no distinguen las dos
+hipótesis, y una medición que no distingue no mide.**
+
+> **EL CASO NO OCURRIÓ.** Ocurrió un corte, que es otra cosa. **El corte pasó dos veces y ninguna de
+> las dos cayó dentro de una escritura** — lo esperado por frecuencia, y no dice nada sobre el escritor.
+
+## 6b · La medición que SÍ discrimina: leerle el código al escritor
+
+`NtFileStore.AppendLine`, que es por donde pasa cada línea del ledger:
+
+```csharp
+using (var fs = new FileStream(path, FileMode.Append, FileAccess.Write, FileShare.Read))
+using (var writer = new StreamWriter(fs, Utf8NoBom))
+{
+    writer.Write(line);
+    writer.Write(Environment.NewLine);
+    writer.Flush();
+    fs.Flush(true);            // SPEC §6: a disco, no sólo a la caché del SO
+}
+```
+
+**Abre, escribe, fuerza a disco y cierra — por entrada.** Y la respuesta se parte en dos propiedades
+que no son la misma:
+
+| propiedad | veredicto | por qué |
+|---|---|---|
+| **durabilidad** | **SÍ, y es deliberada** | `fs.Flush(true)` es `FlushFileBuffers`: cuando `Append` retorna, los bytes están en el plato, no en la caché. **No se apoya en el buffer del SO** |
+| **atomicidad del append** | **NO GARANTIZADA por la API** | un corte *entre* el primer byte y el flush puede dejar una línea parcial. Ninguna API promete lo contrario |
+
+**Lo que acota el riesgo, medido:** el archivo se abre y se cierra **por entrada**, así que no hay
+buffer sucio de larga vida — la ventana es un `write`+`flush`. Y el tamaño típico de línea es
+**2.768.397 bytes / 8.100 entradas ≈ 342 bytes**, cómodamente bajo un sector o bloque, así que en la
+práctica el `StreamWriter` (buffer de 1 KB) lo entrega en **una** escritura.
+
+> **Conclusión honesta: el escritor es estructuralmente sólido en durabilidad y estructuralmente NO
+> GARANTIZADO —aunque de ventana muy angosta— frente al desgarro.** Es un defecto conocido con su
+> probabilidad acotada, que es infinitamente mejor que una fila del inventario diciendo que aguantamos.
+
+## 6c · El control que el día regaló: muerte violenta y despedida limpia, a 33 segundos
+
+**Explicación del cierre y la reapertura de las 22:54, que sin esto se lee como inestabilidad**:
+Roberto había abierto NT8 **antes** de leer el aviso de no abrirlo, lo leyó, **lo cerró**, y lo volvió
+a abrir tres minutos después. **Los 33 segundos son eso: una acción humana deliberada, por una
+instrucción que llegó tarde.** No es un síntoma.
+
+Y deja un control que casi nunca se consigue gratis: **la misma máquina, el mismo disco, el mismo
+binario, adyacentes en el tiempo.**
+
+| | terminación **VIOLENTA** (el corte) | terminación **LIMPIA** (Roberto) |
+|---|---|---|
+| en el **ledger** | `PNL_CHECKPOINT` 18:56:00Z y **nada más**. El siguiente `GUARDIAN_STARTED` **sin `GUARDIAN_STOPPED` antes** | **`GUARDIAN_STOPPED` 22:54:47.144Z** escrito |
+| en **`adapter.log`** | ninguna línea de cierre | **`shutdown complete`** 22:54:47.151Z |
+| en **`state.json`** | persistido en el último tick: `ARMED` + sello | persistido en el último tick: `DISARMED`, sin sello |
+| rama del arranque siguiente | restauró `ARMED` ⇒ verificó el sello ⇒ lo halló expirado ⇒ cerró el día | restauró `DISARMED` ⇒ **nada** |
+
+**La diferencia de `state.json` NO es la firma de la muerte**: viene de que el sello había expirado
+entremedio. **Si Roberto hubiera cerrado limpio estando armado, `state.json` habría quedado idéntico a
+como lo dejó el corte.**
+
+### ¿Alguien que mira sólo el disco puede distinguirlas?
+
+> **Desde los archivos de ESTADO, no.** `state.json` guarda lo mismo en los dos casos, y su
+> `lastSeenUtc` tampoco delata: una despedida limpia también deja un último tick de hace un segundo.
+>
+> **Sólo un registro APPEND-ONLY las distingue** — el ledger por `GUARDIAN_STOPPED`, y `adapter.log`
+> por `shutdown complete`.
+
+**Y eso es una propiedad del producto que nadie había escrito**: *el archivo que dice "el estado" no
+puede decirte si el sistema murió o se despidió; sólo el registro puede.* Es el argumento más concreto
+que existe para que el ledger sea append-only, y hasta hoy estaba implícito.
 
 **Lo que NO produjo:**
 

@@ -163,6 +163,42 @@ decide no es de tipos sino **de quién lee**:
 verificador, y por eso va entero a la pila del contrato. **Y la cadena rota debe mapear a
 `undetermined`, no a `true`** — si no, se reintroduce el peligro de la opción 2 por la puerta de atrás.
 
+### FALLO DEL OPERADOR (1-sep): **opción 1, tres valores**, con dos condiciones
+
+**Condición 1 — la cadena rota mapea a `undetermined`, NUNCA a `true`.** Escrita acá para que no se
+pierda en la implementación.
+
+**Condición 2 — tres valores SIGUE SIENDO UN COLAPSO, sólo que uno mejor.** `undetermined` no dice
+**cuál** de los dos sujetos quedó indeterminado, y para un lector no da igual: *"el guardián estuvo
+ciego 40 minutos"* es un problema de la herramienta, y *"el registro no es verificable"* es una alarma
+sobre la integridad de la evidencia — **la segunda asusta mucho más, con razón**.
+
+**Y NO se agrega un campo para eso, porque el motivo YA ESTÁ IMPRESO**: `failClosedEpisodes` y
+`ledgerVerified` están los dos en el documento. **Lo que falta es de RENDERIZADO**: que el HTML ponga
+`undetermined` **al lado de lo que lo causó**, en vez de en una tabla de números sueltos. Es
+exactamente el defecto de préstamo de autoridad de §0-§3 de este mismo documento —una tabla sin marca
+de procedencia donde cada fila hereda la credibilidad de las demás— **y acá el arreglo es barato y no
+toca el esquema**.
+
+### Por qué la condición que lo vuelve alcanzable DEJÓ de ocurrir — **HAY REGISTRO, y no es del guardián**
+
+Los 13 episodios son del 21 y 22 de agosto y no hubo ninguno en 10 días. Medido:
+
+| | |
+|---|---|
+| **commits el 22, 23 y 24 de agosto** | **CERO.** No hubo cambio de código |
+| lo que sí cambió | **`Config.xml.before-connectonstartup-20260822-095728`** — un respaldo de la config de NinjaTrader con la fecha en el nombre: **se activó "connect on startup" el 2026-08-22 a las 14:57:28Z** |
+| el episodio en curso | entró 14:24:26Z y **cerró 14:58:11Z — 43 segundos después del cambio** |
+| después | **un episodio más** esa tarde (19:58→21:00Z), y **ninguno desde entonces** |
+
+> **"Dejó de pasar" NO es "está arreglado".** Paró por un **ajuste de plataforma en ESTA máquina**, no
+> por nada del guardián. Vuelve solo en cuanto ese ajuste no esté — **y el valor de fábrica de NT8 es
+> no conectarse al arrancar**, así que **toda instalación nueva empieza en la condición que produce
+> estos episodios.**
+
+⇒ **va al CUARTO estado del inventario: *no producible acá, universal afuera*.** Y confirma la
+indicación: **se construye en un test**, como el canal de sonido roto, en vez de esperar a que vuelva.
+
 ## 6 · Lo que esta lista NO dice
 
 1. **No dice que ningún valor sea falso hoy.** Dice **cuáles no fueron comprobados por quien los
