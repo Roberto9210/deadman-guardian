@@ -585,8 +585,100 @@ namespace NinjaTrader.NinjaScript.AddOns
             return raw != null && Money.TryParse(raw, out v) ? v : 0m;
         }
 
+        // ---------------- the audible channel (docs/proposals/the-channel-20260831.md) ----------------
+        //
+        // WHY THIS EXISTS AT ALL: asked whether he reads the NinjaTrader log, the one person using this
+        // product said "no lo miro en realidad". The panel can be collapsed, snoozed, or behind a
+        // chart. Sound is the only channel that reaches someone who is not looking - and it is still
+        // only an ATTEMPT, because nothing here can observe whether a human heard anything. That is
+        // why every word it puts on screen says what was CHECKED, never what was concluded, and why
+        // the acknowledgement - the only thing that would close the gap - is a separate piece waiting
+        // on the extension contract.
+        //
+        // The decisions are all in SoundChannel (pure, tested in Snd1_SoundChannelTests). This method
+        // does only what a test cannot: read NT8's settings and make a noise.
+        private bool _everSounded;
+        private long _lastSoundMs;
+        private string _soundNote;
+
+        private static long MonotonicMs()
+        {
+            // Not DateTime: a wall-clock jump must not silence an alert for five minutes, and this
+            // project has a whole rule family about pairing on clocks it did not verify.
+            return System.Diagnostics.Stopwatch.GetTimestamp() / (System.Diagnostics.Stopwatch.Frequency / 1000L);
+        }
+
+        /// <summary>Sounds while the guardian NEEDS A PERSON - the one state where this product cannot
+        /// finish on its own. Immediate, then every five minutes, flat, for as long as the condition
+        /// lasts. Deliberately NOT bounded: the alert's real job is to reach someone who stepped away,
+        /// and an alarm that gives up loses exactly the case it was built for.</summary>
+        private void AlertIfNeeded(GuardianStatusWindow.View v)
+        {
+            // The latch drops when the condition clears, so the next episode starts loud rather than
+            // serving out the old interval. The rule is SoundChannel.KeepSoundedLatch and it is tested
+            // (Snd1k) - written as an assignment here it would have been a decision no test can reach.
+            _everSounded = SoundChannel.KeepSoundedLatch(v.NeedsHuman, _everSounded);
+            if (!v.NeedsHuman)
+            {
+                _soundNote = null;
+                return;
+            }
+
+            var now = MonotonicMs();
+            if (!SoundChannel.ShouldSoundNow(_everSounded, _lastSoundMs, now)) return;
+            _lastSoundMs = now;
+            _everSounded = true;
+
+            // Both settings are read into locals BEFORE either is assigned, so a throw on the second
+            // read cannot leave the first one looking authoritative. Failing to read a setting is not
+            // evidence that the setting is fine: it becomes Unknown, and Unknown falls back.
+            double? volume = null;
+            string path = null;
+            try
+            {
+                var options = NinjaTrader.Core.Globals.GeneralOptions;
+                var v0 = options.SoundVolume;
+                var p0 = options.SoundAnnouncement;
+                volume = v0;
+                path = p0;
+            }
+            catch (Exception ex) { AdapterLog("sound settings unreadable: " + ex.Message); }
+
+            var health = SoundChannel.Assess(volume, path, File.Exists);
+            _soundNote = Messages.DetailSoundChannel(health);      // null when healthy - no line at all
+
+            try
+            {
+                if (SoundChannel.UseFallback(health))
+                {
+                    // Ignores NinjaTrader's sound configuration, which is the point: it is the way out
+                    // when that configuration is what is broken. It is a SECOND ATTEMPT BY ANOTHER
+                    // ROUTE and is never described as more than that - whether it is audible depends on
+                    // the Windows mixer, the output device and the room, none of which are observable
+                    // from here.
+                    System.Media.SystemSounds.Exclamation.Play();
+                    AdapterLog("alert: fallback sound, channel " + health);
+                }
+                else
+                {
+                    // The trader's own configured announcement file, whose existence was just verified.
+                    // Announcement is the only SoundType that does not lie about what happened - using
+                    // OrderFilled for our alert would be a falsehood in the audio channel.
+                    NinjaTrader.Core.Globals.PlaySound(path);
+                    AdapterLog("alert: announcement sound");
+                }
+            }
+            catch (Exception ex) { AdapterLog("PlaySound: " + ex.Message); }
+        }
+
         private void RefreshWindow()
         {
+            // Hoisted ABOVE the nap check on purpose: napping is a decision about the WINDOW, and the
+            // audible channel exists precisely for the moments the window is not being looked at.
+            var snapshot = Snapshot();
+            AlertIfNeeded(snapshot);
+            snapshot.SoundNote = _soundNote;   // after the alert: the note is what THIS pass established
+
             // A state change CUTS THE NAP SHORT. The nap is about the window, not about the state.
             if (_snoozed && !_stopping && RenderedState() != _snoozedUnder)
             {
@@ -595,8 +687,7 @@ namespace NinjaTrader.NinjaScript.AddOns
                 return;
             }
 
-            var snap = Snapshot();
-            RunOnUi(() => _window?.Render(snap));
+            RunOnUi(() => _window?.Render(snapshot));
         }
 
         private GuardianStatusWindow.View Snapshot()
@@ -674,6 +765,12 @@ namespace NinjaTrader.NinjaScript.AddOns
             public bool HasSeal;
             public string Until;
             public string ConfigPath;
+
+            /// <summary>What the guardian established about its OWN alert channel, in words, or null
+            /// when there is nothing to say. Null on a healthy channel on purpose: a line that appears
+            /// every time is a line nobody reads, which is the lesson the 165-warning storm paid for.
+            /// It never claims the trader heard anything - that is unobservable from inside.</summary>
+            public string SoundNote;
 
             /// <summary>LT-4 / candidate 8. Derived in Core from state that is already persisted, so
             /// it survives a restart - an adapter-side flag would be the LT-2 family again.</summary>
@@ -1056,6 +1153,12 @@ namespace NinjaTrader.NinjaScript.AddOns
                     _detail.Text = v.NeedsHuman
                         ? Messages.DetailNeedsYou(v.Account)
                         : Messages.DetailLocked(v.Account, v.Until);
+                    // The guardian reporting on the health of its OWN alert channel - the opposite of
+                    // what it did on 2026-08-31, which was to believe it had warned someone. Appended
+                    // rather than replacing: the instruction the person needs comes first, and the
+                    // note about the channel is a qualifier on it.
+                    if (v.NeedsHuman && !string.IsNullOrEmpty(v.SoundNote))
+                        _detail.Text += "\n\n" + v.SoundNote;
                     // A panel that only changes hue is invisible to someone watching charts. This one
                     // GROWS - bigger headline, wider window - because peripheral vision catches a
                     // change of shape long before a change of tone.

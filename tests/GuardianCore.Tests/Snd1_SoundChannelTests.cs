@@ -114,6 +114,23 @@ namespace GuardianCore.Tests
             Assert.Equal(300000, SoundChannel.RepeatEveryMs);
         }
 
+        /// <summary>A NEW EPISODE STARTS LOUD. The latch remembers "already sounded" only while the
+        /// condition lasts; when it clears, the next call for help does not serve out the leftover
+        /// interval. Extracted from the adapter on 2026-09-01 for exactly that reason: it was an
+        /// assignment no test could reach, and it is a decision.</summary>
+        [Fact]
+        public void Snd1k_the_latch_does_not_survive_the_condition_clearing()
+        {
+            Assert.True(SoundChannel.KeepSoundedLatch(true, true));     // still needed, already sounded
+            Assert.False(SoundChannel.KeepSoundedLatch(true, false));   // still needed, never sounded
+            Assert.False(SoundChannel.KeepSoundedLatch(false, true));   // cleared: the latch drops
+
+            // and the consequence, which is the part worth pinning: one second after a cleared
+            // episode a NEW one sounds immediately, instead of waiting out the old five minutes.
+            var latch = SoundChannel.KeepSoundedLatch(false, true);
+            Assert.True(SoundChannel.ShouldSoundNow(latch, 1000, 1000 + 1000));
+        }
+
         // ------------------------------------------------------------------ what it may SAY
 
         /// <summary>THE CONTAINMENT, and it is the whole design: the text says what was CHECKED,

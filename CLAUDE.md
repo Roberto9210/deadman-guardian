@@ -340,6 +340,20 @@ legítimo con significado propio. Las únicas ausencias honestas son **omitir el
   rojos primero). **No desplegado.** **Los otros seis `?? ""` son INALCANZABLES hoy**
   (verificado 1-sep): nada en `src/` ni en `nt/` asigna `Gaps`, `Anchors` ni `KeyId`, así que las dos
   estructuras salen siempre vacías y el bloque `signature` no se emite nunca.
+  **PERO NO POR EL MISMO MOTIVO, Y LA DIFERENCIA ES EL HALLAZGO** (operador, 1-sep):
+  **`session.timezone` era el único IMPOSIBLE POR ESQUEMA** — `sessionResetTimeZone` es clave
+  requerida y se valida al parsear, así que **no existe un sello sin ella**. Su `?? ""` guardaba un
+  caso que no puede ocurrir: **no falla nunca, y le hace creer al lector que el caso puede pasar.**
+  **Eso es exactamente lo que nos hizo creer a Ventana B y a mí** — dos personas leyeron el `?? ""`
+  como evidencia de que había una ruta viva, y armaron trabajo encima. **Un guardia sobre un caso
+  imposible no es inofensivo: es una afirmación tácita de que el caso existe.**
+  **Los otros seis NO están en esa situación**: son **inalcanzables por CABLEADO, no imposibles por
+  esquema**. `Gaps`, `Anchors` y `KeyId` los provee el llamador y sus campos son libres ⇒ **el día
+  que alguien cablee un firmante o calcule huecos, el nulo es posible**. No son decoración: son
+  manejo prematuro y con la forma equivocada (ver la clasificación de abajo).
+  **Y `keyId` tiene la contradicción escrita en el mismo archivo, a 17 líneas**: `issuer.keyId`
+  **se omite** cuando viene vacío (`Certificate.cs:380`), y `signature.keyId` **lo vacía** (`:363`).
+  El mismo campo del mismo request, tratado de dos maneras opuestas en un bloque y en el otro.
   **CLASIFICACIÓN pedida por el operador el 1-sep, con el criterio de la librería** (*se omite un
   campo que lleva un VALOR, nunca uno que lleva un ALCANCE: omitir una clave de alcance APAGA un
   chequeo en silencio*): **seis de los siete son ALCANCE y uno solo es VALOR.**

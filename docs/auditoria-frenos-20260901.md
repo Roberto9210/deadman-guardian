@@ -110,7 +110,7 @@ sería el mismo optimismo que la auditoría persigue.
 | `PNL_BASELINE_REFUSED` (`:420`), 4 ramas | **sí**: la más alcanzable es *"realised P&L sin checkpoint del mismo día"* — operar por la mañana y armar después. 12 adopciones, 0 negativas | plausible, sin evidencia |
 | `LIMIT_BREACHED_BASELINE_ONLY` — la puerta de **M22** (`:736`) | **sí, pero exige una conjunción**: reinicio con baseline adoptada + el total cruza el límite + lo observado por sí solo NO lo cruza + ningún fill observado (`:721-723`) | plausible, sin evidencia |
 | `NOTIFY_FAILED` (`:648`) | **sí**: el addon SÍ registra un observador (`:114`); alcanzable si `OnLedgerEntry` lanza | plausible, sin evidencia |
-| `CONFIG_CHANGE_REJECTED` (`:540`) | **ver §4.1 — la API no tiene llamador; sólo se alcanza de rebote** | ⚠ hallazgo |
+| `CONFIG_CHANGE_REJECTED` (`:540`) | **ver §4.1 — la API no tiene llamador; sólo se alcanza de rebote** | **RECLASIFICADO 1-sep: alcanzable Y DISPARÓ** ⚠ ver §4.1 |
 | `FOREIGN_ACCOUNT_ORDER_OBSERVED` (`:605`) | **NO alcanzable** — ver §4.2 | **no alcanzable** (honesto) |
 
 ### 3.3 · Riel de cuenta de los bots (`nt/bots/BotAccountRule.cs:87-130`)
@@ -148,8 +148,22 @@ produjera una condición.
 llama a doce miembros del guardián; ése no está. Sus únicos llamadores son **los tests** y **`Arm`**,
 que delega en él cuando ya hay sello vivo (`:457`).
 
-**El único camino alcanzable, entonces**: apretar *"Arm for today"* **dos veces** antes de que el
-panel se refresque. El botón sólo es visible en `Disarmed` (`DeadmanGuardianAddOn.cs:1093`), el
+> ### ⚠ RECLASIFICADO EL MISMO DÍA: alcanzable **y disparó**, y no por un argumento
+>
+> Unas horas después de escribir esto, **un test nuevo (`Cert2_SealedSnapshotTests`) armó dos veces
+> por un descuido mío**, el segundo `Arm` cayó en `TryChangeConfig` y **el freno lo rechazó**:
+> *"the configuration is sealed until … every change is rejected while sealed"*. Sale del bucket 2 y
+> entra en **protección demostrada** — con la precisión que corresponde: **disparó en el banco de
+> pruebas, no en producción** (el ledger sigue en 0).
+>
+> **Y la lección de método es más grande que el freno**: yo había contestado la pregunta 1 con un
+> **razonamiento** sobre dobles clics. La alcanzabilidad quedó demostrada por **accidente**, y
+> escribiendo otra cosa. **Un input que aparece solo vale más que uno que se argumenta** — y sugiere
+> la técnica para el resto del bucket 2: en vez de discutir si son alcanzables, **intentar
+> alcanzarlos** desde un test.
+
+**El único camino alcanzable desde la interfaz, entonces**: apretar *"Arm for today"* **dos veces**
+antes de que el panel se refresque. El botón sólo es visible en `Disarmed` (`DeadmanGuardianAddOn.cs:1093`), el
 manejador **no lo deshabilita al clickear** (`:820-824`) y el refresco es de **1 segundo**
 (`PnlEvaluationIntervalMs`). Un doble clic entra. ⇒ **alcanzable, nunca disparó.**
 

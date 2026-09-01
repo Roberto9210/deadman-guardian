@@ -101,5 +101,19 @@ namespace NinjaTrader.NinjaScript.AddOns.DeadmanGuardian
             if (!everSounded) return true;
             return nowMonotonicMs - lastSoundedMonotonicMs >= RepeatEveryMs;
         }
+
+        /// <summary>Whether the "already sounded" latch survives into the next pass. IT DOES NOT
+        /// SURVIVE THE CONDITION CLEARING: a new episode starts loud instead of serving out the
+        /// interval left over from the previous one. Without this, a second call for help arriving
+        /// two minutes after the first stays silent for three - and the second one is the one nobody
+        /// is expecting.
+        ///
+        /// It lives here rather than as an assignment inside the adapter because it is a DECISION,
+        /// and a decision sitting in code no test can execute is part of the defect rather than an
+        /// excuse for having no test.</summary>
+        public static bool KeepSoundedLatch(bool conditionHolds, bool everSounded)
+        {
+            return conditionHolds && everSounded;
+        }
     }
 }
