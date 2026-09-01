@@ -67,6 +67,17 @@ que le sellaron.
 4. **Commits separados por fix, por ruta explícita. Nunca `git add -A`.**
 5. **Una sola sesión por repositorio.** Esta ventana es la de `deadman-guardian`; no toca `deadman`
    (Ventana B) ni `deadman-research` (exclusivo de Roberto, ni siquiera lectura).
+   **EXCEPCIÓN DE LECTURA sobre `deadman`, concedida el 1-sep, y su motivo es lo que la hace regla y
+   no permiso**: el operador se declaró **el eslabón con pérdida** — en un día introdujo tres errores
+   relevando hechos entre ventanas (*"confirmado desde los dos lados"*, un cero repetido sin
+   preguntar qué ventana cubría, y números de sección de un repo citados en otro).
+   ⇒ **los HECHOS se leen de la fuente; las DECISIONES pasan por el operador.**
+   Tres condiciones, sin excepción: **(a)** sólo lectura — nunca un commit, nunca una edición, ni
+   para corregir un error obvio; **(b)** **se nombra el commit leído** — un documento citado sin su
+   versión es una cita sin fecha, y ya costó caro hoy; **(c)** lo que se encuentre mal del otro lado
+   **se le reporta al operador**, no se arregla y **no se le dice directo a Ventana B**: la
+   coordinación sigue pasando por ahí, que es donde sí hace falta.
+   La misma excepción, simétrica, la tiene Ventana B sobre este repositorio.
 6. Cada reporte abre identificando la ventana.
 7. No declarar "arreglado" sin salida de prueba real. Reportar los fallos tal cual.
 8. **Herramientas: escribir los scripts de parche A ARCHIVO y correrlos.** La regla es una y las
@@ -254,6 +265,24 @@ el 31-ago costó eso.**
 
 Aplicado en `Certificate.cs`: la zona perdió el `??` (imposible por `RequiredKeys`); `keyId`, los dos
 de `gaps` y los tres de `anchors` lo conservan **con la nota de preparación declarada**.
+
+### Y el lugar donde la mentira entra mejor disfrazada que en ningún otro (1-sep)
+
+> **UNA LIMITACIÓN QUE CONSUELA ES EL DEFECTO DE LA CASA VESTIDO DE HONESTIDAD.**
+
+Una sección de limitaciones es **donde más tienta suavizar**, y por un motivo que hay que nombrar:
+**uno ya está siendo honesto, y siente que se ganó el derecho a tranquilizar.** *"Esto no prueba X,
+pero quedate tranquilo que…"* — la segunda mitad se cuela apoyada en la credibilidad que le dio la
+primera. Es la misma mecánica que la fila no verificada dentro de la tabla verificada.
+
+**Contención, ya cableada** (`Cert3d_the_limitation_neither_reassures_nor_promises`): una limitación
+**no afirma que lo no medido no ocurrió** y **no promete el arreglo**. Prohibidas por test:
+*"no tampering"*, *"was not tampered"*, *"nobody tried"*, *"will be fixed"*, *"soon"*,
+*"in a future version"*, *"safe"*, *"you can be sure"*.
+
+**Hermana medida por Ventana B el mismo día**: *un campo impreso dentro de un veredicto hereda la
+autoridad del veredicto* — su verificador imprimía `VALID (keyId=key-ALPHA)` sin comprobar nunca ese
+`keyId`. Inventario del lado emisor: `docs/cert-authority-borrowing-20260901.md`.
 
 ### Sexto subtipo, y es el más difícil de VER de todos (1-sep)
 
