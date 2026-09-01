@@ -69,8 +69,16 @@ que le sellaron.
    (Ventana B) ni `deadman-research` (exclusivo de Roberto, ni siquiera lectura).
 6. Cada reporte abre identificando la ventana.
 7. No declarar "arreglado" sin salida de prueba real. Reportar los fallos tal cual.
-8. Herramientas: los heredocs destrozan los backslashes de rutas Windows (`nt\addon` llegó como BEL,
-   `nt\bots` como backspace). Escribir los scripts de parche por archivo y correrlos.
+8. **Herramientas: escribir los scripts de parche A ARCHIVO y correrlos.** La regla es una y las
+   puertas por las que entra el problema son al menos dos:
+   - los **heredocs** destrozan los backslashes de rutas Windows (`nt\addon` llegó como BEL,
+     `nt\bots` como backspace);
+   - los **backticks dentro de comillas dobles de bash** son sustitución de comandos. El 31-ago
+     una fila de este mismo archivo se escribió con `python -c "..."` y cada identificador
+     entre backticks —`dayKey`, `DAY_OPENED`, `limitRespected`— se ejecutó como comando y quedó
+     **reemplazado por nada**. La fila salió con huecos justo donde iban sus términos técnicos.
+   **Ninguna de las dos ocurre si el script vive en un archivo**, que es la regla que ya estaba
+   escrita y que no seguí por tratarse de una sola línea.
 
 ## 3. La clase de defecto de la casa
 **TEXTO QUE AFIRMA MÁS DE LO QUE SU PROPIO CÓDIGO COMPROBÓ.**
