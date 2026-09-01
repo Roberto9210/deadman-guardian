@@ -406,7 +406,8 @@ namespace NinjaTrader.NinjaScript.AddOns
                     AccountSalt = LoadOrCreateSalt(),
                     IssuerVersion = IssuerIdentity.VersionOf(typeof(Certificate).Assembly),
                     IssuerBuildHash = IssuerIdentity.BuildHashOf(ReadCoreAssemblyBytes()),
-                    DaysCovered = 1,
+                    // DaysCovered is no longer set: since cert-1 the emitter derives it from the
+                    // day span, so passing a number here would be stating a figure nobody checks.
                 };
 
                 var result = Certificate.Issue(entries, state, request, verify.Ok);

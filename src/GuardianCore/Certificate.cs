@@ -64,6 +64,14 @@ namespace GuardianCore
         public string DayKey { get; set; }
         public string PreviousCertHash { get; set; }
         public IReadOnlyList<GapDeclaration> Gaps { get; set; }
+        /// <summary>SUPERSEDED 2026-08-31 by cert-1 and IGNORED by Issue, which derives the figure
+        /// from the entries inside the day span instead. It stays only because removing it would
+        /// break the already-compiled adapter in the window between deploying this DLL and the F5
+        /// that recompiles it - the same binary-compatibility reason PositionSnapshot has two
+        /// constructors.
+        ///
+        /// It is therefore a key that no longer configures anything, which is the ledgerPath family,
+        /// and it is listed as a coordinated removal rather than left looking meaningful.</summary>
         public long DaysCovered { get; set; } = 1;
         public IReadOnlyList<AnchorRecord> Anchors { get; set; }
         public string IssuerVersion { get; set; }
@@ -133,9 +141,30 @@ namespace GuardianCore
             "add-on with the platform closed does not appear; the gap appears, not the act.",
             "This is not an audit. Nobody inspected this trader. It is a machine's signed assertion " +
             "about a record that machine kept.",
+            // candidate 6. ordersRejectedWhileLocked reports 0 because NOTHING PRODUCES THE EVENT any
+            // more: the LT-1 fix (2026-08-26) stopped cancelling on observation, and
+            // ORDER_REJECTED_LOCKED lost its only writer. A zero meaning "this function does not
+            // exist" sitting beside zeros meaning "this did not happen" is the house defect in a
+            // number. The field stays - removing it would change the document's shape for a verifier
+            // that is not ours to break - and what the zero MEANS is said here, in the list that
+            // exists for precisely this.
+            "The count of orders rejected while locked is always zero in this build, and that is a " +
+            "statement about the software rather than about the trader: since 2026-08-26 the guardian " +
+            "does not cancel an order on sight, so nothing produces that record. It will mean what it " +
+            "says when selective cancellation lands.",
         };
 
         private static readonly string[] Boundaries = { Ev.FailClosedEntered, Ev.FailClosedCleared };
+
+        /// <summary>The dayKey an entry carries, or null. Only a minority of events carry one -
+        /// ARMED, DAY_OPENED, DAY_CLOSED, DISARMED, LOCKOUT_CLEARED, SEAL_EXPIRED, STATE_RESTORED,
+        /// PNL_BASELINE_ADOPTED - which is exactly why the day's span is derived from THEM and the
+        /// rest are attributed positionally, by falling inside it.</summary>
+        private static string DayKeyOf(JsonObject entry)
+        {
+            var payload = entry == null ? null : entry["payload"] as JsonObject;
+            return payload == null ? null : payload.GetString("dayKey");
+        }
 
         // ------------------------------------------------------------------ claims
 
@@ -247,9 +276,70 @@ namespace GuardianCore
             var seqs = entries.Where(e => e.GetInt("seq").HasValue).Select(e => e.GetInt("seq").Value).ToList();
             if (seqs.Count == 0)
                 return CertificateResult.Refused("CERT_LEDGER_UNREADABLE: no entry carries a seq");
-            long fromSeq = seqs.Min(), toSeq = seqs.Max();
+
+            // cert-1. This used to be min/max over EVERYTHING it was handed, so a document naming one
+            // day published totals for every day the installation had ever run - and daysCovered: 1
+            // was not merely hardcoded, it was false. The house's hardest subtype: a true assertion
+            // over the wrong set, where the arithmetic is right, the sentence is right, and the
+            // defect lives only in the joint.
+            //
+            // THE DAY IS [min(seq), max(seq)] OVER THE ENTRIES CARRYING ITS dayKey, and the property
+            // that matters is that a stranger derives it with one scan and two extremes - no trust in
+            // whoever issued the document. It needs no event ordering and works on ledgers ALREADY
+            // WRITTEN, which is indispensable: certificates are issued over history that exists.
+            //
+            // It is NOT "between DAY_OPENED and DAY_CLOSED", and the reason came from reading the
+            // live ledger rather than the code: DAY_OPENED IS WRITTEN LAST in the arming sequence -
+            // CONFIG_LOADED, ARMED, SEAL_CREATED, DAY_OPENED - so that window would exclude the ARMED
+            // event that establishes the limit, which is the most important claim in the document.
+            //
+            // KNOWN GAP, named rather than hidden: CONFIG_LOADED precedes ARMED and carries no
+            // dayKey, so the entry holding configHash falls outside. Closing it means CONFIG_LOADED
+            // carrying a dayKey - an additive FIELD, and therefore the extension contract's business.
+            var inDay = entries
+                .Where(e => e.GetInt("seq").HasValue && DayKeyOf(e) == request.DayKey)
+                .Select(e => e.GetInt("seq").Value)
+                .ToList();
+            if (inDay.Count == 0)
+                return CertificateResult.Refused(
+                    "CERT_DAY_NOT_IN_LEDGER: no entry carries dayKey '" + request.DayKey + "', so this " +
+                    "ledger does not delimit that day. A document about a day with no evidence would " +
+                    "be an assertion with no source.");
+            long fromSeq = inDay.Min();
+
+            // WHERE THE DAY ENDS, and the first draft got this wrong in a way the existing C-tests
+            // caught: [min, max] over dayKey-carrying entries stops at the LAST one, and on a day
+            // still OPEN that is DAY_OPENED, near the beginning - so everything the day actually did
+            // fell outside its own certificate.
+            //
+            // A day ends where the NEXT day begins, and if no next day exists in this ledger it runs
+            // to the end of the record. Both halves stay derivable by a stranger with one scan.
+            var nextDayStart = entries
+                .Where(e => e.GetInt("seq").HasValue && e.GetInt("seq").Value > fromSeq)
+                .Where(e => { var d = DayKeyOf(e); return !string.IsNullOrEmpty(d) && d != request.DayKey; })
+                .Select(e => e.GetInt("seq").Value)
+                .DefaultIfEmpty(-1)
+                .Min();
+            long toSeq = nextDayStart < 0 ? seqs.Max() : inDay.Max();
 
             var claims = Recompute(entries, fromSeq, toSeq, chainVerified);
+
+            // TRUE BY CONSTRUCTION, never typed: count the distinct dayKeys actually inside the span.
+            // For a correct span that is 1, and if the span ever leaked into another day it would say
+            // 2 - which is informative, where a hardcoded 1 was a lie.
+            //
+            // request.DaysCovered is IGNORED from here on. It cannot be removed today without
+            // breaking the already-compiled adapter in the window between deploying this DLL and the
+            // F5 that recompiles it (the reason PositionSnapshot has two constructors). It is a key
+            // that no longer configures anything - the ledgerPath family - and removing it is a
+            // coordinated change, listed as such.
+            var daysCovered = entries
+                .Where(e => e.GetInt("seq").HasValue &&
+                            e.GetInt("seq").Value >= fromSeq && e.GetInt("seq").Value <= toSeq)
+                .Select(DayKeyOf)
+                .Where(d => !string.IsNullOrEmpty(d))
+                .Distinct(StringComparer.Ordinal)
+                .Count();
 
             // Trust level: this emitter can honestly claim L1, and L2 only when the trader hands
             // over anchors a third party holds. It never claims L3 for itself - a signature that
@@ -257,7 +347,7 @@ namespace GuardianCore
             var hasAnchors = request.Anchors != null && request.Anchors.Count > 0;
             var trustLevel = hasAnchors ? "L2" : "L1";
 
-            var doc = BuildDocument(state, request, claims, trustLevel);
+            var doc = BuildDocument(state, request, claims, trustLevel, daysCovered);
 
             var certHash = Hashing.Sha256Hex(doc.ToCanonical());
             var full = doc.Set("certHash", certHash);
@@ -278,7 +368,8 @@ namespace GuardianCore
         }
 
         private static JsonObject BuildDocument(PersistedState state, CertificateRequest req,
-                                                SessionClaims claims, string trustLevel)
+                                                SessionClaims claims, string trustLevel,
+                                                int daysCovered)
         {
             var seal = state.Seal;
             var snapshot = ParseSnapshot(seal.ConfigSnapshot);
@@ -363,7 +454,7 @@ namespace GuardianCore
                     .Set("dayKey", req.DayKey)
                     .Set("openedUtc", Iso.Utc(seal.ArmedAtUtc))
                     .Set("timezone", snapshot == null ? "" : (snapshot.GetString("sessionResetTimeZone") ?? "")))
-                .Set("continuity", JsonValue.Obj().Set("daysCovered", req.DaysCovered).Set("gaps", gaps))
+                .Set("continuity", JsonValue.Obj().Set("daysCovered", daysCovered).Set("gaps", gaps))
                 .Set("commitment", commitment)
                 .Set("claims", claimsObj)
                 .Set("anchors", anchors)
