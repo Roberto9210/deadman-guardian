@@ -27,6 +27,17 @@ Las dos respuestas dan cuatro casos:
 | **NO alcanzable** | es una firma, no un freno |
 | **no determinable** | se dice, no se estira |
 
+**Y un QUINTO caso, que este esquema no tenía y que esta auditoría encontró** (agregado por el
+operador el 1-sep):
+
+| | |
+|---|---|
+| **disparó, fue correcto, y NO CAMBIÓ NADA** | un freno desoído es, en resultado, un freno que no disparó |
+
+Es el caso más humano de los cinco y **es la misma cosa que los 165 avisos**: no alcanza con que un
+freno actúe: tiene que llegar a alguien que lo atienda. Un esquema que sólo mira el código no tiene
+dónde poner esto, porque el fallo no está en el código.
+
 ---
 
 ## 2 · Dónde se buscó la evidencia
@@ -60,10 +71,11 @@ escribió en prosa** — y eso es, por sí mismo, un resultado de esta auditorí
 | **exit 5** — build más viejo que su fuente (`:204`) | sí — **y la condición es VERDADERA ahora mismo**: DLL 19:09:03, `Certificate.cs` 19:38, `Messages.cs` 19:41 | **sin evidencia** de que haya disparado nunca | plausible, sin evidencia |
 | **exit 6** — la copia no verifica ⇒ revierte (`:425`) | sí: archivo bloqueado, antivirus, disco | **sin evidencia**. Su propio defecto (anunciar `ROLLED BACK` sin haber restaurado) lo atrapó **un test**, no una corrida | plausible, sin evidencia |
 
-⚠ **exit 2 disparó y no sirvió**, y está escrito por quien lo vivió (`ab5df29`):
+⚠ **exit 2 es el QUINTO CASO**, y está escrito por quien lo vivió (`ab5df29`):
 *"on 2026-08-21 a guard fired, printed one line, and the operator watched it scroll past and pressed
-F5 anyway."* Es un quinto caso que el esquema de cuatro no tiene: **disparó, fue correcto, y no
-cambió nada** — la regla del canal, en un instalador.
+F5 anyway."* **Disparó, fue correcto, y no cambió nada** — la regla del canal, en un instalador.
+Por eso su clasificación de arriba lleva el aviso: contarlo como *protección demostrada* a secas
+sería el mismo optimismo que la auditoría persigue.
 
 **Precedente propio, y es el que prueba que esta clase ya se cazó acá una vez**: el `exit 3` fue
 **borrado por inalcanzable** en ese mismo commit, con el motivo escrito en el hueco que dejó
@@ -185,6 +197,14 @@ Consecuencia, leyendo `Certificate.cs:56` (`LimitRespected => LockoutsTriggered 
 **El freno funciona. La evidencia no lo lleva.** Es la primera clase de la casa —una afirmación
 cierta sobre el conjunto equivocado— **en el único artefacto que va a un tercero**, y llegó por la
 pregunta encargada: *¿qué input alcanzable hace que este freno diga que no?*
+
+**Y es EL día que un trader querría poder mostrar**: la prueba de que alguien intentó aflojarse el
+freno y no pudo. El único que el documento no sabe contar.
+
+> **Es el inverso exacto del hallazgo de ALAYA, y le da a la clase madre una cara que no habíamos
+> visto.** Allá, un freno que **no podía fallar** firmaba que había protegido. Acá, un freno que
+> **sí actuó** no aparece. Los dos producen un documento que no coincide con la realidad: **uno
+> afirma de más, el otro de menos.**
 
 **No verificado**: si la ventana de tiempo del lockout cae dentro de un episodio fail-closed abierto,
 el evento entra al certificado como clave del mapa `reasons`. No se comprobó si eso puede ocurrir en

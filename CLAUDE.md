@@ -79,6 +79,22 @@ que le sellaron.
      **reemplazado por nada**. La fila salió con huecos justo donde iban sus términos técnicos.
    **Ninguna de las dos ocurre si el script vive en un archivo**, que es la regla que ya estaba
    escrita y que no seguí por tratarse de una sola línea.
+9. **ANTE UN FRENO, LA PREGUNTA NO ES «¿FUNCIONA?» SINO «¿EXISTE UN INPUT ALCANZABLE QUE LO HAGA
+   DECIR QUE NO?»** — y después, por separado: **¿alguna vez lo dijo?** Traída de ALAYA el 1-sep,
+   donde un freno con doce criterios alimentados por constantes escritas a mano acumuló **180.688
+   evaluaciones y cero rechazos** mientras el motor firmaba que había validado. **Un freno que no
+   puede fallar no es un freno, es una firma.** Auditoría completa de este repo:
+   `docs/auditoria-frenos-20260901.md`.
+   **El refinamiento que salió de aplicarla acá, y es lo que hay que recordar:**
+   > **La distancia entre un cable trampa y una firma NO es la alcanzabilidad: es si algo AFIRMA que
+   > te protegió.**
+   `FOREIGN_ACCOUNT_ORDER_OBSERVED` (`Guardian.cs:605`) **es inalcanzable** —el addon se suscribe
+   sólo a la cuenta guardada (`DeadmanGuardianAddOn.cs:248-259`)—, cuesta cero, el propio código se
+   declara cable trampa (*"if a foreign order ever reaches this method the wiring changed underneath
+   us"*) y **ningún mensaje, documento ni certificado lo cita**: está bien que exista. El OCG de
+   ALAYA era inalcanzable **y el motor firmaba con él**. **El daño no está en la puerta cerrada;
+   está en la firma.**
+   *(La regla numerada que esto corrige vive en el mapa de ALAYA, no en éste — acá no hay regla 18.)*
 
 ## 3. La clase de defecto de la casa
 **TEXTO QUE AFIRMA MÁS DE LO QUE SU PROPIO CÓDIGO COMPROBÓ.**
@@ -94,6 +110,12 @@ cuando el backup faltaba y no había restaurado nada. La atrapó su propio test.
 
 **La regla: cada mensaje afirma exactamente lo que su propia comprobación establece, ni una palabra
 más.** Si hacen falta dos afirmaciones, se escriben dos (`COPY VERIFIED` / `BUILD CURRENT`).
+
+**Y desde el 1-sep la clase tiene su cara opuesta, que no habíamos visto**: un documento también
+puede afirmar **de MENOS**. En ALAYA, un freno que no podía fallar firmaba que había protegido; acá,
+un freno que **sí actuó** no aparece en el certificado (§5, ítem 4). **Los dos producen un documento
+que no coincide con la realidad** — uno afirma de más, el otro de menos. **La regla se lee en las dos
+direcciones: ni una palabra más, y ninguna menos.**
 
 ### Subtipo, y es el más difícil de ver: UNA AFIRMACIÓN CIERTA SOBRE EL CONJUNTO EQUIVOCADO
 
@@ -191,6 +213,25 @@ motivo: **nadie enumeró las salidas.**
 
 **Pregunta de cacería, antes de dar una familia por cerrada:** *¿por cuántas salidas puede aparecer
 este dato, y las miré a todas?* Un arreglo que no puede nombrar sus canales es un arreglo de uno.
+
+### Sexto subtipo, y es el más difícil de VER de todos (1-sep)
+
+> **UNA COLECCIÓN VACÍA AFIRMA AUSENCIA — y el tipo lista no tiene forma de callarse salvo
+> omitiéndose entero.**
+
+Es la familia del `$0.00` en forma de colección, **y es peor que un cero**: un cero en un campo de
+dinero llama la atención, alguien lo mira dos veces. **Una lista vacía se lee como «nada que
+reportar» y no como «afirmo que no hay nada».**
+
+**El alcance es real y no es futuro**: `continuity.gaps` sale `[]` en los **DOCE certificados ya
+emitidos** (`Certificate.cs:433-435`) y **nadie calcula huecos** — no hay una sola asignación a
+`Gaps` en `src/` ni en `nt/`. Los doce afirman *"no hay huecos"* donde el hecho es *"nadie miró"*.
+Igual `anchors`. *"No hay"* y *"no sé"* no son lo mismo, y la lista vacía dice el primero.
+
+Y el **tercer** subtipo explica por qué éste se escapa: allá **el TIPO decidía** si el campo podía
+callarse —`decimal` no podía, `string` sí—. **Acá el tipo lista tampoco puede**: `[]` es un valor
+legítimo con significado propio. Las únicas ausencias honestas son **omitir el contenedor entero** o
+**decir en `limitations` qué significa ese vacío**, como ya se hace con `ordersRejectedWhileLocked`.
 
 ## 4. Operativa
 - **Instalar**: `.\nt\install.ps1 -WithSoak -WithBots`. Se niega **antes de mutar** en tres casos y
@@ -438,7 +479,22 @@ Eso mueve el contrato de extensión del sexto lugar al camino crítico del defec
    — así que la pregunta se hace completa: *¿el formato admite hechos sobre el humano, **y admite
    que una clave falte**?*
 3. **ACUSE DE RECIBO** — bloqueado por el 2.
-4. **cert-1** — acotar el certificado al día que nombra. Mecánico, con maquinaria que ya existe.
+4. **EL CERTIFICADO BORRA EL DÍA QUE MÁS LO JUSTIFICA — PRIMERO DE LA COLA DEL CERTIFICADO, POR
+   DELANTE DE ~~cert-1~~** (que ya está hecho, 31-ago). Hallado el 1-sep por una pregunta lateral de
+   la auditoría de frenos (`docs/auditoria-frenos-20260901.md` §4.3). `EnterLockout` tiene **tres**
+   llamadores y **uno solo** escribe `LIMIT_BREACHED` (`Guardian.cs:767`); el certificado lee **seis**
+   tipos de evento y **`CONFIG_TAMPERED` y `SEAL_MISMATCH` no están** (`Certificate.cs:192-206`).
+   ⇒ **un día en que el trader editó su config para aflojarse el límite y el guardián lo bloqueó por
+   eso sale con `lockoutsTriggered: 0`, `changeAttemptsWhileSealed: 0` y `limitRespected: true`.**
+   **Ese es EL día que un trader querría poder mostrar** —la prueba de que alguien intentó aflojarse
+   el freno y no pudo— y es el único que el documento no sabe contar. **cert-1 arregló lo que el
+   certificado decía de MÁS; esto arregla lo que no sabe decir.**
+4b. **`changeAttemptsWhileSealed` cuenta otra cosa que la que su nombre promete** (anotado aparte del
+   4 a propósito, son dos defectos y no uno). Su única fuente es `CONFIG_CHANGE_REJECTED`
+   (`Certificate.cs:193`), que sólo emite `TryChangeConfig` — **método público sin ningún llamador en
+   el producto**. Se alcanza únicamente de rebote, vía `Arm` (`Guardian.cs:457`), o sea **apretando
+   dos veces «Arm for today»** antes del refresco de 1 s. El nombre dice *intentos de aflojar el
+   límite estando sellado*; el conjunto contado es *clics de más en un botón*.
 5. **Hash del binario en `GUARDIAN_STARTED`** — sólo después del 2. Nombrado por lo que establece:
    *el hash del archivo desde el que se cargó el ensamblado*, no "el código corriendo".
 6. **`limitRespected`** — semántica, no alcance. Separado a propósito.
