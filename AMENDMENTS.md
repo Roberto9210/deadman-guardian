@@ -237,3 +237,42 @@ cannot exit a sinking position — unbounded loss, caused by the guardian — wh
 one order opens exposure and the next cycle's flatten closes it, bounded by one cycle.
 
 **How it fails if ignored:** silently, and in the direction that costs money.
+
+---
+
+### Nota de corrección — 2026-09-01. El texto de arriba NO se modificó.
+
+Esta enmienda está fechada y es un documento de firma, así que se le anota lo que le falta en lugar de
+reescribirla. **Dos cosas, y la segunda es la que importa.**
+
+**1 · Desde esta decisión, todo cuelga de UN SOLO freno, y eso no está dicho acá.** A11 nombra las dos
+ramas —el barrido previene un FILL, el aplanado DESHACE uno— y elige correctamente entre ellas. Lo que
+no dice es que, al quitar la primera, **la que queda queda sola**. Los `LOCKOUT_INCOMPLETE` eran una
+molestia mientras había un segundo freno detrás; **desde el 2026-08-26 son el modo de falla del
+producto**. Quitar un freno redundante **asciende en silencio los defectos del que queda**, y ese
+ascenso no dejó rastro en ningún commit ni en ninguna enmienda — hasta esta nota.
+
+**2 · El argumento de cierre de esta enmienda tenía n=1 cuando se escribió, y sigue teniendo n=1 hoy.**
+La última línea de arriba dice, textual:
+
+> *"not cancelling wrongly means one order opens exposure and **the next cycle's flatten closes it,
+> bounded by one cycle**."*
+
+Medido el 2026-09-01 sobre el ledger de producción (8.034 entradas, 2026-08-21 → 2026-09-01):
+
+| | |
+|---|---|
+| `FLATTEN_VERIFIED` en toda la vida del producto | **1** (seq 8002, 2026-08-31T14:10:30Z) |
+| episodios que terminaron **sin** cerrar la posición | **1** (2026-08-26: 167 intentos, `exhausted: true`) |
+
+**La cota no está demostrada: está afirmada.** Y el 26-ago no se degradó — **se agotó**.
+
+Corresponde el matiz, y no achica el hallazgo: el fallo del 26-ago **es el que esta misma enmienda
+arregla**, así que no es evidencia contra el código de hoy. Es evidencia de que **el mecanismo del que
+el producto ahora depende por completo tiene una sola observación exitosa.**
+
+> **Que esta casa firme decisiones en un documento cuyo argumento final es una afirmación con una
+> observación es el hallazgo, y va escrito acá porque acá es donde se va a hacer la pregunta.**
+
+Medición completa: `docs/aplanado-freno-unico-20260901.md`. **Ninguna decisión se cambia con esta
+nota**; la enmienda sigue vigente tal como está.

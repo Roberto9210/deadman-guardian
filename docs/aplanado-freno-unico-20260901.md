@@ -24,7 +24,21 @@ Los 167 son una sola ráfaga alrededor de las **23:44Z** del 26-ago. Los 2 son d
 
 ## 2 · Qué dice el evento sobre el porqué
 
-**Nada en prosa.** El payload es `{accounts, attempts, exhausted}` — **un contador, no una causa.**
+> **CORRECCIÓN 2026-09-01, sobre esta misma sección.** Escribí *"el evento no da causa"*. **Eso es
+> cierto de la forma que dispara y falso del evento**: `LOCKOUT_INCOMPLETE` tiene **DOS formas**, igual
+> que `GUARDIAN_STARTED`.
+>
+> | forma | payload | veces en producción |
+> |---|---|---|
+> | el `catch` alrededor de `Flatten` | `{account, step:"flatten", error}` — **sí lleva causa** | **0** |
+> | la verificación que falla | `{accounts, attempts, exhausted}` | **169** |
+>
+> **Y la corrección aprieta el hallazgo en vez de aflojarlo**: la forma que llevaría la causa **nunca
+> disparó**, o sea que el 26-ago **`Flatten()` volvió sin lanzar 167 veces y la posición siguió
+> abierta**. El bróker aceptó y no pasó nada. Ése es el hecho, y es más filoso que "no sabemos".
+
+**La forma que disparó no lleva prosa.** El payload es `{accounts, attempts, exhausted}` — **un
+contador, no una causa.**
 Hay exactamente **una forma de "por qué"**, y es cuántas veces se intentó:
 
 | forma | dónde |
@@ -91,3 +105,48 @@ observación**. La enmienda es correcta en su decisión y **su última línea es
 
 **Ninguna acción se toma acá**: el ascenso silencioso de los defectos del freno restante es un hecho
 para la cola, y qué hacer con él es decisión del operador.
+
+---
+
+## 5 · Qué campos debería llevar — medidos contra lo que el adaptador PUEDE distinguir
+
+Lo que el puerto entrega en el instante de escribir el evento, y nada más:
+
+```
+IBrokerActions.Flatten(account)            -> void        (lanza, o no)
+IBrokerActions.GetPositions(account)       -> PositionSnapshot { Instrument, Quantity (con signo), AveragePrice }
+IBrokerActions.GetWorkingOrders(account)   -> OrderSnapshot   { OrderId, Instrument, Action }
+```
+
+### Nivel 1 — GRATIS HOY, y el código ya lo tiene en la mano y lo tira
+
+| campo | qué separa | de dónde sale |
+|---|---|---|
+| **`positionsRemaining`** vs **`ordersRemaining`** | **el hallazgo más barato del lote.** Hoy `remaining.Add(account)` **colapsa las dos condiciones en una**: *"quedó la posición"* y *"quedaron órdenes en reposo"* son fallas distintas, con arreglos distintos, y el ledger **no las distingue** | ya calculadas en la rama de verificación |
+| **`instruments` + `quantities` con signo** | qué quedó abierto y de qué lado | `PositionSnapshot.Instrument`, `.Quantity` |
+| **`orderIds` + `actions`** | si la orden en reposo **aumenta o reduce** exposición | `OrderSnapshot.OrderId`, `.Action` |
+| **`flattenThrew` + `error`** | **unifica las dos formas en una.** Dos formas del mismo nombre es la lección de `GUARDIAN_STARTED`: dos descripciones ciertas de una sola cosa, y el lector no sabe cuál le tocó | ya existe en el `catch` |
+
+### Nivel 2 — cuesta guardar UN snapshot entre intentos
+
+| campo | qué separa |
+|---|---|
+| **`quantityUnchangedSinceLastAttempt`** | **es el que contesta tu pregunta.** Que nada se mueva entre intentos tiene la forma de *"la plataforma no está actuando"*; que baje a 0 y vuelva tiene la forma de *"la posición se reabrió"*. **No prueba una causa: separa dos formas de falla**, y hoy son indistinguibles |
+
+### Lo que NO se puede distinguir — y por eso NO propongo campo
+
+- **Por qué el bróker no actuó.** `Flatten` devuelve `void`. El 26-ago **volvió sin lanzar 167 veces**:
+  ni siquiera el canal de excepción trajo algo. **Ningún campo puede llevar un motivo que el puerto
+  nunca recibe** — inventarlo sería exactamente el defecto de la casa.
+- **Si alguien canceló nuestra orden de aplanado.** `Flatten(account)` es de cuenta entera y **no
+  devuelve id**, así que *"la cancelaron"* y *"nunca se colocó"* son **la misma observación**.
+- **Latencia contra rechazo.** Mismo motivo.
+
+### La consecuencia honesta, que hay que decir antes de que alguien la festeje
+
+> **El nivel 1 NO habría diagnosticado el 26-ago.** Habría escrito *"quedan posiciones, la cantidad no
+> cambió, el aplanado no lanzó"* — que es una **forma**, no una causa.
+
+Para tener la causa, el puerto necesita que **`Flatten` devuelva algo** (un id, o un resultado). Es una
+**capacidad que falta**, de la misma familia que la cancelación selectiva de A11 — y se anota igual que
+allá: **acotado por una capacidad ausente, no por una decisión ausente.**

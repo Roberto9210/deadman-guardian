@@ -1,24 +1,30 @@
 # Correcciones para el sitio — texto final para pegar
 
-**2026-09-01.** El sitio publica hoy una afirmación **medida como falsa**: que estando bloqueado toda orden
-nueva *"is cancelled on sight"*. **Ni se bloquea, ni se cancela, ni se registra.**
+**2026-09-01. Segunda redacción.** La primera cambiaba una afirmación **falsa** por una **no ganada**:
+decía que *"el aplanado del ciclo siguiente cierra la posición"*, que es exactamente la frase que
+después medimos con **n=1**. Se reescribió antes de pegar nada.
 
 > **Este archivo es TEXTO FINAL, no instrucciones.** Se pega tal cual en el editor web de GitHub.
 > El sitio no vive en este repositorio y esta ventana **no lo toca**.
 
-**Medición que obliga la corrección** (contra `deadman-guardian` @ `2036020`):
+## Lo que el sitio afirma hoy y está medido como falso
 
-- `CancelAllOrders` tiene **un solo sitio de llamada**, dentro de `SweepRestingOrders`, cuyo único llamador
-  es `EnterLockout` ⇒ **el barrido ocurre UNA vez, al entrar**.
-- `OnOrderObserved` estando `Locked` **retorna sin actuar**.
-- **`Ev.OrderRejectedLocked` no tiene ningún escritor** en `src/`. Los 12 del ledger son del **2026-08-26,
-  entre 23:44:27.408Z y 23:44:33.826Z**, y no puede haber más.
-- La decisión está firmada: **`AMENDMENTS.md` A11, 2026-08-26**.
+*"While locked, every new order — from the DOM, a chart, a running strategy — is cancelled on sight
+and recorded as `ORDER_REJECTED_LOCKED`."* **Ni se cancela, ni se registra, ni se impide que salga.**
 
-**Regla que la destraba**: *bajar una afirmación nunca necesita evidencia; sólo subirla la necesita.*
+## Lo único publicable, y por qué es esto y no más
 
-**Orden**: primero se bajan estas siete. **Nada nuevo se agrega al sitio antes** — una página publicada
-dentro de una superficie hereda la credibilidad de la superficie.
+| medido | fuente |
+|---|---|
+| `CancelAllOrders` tiene **un solo sitio de llamada**, en `SweepRestingOrders`, cuyo único llamador es `EnterLockout` ⇒ **el barrido ocurre una vez, al entrar** | `deadman-guardian` @ `72e75af` |
+| `OnOrderObserved` estando `Locked` **retorna sin actuar** | ídem |
+| **`ORDER_REJECTED_LOCKED` no tiene escritor** en `src/` | ídem |
+| **Un (1) `FLATTEN_VERIFIED`** en toda la vida del producto | ledger, 8.034 entradas |
+| **Un episodio de 167 intentos** terminado en `exhausted: true` **sin cerrar la posición** | ledger, 2026-08-26 |
+| El `LOCKOUT_INCOMPLETE` que disparó **no lleva causa**: `{accounts, attempts, exhausted}` | ledger, 169 de 169 |
+
+**Bajar una afirmación no necesita evidencia; afirmar una cota sí, y no la tenemos.** Por eso el texto
+de abajo dice *"intenta aplanar"* y **nunca** *"lo cierra en el ciclo siguiente"*.
 
 ---
 
@@ -32,19 +38,30 @@ dentro de una superficie hereda la credibilidad de la superficie.
 <p><strong>A single flatten is not a lockout — and nothing is cancelled while locked. This is the
 sentence to read twice.</strong> Entering the lockout sweeps the resting orders <em>once</em>. After
 that, a new order — from the DOM, a chart, a running strategy — <strong>reaches your broker and can
-fill</strong>: the guard neither cancels it nor records it. What the guard does is close the position
-that order opens, on the next cycle.</p>
+fill</strong>: the guard neither cancels it nor records it.</p>
 
-<p>Until 2026-08-26 it did cancel on sight, and a live test on a simulated account showed what that
-costs: it cancelled <strong>its own flatten orders</strong> and the trader's own exits — twelve of
-them inside six seconds, all sells and buy-to-covers — and the position never closed. Cancelling
-wrongly can trap someone in a sinking position, which is unbounded and caused by us; not cancelling
-costs one order's worth of exposure for one cycle. The trade was taken deliberately and it is written
-down, with its restoration condition, in <a
+<p>What the guard does instead is <strong>keep trying to flatten, and verify rather than assume</strong>:
+every cycle it asks the platform to flatten, then reads the positions back, and if they are not flat it
+writes <code>LOCKOUT_INCOMPLETE</code> and tries again. <strong>Here is what that has actually done, in
+full.</strong> In the product's entire recorded life there is <strong>one</strong> verified flatten. There
+is also one episode — 2026-08-26, on a simulated account — where <strong>167 attempts were exhausted and
+the position never closed</strong>. That episode had a cause we found and fixed the same day, and it is
+also the only large sample we have. <strong>So "the position gets closed" is not something this page can
+promise you: it is something the guard attempts, and reports honestly when it fails.</strong></p>
+
+<p>The failure is also, today, <strong>undiagnosable from the record</strong>: the event carries a
+counter and no reason, so a broker that did not confirm and a position that reopened look identical in
+the log. That is an open defect, and it is named here rather than left for you to discover.</p>
+
+<p>Until 2026-08-26 the guard did cancel on sight, and a live test showed what that costs: it cancelled
+<strong>its own flatten orders</strong> and the trader's own exits — twelve of them inside six seconds,
+all sells and buy-to-covers. Cancelling wrongly can trap someone in a sinking position, which is
+unbounded and caused by us; not cancelling costs one order's worth of exposure. The trade was taken
+deliberately and it is written down, with its restoration condition, in <a
 href="https://github.com/Roberto9210/deadman-guardian/blob/main/AMENDMENTS.md">AMENDMENTS.md, A11</a>.
-The event <code>ORDER_REJECTED_LOCKED</code> is not written any more, and the certificate's
-<code>ordersRejectedWhileLocked</code> is <code>0</code> for that reason — truthfully, because nothing
-is rejected.</p>
+<code>ORDER_REJECTED_LOCKED</code> is not written any more, and the certificate's
+<code>ordersRejectedWhileLocked</code> reads <code>0</code> for that reason — truthfully, because
+nothing is rejected.</p>
 ```
 
 ## 2 · `how-it-works.html` — el párrafo de *detect-and-cancel*
@@ -56,10 +73,10 @@ is rejected.</p>
 ```html
 <p>Nothing here can stop an order from reaching the venue, and that is a platform fact rather than a
 design choice: 2,912 types were scanned inside the running NinjaTrader process and <strong>no
-pre-submit hook exists</strong> — there is no event that can veto an order before submission. This
-page used to quote a 315.9 ms cycle, of which 14.4 ms were ours. That measurement was real, and it
-measured the cancel-on-sight mechanism that was removed on 2026-08-26, so it is not a claim about the
-current build and it has been taken down rather than restated.</p>
+pre-submit hook exists</strong> — there is no event that can veto an order before submission. This page
+used to quote a 315.9 ms cycle, of which 14.4 ms were ours. That measurement was real, and it measured
+the cancel-on-sight mechanism that was removed on 2026-08-26, so it is not a claim about the current
+build and it has been taken down rather than restated.</p>
 ```
 
 ## 3 · `how-it-works.html` — la lista de mediciones de plataforma
@@ -69,9 +86,9 @@ current build and it has been taken down rather than restated.</p>
 **Reemplazar ese `<li>` entero por:**
 
 ```html
-  <li><strong>The one that follows from it</strong> — with no pre-submit hook, an order sent while
-  locked reaches the venue and can fill, and what bounds it is the flatten on the next cycle rather
-  than a cancellation. See "a single flatten is not a lockout", above.</li>
+  <li><strong>What follows from having no hook</strong> — an order sent while locked reaches the venue
+  and can fill. What the guard does after that is attempt a flatten and verify it; how often that has
+  actually verified is stated above, in full.</li>
 ```
 
 ## 4 · `how-it-works.html` — el bloque de estado
@@ -82,12 +99,12 @@ current build and it has been taken down rather than restated.</p>
 
 ```html
   <p>26 of 26 named guarantees implemented, all passing, 0 skipped — that is the conformance
-  statement, rather than "it works". A test count used to sit here and was removed rather than
-  updated: the number climbs on its own, says nothing about coverage, and is wrong again the following
-  week. The soak run quoted below is from <strong>2026-08-21</strong> and <strong>predates</strong>
-  three findings that followed it, the last of which showed the guard stopped enforcing after its
-  first verified flatten. It has not been re-run, and today it cannot be: one of its assertions
-  describes behaviour that was removed on 2026-08-26.</p>
+  statement, rather than "it works". A test count used to sit here and was removed rather than updated:
+  the number climbs on its own, says nothing about coverage, and is wrong again the following week. The
+  soak run quoted below is from <strong>2026-08-21</strong> and <strong>predates</strong> three findings
+  that followed it, the last of which showed the guard stopped enforcing after its first verified
+  flatten. It has not been re-run, and today it cannot be: one of its assertions describes behaviour
+  that was removed on 2026-08-26.</p>
 ```
 
 ## 5 · `index.html` — el bullet del lockout
@@ -99,9 +116,9 @@ current build and it has been taken down rather than restated.</p>
 ```html
   <li><strong>A single flatten is not a lockout — and nothing is cancelled while locked.</strong>
   Entering the lockout sweeps the resting orders once; after that a new order reaches your broker and
-  can fill, and what closes the position it opens is the flatten on the next cycle. It used to cancel
-  on sight, until a live test showed it cancelling its own flatten orders and the trader's own exits.
-  <a href="how-it-works.html">The trade, and why it was taken →</a></li>
+  can fill. The guard then keeps trying to flatten and verifies rather than assumes — and the honest
+  record is one verified flatten in the product's life, plus one episode where 167 attempts were
+  exhausted without closing the position. <a href="how-it-works.html">What that means, in full →</a></li>
 ```
 
 ## 6 · `index.html` — "It does not bound your loss"
@@ -112,8 +129,8 @@ current build and it has been taken down rather than restated.</p>
 
 ```html
 Between reaching your limit and the position actually closing, the market keeps moving — and the
-closing is done by a flatten that has to be <em>observed</em> to succeed, not assumed. A gap or a fast
-market goes straight through that.
+closing is an <em>attempt</em> that has to be observed to succeed, not a step that is assumed to work.
+A gap or a fast market goes straight through that, and so does a flatten that does not verify.
 ```
 
 ## 7 · `index.html` y `compatibility.html` — los números que quedan
@@ -127,15 +144,23 @@ market goes straight through that.
 **reemplazar desde ahí hasta** `platform and the venue.` **por:**
 
 ```html
-The closing is done by a flatten at market, and it has to be observed to succeed rather than assumed.
-A gap or a fast market moves through that.
+The closing is a flatten at market, and it is an attempt that has to be observed to succeed rather than
+a step assumed to work. A gap or a fast market moves through that, and so does a flatten that does not
+verify.
 ```
 
 ---
 
 ## Lo que NO se toca, y por qué
 
-- **`no pre-submit hook exists` y los 2.912 tipos**: sigue siendo cierto y sigue estando medido dentro del
-  proceso. Es la mitad de la frase vieja que sobrevive.
-- **`26 of 26`**: estable y comprobable. Es la afirmación que se queda cuando se va el conteo.
-- **El soak del 21-ago**: se queda **con su fecha y su limitación**, no se borra. Ocurrió.
+- **`no pre-submit hook exists` y los 2.912 tipos**: sigue medido dentro del proceso y sigue siendo
+  cierto. Es la mitad de la frase vieja que sobrevive.
+- **`26 of 26`**: estable y comprobable. Es la afirmación que queda cuando se va el conteo.
+- **El soak del 21-ago**: se queda **con su fecha y su limitación**. Ocurrió.
+
+## Y lo que este texto NO dice, a propósito
+
+- **No dice que la posición se cierre.** Dice que se intenta y que se verifica, y publica el resultado
+  real de esos intentos. La cota *"bounded by one cycle"* existe en `AMENDMENTS.md` A11 y tiene **n=1**;
+  no se repite acá.
+- **No promete que el defecto del registro se va a arreglar.** Lo nombra.
