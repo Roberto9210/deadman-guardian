@@ -51,9 +51,19 @@ namespace GuardianCore
         public long ToSeq { get; set; }
         public bool ChainVerified { get; set; }
 
-        /// <summary>Derived, never asserted: A.2's three conditions, all of them.</summary>
+        /// <summary>Lockouts caused by a DAILY LOSS BREACH, which is a subset of LockoutsTriggered
+        /// since 2026-09-01. It exists so that widening the published count did not silently change
+        /// what `limitRespected` means: a trader who tried to loosen their limit and was stopped did
+        /// not breach it, and saying "the limit was not respected" about that day would be the same
+        /// defect pointing the other way.</summary>
+        public long BreachLockouts { get; set; }
+
+        /// <summary>Derived, never asserted - and the derivation is stated because one of its three
+        /// terms is NOT what the neighbouring field counts. `limitRespected` is about the LOSS LIMIT,
+        /// so it reads the breach count; `lockoutsTriggered` is about lockouts of every kind. Two
+        /// names, two computations, and neither borrows the other's meaning.</summary>
         public bool LimitRespected =>
-            LockoutsTriggered == 0 && !FailClosedEpisodes.Any(e => e.Open) && ChainVerified;
+            BreachLockouts == 0 && !FailClosedEpisodes.Any(e => e.Open) && ChainVerified;
     }
 
     /// <summary>What the trader chooses about their own document. Nothing here is guessed:
@@ -175,11 +185,12 @@ namespace GuardianCore
             "gaps, so the list is empty in every certificate it issues. The same is true of anchors.",
             "This build issues unsigned certificates - nothing here holds a signing key, so the " +
             "signature block does not appear at all. Its absence is not evidence of anything.",
-            "This does not report a lockout caused by configuration tampering. Only a daily-loss " +
-            "breach writes LIMIT_BREACHED, so a day on which the guardian locked the account because " +
-            "the configuration was edited while sealed reads here as lockoutsTriggered 0 with " +
-            "limitRespected true. Those lockouts are in the ledger as CONFIG_TAMPERED and " +
-            "SEAL_MISMATCH; this document does not count them.",
+            "Since 2026-09-01 lockoutsTriggered counts every route into a lockout - a daily-loss " +
+            "breach, a configuration edited while sealed (CONFIG_TAMPERED) and a seal edited by hand " +
+            "(SEAL_MISMATCH). Certificates this installation issued before that date counted only the " +
+            "first, so a lower number in an older document does not necessarily mean a quieter day. " +
+            "limitRespected still speaks only about the loss limit and does not fall because of a " +
+            "tamper lockout: being stopped while trying to loosen a limit is not the same as breaching it.",
         };
 
         private static readonly string[] Boundaries = { Ev.FailClosedEntered, Ev.FailClosedCleared };
@@ -217,7 +228,18 @@ namespace GuardianCore
                 var ev = r.GetString("event");
                 var seq = r.GetInt("seq").Value;
 
-                if (ev == Ev.LimitBreached) claims.LockoutsTriggered++;
+                // THREE ROUTES REACH EnterLockout AND THIS USED TO COUNT ONE (fixed 2026-09-01). A day
+                // on which the trader edited their configuration to loosen their own limit, and the
+                // guardian locked the account for it, certified as lockoutsTriggered 0 - a day with no
+                // news, and the very day a trader would want to be able to show.
+                //
+                // Counting all three is not a change of meaning: it is the field meeting its own name.
+                // And it does not double-count against failClosedEpisodes[].reasons, because
+                // LIMIT_BREACHED has always appeared in both when it fell inside an open episode - the
+                // scalar claim and the per-episode breakdown are two granularities of one event, and
+                // that precedent is in this method already.
+                if (ev == Ev.LimitBreached) { claims.LockoutsTriggered++; claims.BreachLockouts++; }
+                else if (ev == Ev.ConfigTampered || ev == Ev.SealMismatch) claims.LockoutsTriggered++;
                 else if (ev == Ev.ConfigChangeRejected) claims.ChangeAttemptsWhileSealed++;
                 else if (ev == Ev.ClockAnomaly) claims.ClockAnomaly++;
                 else if (ev == Ev.ClockSuspect) claims.ClockSuspect++;

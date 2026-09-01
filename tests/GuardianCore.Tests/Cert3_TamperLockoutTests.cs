@@ -83,48 +83,77 @@ namespace GuardianCore.Tests
 
         // ------------------------------------------------------------- green on the defect
 
-        /// <summary>THE ONE THAT NAMES IT. Green today, and it must go RED the day the tamper
-        /// lockouts become reportable - which is why it is written as an assertion rather than as a
-        /// comment somewhere.</summary>
+        /// <summary>THE ONE THAT NAMED IT, now asserting the fix. It was written green-on-the-defect
+        /// on 2026-09-01 so that it would turn RED the day the tamper lockouts became countable, and
+        /// that is exactly what happened - within the day. `lockoutsTriggered` counts what its name
+        /// says: EVERY route into EnterLockout, of which there are three.</summary>
         [Fact]
-        public void Cert3a_a_day_locked_for_tampering_still_certifies_as_a_quiet_day()
+        public void Cert3a_a_day_locked_for_tampering_now_counts_that_lockout()
         {
             var r = Certificate.Issue(ATamperedDay(), State(), Req(), true);
             Assert.True(r.Ok, r.Reason);
 
-            var doc = Parse(r.Json);
-            var claims = (JsonObject)doc["claims"];
-            var commitment = (JsonObject)doc["commitment"];
-
-            Assert.Equal(0, claims.GetInt("lockoutsTriggered"));                 // a lockout happened
-            Assert.Equal(0, commitment.GetInt("changeAttemptsWhileSealed"));     // an attempt happened
-            Assert.Equal("true", claims["limitRespected"].ToCanonical());        // and the day reads clean
+            var claims = (JsonObject)Parse(r.Json)["claims"];
+            Assert.Equal(1, claims.GetInt("lockoutsTriggered"));
         }
 
-        /// <summary>And the mirror, so the first test cannot be read as "the emitter counts nothing":
-        /// the same day with a real breach in it counts the breach. The blind spot is specific to the
-        /// tamper routes, not general.</summary>
+        /// <summary>AND THE KNOCK-ON THAT WAS NOT TAKEN, which is the more careful half. `limitRespected`
+        /// still reads TRUE on a tamper day, because the trader did not breach their loss limit - they
+        /// tried to loosen it and were stopped. Deriving it from the wider count would have published
+        /// "the limit was not respected" about a day when it was, which is the same defect pointing the
+        /// other way.
+        ///
+        /// So the two fields now say two different true things: a lockout happened, AND the loss limit
+        /// was respected. Whether they should be coupled is semantics and a product decision, held
+        /// separately on purpose.</summary>
         [Fact]
-        public void Cert3b_the_same_day_with_a_real_breach_does_count_it()
+        public void Cert3b_the_wider_count_does_not_drag_limitRespected_with_it()
+        {
+            var r = Certificate.Issue(ATamperedDay(), State(), Req(), true);
+            var claims = (JsonObject)Parse(r.Json)["claims"];
+
+            Assert.Equal(1, claims.GetInt("lockoutsTriggered"));
+            Assert.Equal("true", claims["limitRespected"].ToCanonical());
+        }
+
+        /// <summary>The seal-tamper route counts too - there are THREE callers of EnterLockout and the
+        /// certificate has to see all of them, not two.</summary>
+        [Fact]
+        public void Cert3c_a_hand_edited_seal_counts_as_a_lockout_as_well()
+        {
+            if (Guardian == null || Guardian.Status.Kind != StateKind.Armed) Armed("600.00");
+            new Ledger(Store, LedgerPath).Append(Ev.SealMismatch, Clock.UtcNow, JsonValue.Obj());
+
+            var r = Certificate.Issue(LedgerEntries(), State(), Req(), true);
+            var claims = (JsonObject)Parse(r.Json)["claims"];
+
+            Assert.Equal(1, claims.GetInt("lockoutsTriggered"));
+        }
+
+        /// <summary>THE CONTROL THAT MUST STILL FAIL THE OTHER WAY, and it is what keeps the previous
+        /// test from being read as "everything reads true now": a day with a REAL breach still counts
+        /// it AND still publishes limitRespected FALSE. The two routes are distinguished, not merged.</summary>
+        [Fact]
+        public void Cert3d_a_real_breach_still_falsifies_limit_respected()
         {
             ATamperedDay();
             new Ledger(Store, LedgerPath).Append(Ev.LimitBreached, Clock.UtcNow, JsonValue.Obj());
             var day = LedgerEntries();
 
-            var doc = Parse(Certificate.Issue(day, State(), Req(), true).Json);
-            var claims = (JsonObject)doc["claims"];
+            var claims = (JsonObject)Parse(Certificate.Issue(day, State(), Req(), true).Json)["claims"];
 
-            Assert.Equal(1, claims.GetInt("lockoutsTriggered"));
-            Assert.Equal("false", claims["limitRespected"].ToCanonical());
+            Assert.Equal(2, claims.GetInt("lockoutsTriggered"));                  // tamper + breach
+            Assert.Equal("false", claims["limitRespected"].ToCanonical());        // the breach decides this
         }
 
-        // ------------------------------------------------------------- the mitigation
+        // ------------------------------------------------------------- what the document says about itself
 
-        /// <summary>The silence stops being silent. Not a fix - a statement of what the document
-        /// cannot see, in the list that exists for that, reaching the same reader the number
-        /// reaches.</summary>
+        /// <summary>THE VERSION LINE, and it exists because of the twelve certificates already issued
+        /// with the old count and nothing marking them. A reader comparing two documents from this
+        /// installation must be able to see that the number changed meaning rather than the trader's
+        /// behaviour.</summary>
         [Fact]
-        public void Cert3c_the_document_states_the_blind_spot_it_has()
+        public void Cert3e_the_document_says_what_this_version_counts()
         {
             var doc = Parse(Certificate.Issue(ATamperedDay(), State(), Req(), true).Json);
             var limitations = (JsonArray)doc["limitations"];
@@ -133,6 +162,7 @@ namespace GuardianCore.Tests
             Assert.Contains("CONFIG_TAMPERED", text);
             Assert.Contains("SEAL_MISMATCH", text);
             Assert.Contains("lockoutsTriggered", text);
+            Assert.Contains("2026-09-01", text);              // certificates issued before it counted one route
         }
 
         /// <summary>CONTAINMENT. The limitation says what was not measured; it must not say the

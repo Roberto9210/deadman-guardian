@@ -151,6 +151,28 @@ would carry the lie into every text derived from it"*.
 verdad y accionable —*desde el intento 3 el guardián está pidiendo un humano*— es decisión del
 operador, y toca el contrato del ledger.
 
+### Preparado, NO decidido: el nombre, para cuando Ventana B conteste si está bloqueado
+
+**Propuesta: `needsHuman` (booleano), en el mismo lugar del payload.** El argumento no es estético:
+
+1. **Es el nombre que Core ya eligió, y lo eligió con el motivo escrito** (`Guardian.LockoutNeedsHuman`).
+   Con esto **las dos superficies dejan de contradecirse**: un concepto, un nombre.
+2. **Es verdad**: desde el intento 3 el guardián escala. No implica ningún tope, así que sobrevive al
+   hecho de que **nunca se rinde** — que es exactamente lo que `exhausted` no sobrevive.
+3. **Es accionable**, y ya hay tres cosas colgando de ese umbral que lo demuestran: el panel se pone
+   rojo, el sonido suena, y la instrucción de la página es *"andá a verificar el aplanado vos mismo"*.
+
+**Qué NO se propone**: `notExhausted`, ni negar el nombre viejo. Un campo no se define por lo que el
+anterior decía mal.
+
+**Alcance del cambio, medido**: **un** consumidor de código (el `Announce` del addon), **cero** en el
+certificado, **cero** en el verificador según las cinco cosas por fila.
+
+**Las 169 entradas viejas se quedan como están**, y el ledger **no se anota**. Un lector de un ledger
+mixto ve `exhausted` antes del cambio y `needsHuman` después; la **ausencia** de `needsHuman` en una
+entrada vieja **no es `false`**, es un esquema anterior — que es el mismo tratamiento que este código
+ya le da a los dos sitios que emiten `LOCKOUT_INCOMPLETE` sin el campo.
+
 ---
 
 ## 5 · Qué campos debería llevar — medidos contra lo que el adaptador PUEDE distinguir

@@ -271,6 +271,21 @@ disciplina: **el arreglo tiene que vivir en el artefacto que viaja**, no en el q
 Un comentario protege al que lee el código; **el ledger, el certificado y la página los lee alguien que
 nunca lo va a abrir.**
 
+#### Y la cuarta instancia agrega la precisión que las otras tres no tenían: acá el arreglo SÍ SE HIZO
+
+No fue olvido ni descuido. **Se hizo bien, con el motivo escrito**, y en el mismo archivo:
+`Guardian.cs`, sobre `LockoutNeedsHuman` — *"THE NAME IS PART OF THE FIX… A property called Exhausted
+or Stuck would carry the lie into every text derived from it"*. **Alguien pensó el nombre, entendió por
+qué importaba, lo dejó documentado — y el ledger salió con la mentira igual.**
+
+> **Un arreglo de nombre hecho en UNA superficie no se propaga solo a las otras, y nadie va a notar que
+> falta — porque el que lo hizo se queda con la sensación de haberlo hecho.**
+
+Ésa es la parte que no se arregla con más cuidado: **el cuidado ya estuvo.** Lo que falta es
+**enumerar las superficies** donde ese nombre aparece —propiedad, payload del ledger, mensaje, panel,
+certificado, página— y comprobarlas una por una, que es la misma pregunta de cacería que la regla del
+canal (*¿por cuántas salidas puede aparecer este dato, y las miré a todas?*).
+
 ### Un FLAG que anuncia un límite que no existe — y el comentario honesto no lo salva (1-sep)
 
 > **`exhausted: true` afirma que había un tope y se alcanzó. `MaxFlattenAttempts = 3` NO gobierna
