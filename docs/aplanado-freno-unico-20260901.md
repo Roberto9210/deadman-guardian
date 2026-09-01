@@ -108,6 +108,51 @@ para la cola, y qué hacer con él es decisión del operador.
 
 ---
 
+## 4b · Quién consume `exhausted` — la lista, medida contra la fuente (1-sep)
+
+**Escritores del campo: UNO.** `Guardian.RunLockoutSteps`, la rama de verificación fallida. (Los otros
+dos sitios que emiten `LOCKOUT_INCOMPLETE` **no escriben el campo**, y la ausencia **no es `false`**:
+es otro evento.)
+
+**Lectores del CAMPO `exhausted` (el payload del ledger): UNO.**
+
+| lector | qué gobierna | cómo lo exige |
+|---|---|---|
+| `DeadmanGuardianAddOn`, el manejador de `LOCKOUT_INCOMPLETE` | **el `Announce`** — la línea en el log de NT8, al nivel más ruidoso, con `Messages.LockoutStillOpen` | **presente Y `true`**; la ausencia se trata como otro evento, no como `false` |
+
+**Lectores del UMBRAL — que es otra cosa y no pasa por el ledger:**
+`Guardian.LockoutNeedsHuman` (`FlattenAttempts >= MaxFlattenAttempts`, calculado en Core desde el
+estado) → `DeadmanGuardianAddOn` en dos sitios: `RenderedState()` y `Snapshot()` → `View.NeedsHuman` →
+
+- **el panel rojo vivo** (`HeadlineNeedsYou`, `DetailNeedsYou`, tipografía 30, ventana 430)
+- **si el panel puede colapsarse** (`PanelCollapse.MayCollapse`)
+- **el título de la ventana y la franja** (`Messages.WindowTitle`, `Messages.Strip`)
+- **`AlertIfNeeded` — el SONIDO**
+
+**El certificado: NO lo lee.** `exhausted` aparece **0 veces** en `Certificate.cs`, consistente con las
+cinco cosas por fila.
+
+### ⇒ El escalamiento tiene DOS ramas del mismo umbral, y sólo una pasa por el campo
+
+| rama | fuente | ¿pasa por `exhausted`? |
+|---|---|---|
+| panel rojo + sonido + franja + título | `LockoutNeedsHuman`, **estado en Core** | **NO** |
+| el `Announce` en el log de NT8 | **el campo del ledger** | **SÍ** |
+
+**Y el dato que lo vuelve incómodo**: el concepto **ya está bien nombrado en Core**. El comentario de
+`LockoutNeedsHuman` dice, textual, *"THE NAME IS PART OF THE FIX… A property called Exhausted or Stuck
+would carry the lie into every text derived from it"*.
+
+> **O sea que la casa YA HIZO el arreglo de nombre — y lo hizo sólo en la superficie que ve quien lee
+> el código.** El ledger salió con la mentira igual. Es la regla de arriba, en el mismo archivo que la
+> originó.
+
+**Ninguna decisión se toma acá.** Si el escalamiento debe colgar de un campo que nombre lo que sí es
+verdad y accionable —*desde el intento 3 el guardián está pidiendo un humano*— es decisión del
+operador, y toca el contrato del ledger.
+
+---
+
 ## 5 · Qué campos debería llevar — medidos contra lo que el adaptador PUEDE distinguir
 
 Lo que el puerto entrega en el instante de escribir el evento, y nada más:

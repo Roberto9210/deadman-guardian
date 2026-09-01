@@ -253,6 +253,24 @@ motivo: **nadie enumeró las salidas.**
 **Pregunta de cacería, antes de dar una familia por cerrada:** *¿por cuántas salidas puede aparecer
 este dato, y las miré a todas?* Un arreglo que no puede nombrar sus canales es un arreglo de uno.
 
+### UN ARREGLO QUE DEPENDE DEL LECTOR NO ES UN ARREGLO (1-sep, tres instancias medidas el mismo día)
+
+> **Si el arreglo sólo funciona cuando alguien abre el archivo, compara, o lee la salvedad, entonces no
+> arregló nada: trasladó el trabajo al lector, que es justamente quien no va a estar.**
+
+**Tres ventanas distintas, el mismo día, la misma forma:**
+
+| instancia | de qué dependía | qué pasa si el lector no lo hace |
+|---|---|---|
+| **`ruta:línea` + commit de encabezado** (regla 11) | de que **alguien compare** el commit del documento con el del repo | lee un número corrido como si fuera correcto |
+| **una salvedad sobre 13 afirmaciones** (Ventana B) | de que **alguien lea la salvedad** antes que las 13 | toma las 13 como verificadas |
+| **el comentario honesto sobre `exhausted`** (acá) | de que **alguien abra `Guardian.cs`** | lee `exhausted: true` en el ledger y lo cita |
+
+**Una regla con tres casos no necesita que nadie la defienda.** Y el corolario es de diseño, no de
+disciplina: **el arreglo tiene que vivir en el artefacto que viaja**, no en el que hay que ir a buscar.
+Un comentario protege al que lee el código; **el ledger, el certificado y la página los lee alguien que
+nunca lo va a abrir.**
+
 ### Un FLAG que anuncia un límite que no existe — y el comentario honesto no lo salva (1-sep)
 
 > **`exhausted: true` afirma que había un tope y se alcanzó. `MaxFlattenAttempts = 3` NO gobierna
