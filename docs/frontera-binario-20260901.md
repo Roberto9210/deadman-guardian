@@ -36,9 +36,30 @@ que fecha el corte.
 
 | | |
 |---|---|
-| **hash del binario nuevo** | `________________` (los 16 de `install.ps1`, que son los mismos que un certificado publica en `issuer.buildHash`) |
+| **hash del binario nuevo** | **`6529a92ae9b47240`** — desplegado 2026-09-02 18:09:57 CDT, 108.032 B (el viejo: 99.840 B) |
 | **primer `seq` escrito por el binario nuevo** | `________` (será el `GUARDIAN_STARTED` del arranque post-F5) |
 | fecha y hora UTC del arranque | `____________________` |
+
+> ### ✅ 2026-09-02 18:10 CDT — **LOS BYTES ESTÁN PUESTOS. FALTA EL F5, QUE ES DE UNA PERSONA.**
+>
+> `dotnet build … -c Release` verde (0 warnings, 0 errors) → la nota `STALE-ON-PURPOSE.txt` **caducó
+> por su propia regla** (el DLL de al lado pasó a ser más nuevo) y se borró → `nt\install.ps1` copió
+> **6 archivos**.
+>
+> **Verificado por mi cuenta, no por el reporte del instalador**: los 5 `.cs` desplegados son
+> **idénticos byte a byte** a los del repo, y el DLL desplegado hashea **`6529a92ae9b47240`**, igual
+> que el construido. `SoundChannel.cs` **no estaba** en la lista `<Compile>` del `.csproj` y el
+> instalador lo agregó — **es exactamente el defecto que su chequeo de completitud existe para
+> atrapar** (el CS0246 en vivo del 2026-08-25), y esta vez lo atrapó.
+>
+> **Lo que todavía NO pasó, y por eso las dos filas de abajo siguen en blanco:**
+> `NinjaTrader.Custom.dll` sigue fechado **2026-08-31 19:18:31** ⇒ **no hubo compilación**.
+> NinjaTrader compila NinjaScript **a pedido, desde el editor con F5** — no al arrancar, y no por
+> reiniciar. **Es un gesto de teclado dentro de la plataforma: no lo puede hacer una sesión.**
+>
+> ⇒ **La frontera queda a medias A PROPÓSITO**: el hash nuevo ya es un hecho medido; el `seq` y la
+> hora sólo existirán cuando alguien abra NT8 y apriete F5. **La predicción sellada sigue sin
+> evaluar hasta ese momento.**
 
 **Comprobación cruzada gratis, y hay que hacerla**: ese primer arranque es el que
 `docs/prediccion-sellada-20260901-despliegue.md` predice **evento por evento**. Anotar el `seq` y
