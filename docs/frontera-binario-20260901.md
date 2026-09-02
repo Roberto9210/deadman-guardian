@@ -56,6 +56,28 @@ que fecha el corte.
 > ⇒ **`8102`, `8103` y `8104` los escribió una combinación que no corresponde a ningún commit**:
 > Core del 2-sep con addon del 31-ago. Duró **77 segundos**. **El F5 no es el momento del
 > despliegue: es el segundo de dos.**
+>
+> #### Y LA CASA YA CONOCÍA ESTA VENTANA — POR LA OTRA PUERTA
+>
+> No faltaba el dato. **Faltaba la otra lectura.** La ventana está escrita **cuatro veces** en el
+> código, siempre como **restricción para cambiar una API**, nunca como **estado operativo**:
+>
+> | símbolo | qué dice |
+> |---|---|
+> | `CertificateRequest.DaysCovered` | quitar el parámetro *«rompe el adaptador ya compilado en la ventana entre desplegar este DLL y el F5 que lo recompila»* |
+> | `Certificate.Issue`, param `chainVerified` | *«en la ventana entre desplegar el DLL y el humano apretando F5»* |
+> | el cálculo de `daysCovered` dentro de `Certificate` | mismo motivo, remoción coordinada |
+> | **`PositionSnapshot`, dos constructores** | y **nombra el fallo exacto**: `MissingMethodException` |
+>
+> **Mismo hecho, dos lecturas, y sólo una estaba escrita.** Es la forma que toma un hallazgo que ya
+> estaba delante.
+>
+> #### La consecuencia operativa, que sale sola
+>
+> > **Si el guardián hubiera estado ARMADO en esos 77 segundos, habría estado haciendo cumplir un
+> > límite con una combinación que ningún test cubre.**
+>
+> Hoy no pasó porque estaba `DISARMED`. **Eso es suerte de calendario, no una propiedad.**
 
 > ### ✅ 2026-09-02 18:10 CDT — **LOS BYTES ESTÁN PUESTOS. FALTA EL F5, QUE ES DE UNA PERSONA.**
 >

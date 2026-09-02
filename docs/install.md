@@ -81,6 +81,25 @@ If the installer cannot find that ItemGroup it says so and tells you to add the 
 
 ### 4. Compile: `F5` in the NinjaScript Editor
 
+> ## ⚠ NEVER ARM BETWEEN OPENING NINJATRADER AND PRESSING `F5`
+>
+> **The deploy lands in two stages, and there is a window between them.** `install.ps1` copies
+> `GuardianCore.dll`, which NinjaTrader loads **at startup**; the addon lives inside
+> `NinjaTrader.Custom.dll` and is only rebuilt by **`F5`**. Between those two moments the platform is
+> running a **new Core against the previously compiled addon** — a pairing that **corresponds to no
+> commit and that no test covers**.
+>
+> **Arming there means enforcing a money limit with a combination nobody has ever tested.**
+>
+> Measured on 2026-09-02: that window lasted **77 seconds** (ledger `seq` 8102–8104). The guardian
+> happened to be `DISARMED`, which is calendar luck, not a property.
+>
+> **Open NinjaTrader, press `F5` first, and only then Arm.**
+>
+> *This is a rule a human has to keep. It stops being one when `GUARDIAN_STARTED` carries both build
+> identities and the addon refuses to arm on a mismatch — see
+> [`docs/freno-identidad-build-20260902.md`](freno-identidad-build-20260902.md).*
+
 **NinjaTrader does not compile NinjaScript at startup.** Not on a restart, not when it sees a new file.
 Compilation happens on demand from the editor, and its own trace says so:
 `NinjaScriptEditorHotKeys: … Compile='F5'`.

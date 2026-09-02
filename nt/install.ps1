@@ -467,3 +467,32 @@ $bar2
 "If NinjaTrader reports a NinjaScript compile error, undo everything with:"
 "    .\install.ps1 -Uninstall"
 "That restores the original project file from the backup this script just made."
+
+# LAST, because this is where the person is standing when it matters. Measured 2026-09-02: the deploy
+# lands in TWO stages. GuardianCore.dll is copied by this script and NinjaTrader loads it AT STARTUP;
+# the addon lives in NinjaTrader.Custom.dll and is only rebuilt by F5. Between those two moments the
+# platform runs a NEW Core against the PREVIOUSLY COMPILED addon - a combination that corresponds to
+# no commit and that no test covers. It lasted 77 seconds that day (ledger seq 8102-8104) and the
+# guardian happened to be DISARMED, which is calendar luck and not a property.
+#
+# The code already knew this window, four times over, but only as an API-compatibility constraint:
+# CertificateRequest.DaysCovered, the chainVerified parameter of Certificate.Issue, the daysCovered
+# computation, and PositionSnapshot's two constructors - the last of which names the exact failure,
+# MissingMethodException. Same fact, two readings, and only one of them was written down.
+#
+# Until GUARDIAN_STARTED carries both build identities and the addon can refuse to arm on a mismatch,
+# this is a rule a human has to keep, so it goes where the human is - not into a findings document.
+$bar3 = "=" * 76
+Write-Host ""
+Write-Host $bar3 -ForegroundColor Yellow
+Write-Host ""
+Write-Host "     N E V E R   A R M   B E T W E E N   O P E N I N G" -ForegroundColor Yellow
+Write-Host "     N I N J A T R A D E R   A N D   P R E S S I N G   F 5" -ForegroundColor Yellow
+Write-Host ""
+Write-Host "  In that window NinjaTrader is running the NEW GuardianCore.dll against the"
+Write-Host "  OLD compiled addon. That pairing matches no commit and no test. Arming there"
+Write-Host "  means enforcing a money limit with a combination nobody has ever tested."
+Write-Host ""
+Write-Host "  Open NinjaTrader, press F5 FIRST, and only then Arm."
+Write-Host ""
+Write-Host $bar3 -ForegroundColor Yellow
