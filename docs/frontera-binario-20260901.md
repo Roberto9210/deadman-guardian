@@ -37,8 +37,25 @@ que fecha el corte.
 | | |
 |---|---|
 | **hash del binario nuevo** | **`6529a92ae9b47240`** — desplegado 2026-09-02 18:09:57 CDT, 108.032 B (el viejo: 99.840 B) |
-| **primer `seq` escrito por el binario nuevo** | `________` (será el `GUARDIAN_STARTED` del arranque post-F5) |
-| fecha y hora UTC del arranque | `____________________` |
+| **primer `seq` escrito por el binario nuevo** | **8102** con el `GuardianCore.dll` nuevo · **8105** con el despliegue completo — **son dos, y ver abajo por qué** |
+| fecha y hora UTC del arranque | **2026-09-02T23:13:34.506Z** (8102) · **2026-09-02T23:14:52.020Z** (8105) |
+
+> ### ⚠ EL DESPLIEGUE ENTRÓ EN DOS ETAPAS, Y EL LEDGER TIENE ENTRADAS DE UN HÍBRIDO QUE NADIE CONSTRUYÓ
+>
+> No estaba previsto y no lo predijo nadie. **`GuardianCore.dll` y el addon no entran juntos**: el DLL
+> se copia con `install.ps1` y NT8 lo carga **al arrancar**; el addon vive dentro de
+> `NinjaTrader.Custom.dll`, que **sólo se recompila con F5**.
+>
+> | | |
+> |---|---|
+> | `GuardianCore.dll` copiado | 2026-09-02 18:09:57 CDT, **antes** de abrir NT8 |
+> | NT8 abre → **seq 8102** | `GuardianCore` **NUEVO** + addon **VIEJO** (compilado el 31-ago) |
+> | `NinjaTrader.Custom.dll` recompilado | **2026-09-02 18:14:51** = `GUARDIAN_STOPPED` **8104** a las 23:14:51.762Z |
+> | addon nuevo carga 0,26 s después → **seq 8105** | **todo nuevo** |
+>
+> ⇒ **`8102`, `8103` y `8104` los escribió una combinación que no corresponde a ningún commit**:
+> Core del 2-sep con addon del 31-ago. Duró **77 segundos**. **El F5 no es el momento del
+> despliegue: es el segundo de dos.**
 
 > ### ✅ 2026-09-02 18:10 CDT — **LOS BYTES ESTÁN PUESTOS. FALTA EL F5, QUE ES DE UNA PERSONA.**
 >
@@ -104,6 +121,16 @@ comparar contra la predicción **es el mismo minuto de trabajo**.
 ## 3 · Y esto es un defecto propio, de la familia del día
 
 > ### EL LEDGER NO PUEDE DECIR QUÉ CÓDIGO LO ESCRIBIÓ.
+
+> **YA NO ES UNA PREDICCIÓN: ESTÁ DEMOSTRADO EN VIVO, 2026-09-02.** Se desplegó código distinto
+> —`12fff6f6c76d838c` → `6529a92ae9b47240`, 99.840 → 108.032 bytes— **y el registro no lo notó.**
+> Comparadas la línea del binario viejo (`seq 8099`) y la del nuevo (`seq 8105`), **borrando sólo los
+> cuatro valores que son por-entrada** (`hash`, `prev`, `seq`, `tsUtc`), **las dos líneas son
+> idénticas**, y hasta miden **271 bytes cada una**. Lo mismo con las dos de `STATE_RESTORED`.
+>
+> **Vale más como evidencia que como predicción acertada**: una predicción acertada dice que leímos
+> bien el código; esto dice que **la propiedad existe en producción y acaba de ejercerse**. El
+> ledger cruzó una frontera de binario sin registrarla.
 
 `GUARDIAN_STARTED` no lleva `buildHash`; sus dos formas completas son `{state, fresh}` y `{state}`.
 Así que después de esta noche **las líneas de arranque del binario nuevo serán byte a byte
