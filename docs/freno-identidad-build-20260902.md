@@ -37,10 +37,35 @@ Y convierte una **regla de procedimiento** —*«apretá F5 antes de armar»*—
 | **`coreExpected`** | el Core contra el que **este addon fue compilado** | **estampado por `install.ps1`** en el momento de copiar: el script ya calcula ese hash y ya lo imprime (`GuardianCore.dll now deployed : …`) |
 | **`addonBuild`** | identidad del **conjunto de fuentes del addon** | **estampado por `install.ps1`**: SHA-256 sobre los 5 `.cs` gestionados, que el script **ya hashea uno por uno** para su verificación de copia |
 
-> ### La comparación que decide es `coreBuild` vs `coreExpected`, y no involucra al addon
+> ### Hay DOS comparaciones, y cada valor estampado tiene la suya
 >
-> En la ventana de las dos etapas: NT8 carga el Core **nuevo** contra el addon **viejo**, que fue
-> estampado con el hash del Core **viejo**. ⇒ **`coreBuild ≠ coreExpected`. Detectado.**
+> | comparación | qué detecta |
+> |---|---|
+> | **`coreBuild` vs `coreExpected`** | NT8 carga el Core **nuevo** contra el addon **viejo**, estampado con el hash del Core viejo ⇒ **la ventana de las dos etapas** |
+> | **`addonBuild` vs `addonOnDisk`** | los `.cs` desplegados en `bin\Custom\AddOns` son **más nuevos** que los que este addon compiló ⇒ **hubo `install.ps1` y no hubo F5** |
+>
+> **Las dos son la misma pregunta**: *¿se instaló algo que todavía no se compiló?* Una la contesta
+> por el lado del Core y la otra por el lado del addon, **y las dos tienen el mismo remedio de diez
+> segundos: apretar F5.**
+
+> ### `addonBuild` TIENE UN TRABAJO — corregido tras el fallo del operador, 2026-09-02
+>
+> **La primera versión de este diseño lo calculaba, lo estampaba, lo imprimía y NO LO MIRABA NADIE.**
+> Eso es la familia que venimos persiguiendo toda la semana: **un campo impreso que nadie comprueba,
+> adentro de un artefacto que declara verificar cosas — y que hereda la autoridad del que sí se
+> comprueba.** Un valor estampado que nadie compara es **decoración, y la decoración en un freno es
+> lo que hace que alguien cuente con él.**
+>
+> **Se elige darle trabajo, no quitarlo**, y el trabajo es exactamente el hueco que este mismo
+> documento se había escrito: *«el freno no dice nada si cambia sólo el addon»*.
+>
+> **Cómo, sin circularidad**: `install.ps1` calcula el hash sobre **los 5 `.cs` gestionados** y lo
+> escribe en un **sexto archivo generado** (`BuildStamp.cs`), que **queda fuera del hash**. En
+> runtime el addon hashea esos mismos 5 archivos **desde `bin\Custom\AddOns`** y compara. Si
+> difieren, los fuentes desplegados no son los que produjeron el binario que está corriendo.
+>
+> ⇒ **Ningún valor estampado queda sin comprobar, y el hueco declarado en §7 desaparece en vez de
+> quedar declarado.**
 
 ### Por qué NO se hashea `NinjaTrader.Custom.dll`, que es lo primero que uno haría
 
@@ -86,15 +111,19 @@ Eso además hace que el freno tenga **prueba conductual con control**: mismo est
 
 ## 4 · Qué pasa en desacuerdo — **proporción, que es lo que puede irse de mano**
 
-| | |
-|---|---|
-| **NO se detiene** el guardián | sigue ticando, sigue viendo la cuenta |
-| **NO se deja de registrar** | el ledger sigue escribiendo; el desacuerdo **se registra**, no se silencia |
-| **SE REHÚSA EL ARMADO** | y el panel dice por qué, con los dos hashes |
+**En los tres resultados posibles**, dos cosas no cambian nunca: **el guardián no se detiene** —sigue
+ticando, sigue viendo la cuenta— y **no se deja de registrar**.
 
-**Fail-closed sobre la acción que importa y nada más.** Un desacuerdo de build no es motivo para
-dejar a alguien sin guardián; es motivo para no dejarlo **empezar** con un emparejamiento que ningún
-test cubre.
+| resultado | armado | qué se registra |
+|---|---|---|
+| **coinciden** | permitido | nada especial |
+| **DESACUERDO** medido | **REHUSADO** | el desacuerdo, con los dos hashes; el panel dice **«apretá F5»** |
+| **NO SE PUDO MEDIR** | **PERMITIDO** | **evento propio, motivo propio**: el chequeo **no corrió**. El panel lo dice y **el certificado del día marca la sesión** |
+
+**Fail-closed sobre la acción que importa y nada más** — y la acción que importa es la que **tiene
+remedio**. Un desacuerdo de build no es motivo para dejar a alguien sin guardián; es motivo para no
+dejarlo **empezar** con un emparejamiento que ningún test cubre, **cuando arreglarlo cuesta diez
+segundos**.
 
 ---
 
@@ -108,20 +137,49 @@ Entonces `coreBuild` no existe y **no hay comparación posible**.
 | **(A) rehusar el armado también acá** | trata *«no pude comprobar»* distinto de *«coincide»* | **crea una forma nueva de que el guardián sea inusable** |
 | **(B) permitir el armado** | *«no pude comprobar»* no es evidencia de desacuerdo | **el freno se apaga solo justo cuando algo raro pasa con el archivo** |
 
-> ### Recomiendo **(A)**, con tres condiciones — y el argumento no es doctrinal, es de simetría
+> ### Lo que yo había recomendado — **(A)**, y quedó escrito porque el motivo del fallo se pierde si se borra**
 >
-> **Desde afuera, «no puedo leer el DLL» y «alguien cambió el DLL» son indistinguibles.** La opción
-> (B) elige la lectura benigna de una ambigüedad **exactamente en el caso donde algo anómalo está
-> pasando con ese archivo**.
+> *«Desde afuera, "no puedo leer el DLL" y "alguien cambió el DLL" son indistinguibles. La opción (B)
+> elige la lectura benigna de una ambigüedad exactamente en el caso donde algo anómalo está pasando
+> con ese archivo.»* Con tres condiciones: motivo propio y distinto, el panel dice qué hacer, y **se
+> mide la frecuencia antes de confiar, porque seis no es una tasa**.
+
+> ### ⚖ FALLO DEL OPERADOR, 2026-09-02: **(B). NO SE REHÚSA.** Y la premisa que falla es mía
 >
-> Las tres condiciones, y sin ellas retiro la recomendación:
-> 1. **motivo propio y distinto** (`BUILD_IDENTITY_UNREADABLE`, no el mismo que el desacuerdo) — si
->    no, dos causas distintas producen la misma línea y nadie puede diagnosticar;
-> 2. **el panel dice qué hacer**, no sólo que no puede — el aviso tiene que aterrizar donde la
->    persona está parada, que es el botón de Arm;
-> 3. **se mide la frecuencia antes de confiar**: hoy la evidencia es **6 lecturas exitosas, 0
->    fallos**, todas dentro de NT8 con el DLL cargado. **Seis no es una tasa.** Si la lectura falla
->    alguna vez en operación real, (A) pasa a ser un modo de caída y hay que revisarla.
+> **La observación de la ambigüedad es correcta. Lo que estaba mal es a QUÉ le fallaba cerrado.**
+>
+> > **REHUSAR EL ARMADO ES FAIL-CLOSED RESPECTO DE LA CORRECCIÓN DEL GUARDIÁN Y FAIL-OPEN RESPECTO DE
+> > LA EXPOSICIÓN DEL TRADER. Sin armar no hay protección.**
+>
+> Una persona parada frente a un mercado abierto, que no puede armar y no entiende por qué, **no deja
+> de operar: opera sin guardián.** Las dos direcciones apuntan al revés y mi diseño las trataba como
+> una sola.
+>
+> **Y el discriminador entre los dos casos no es la gravedad: es SI EXISTE REMEDIO EJECUTABLE.**
+>
+> | caso | qué se hace | por qué |
+> |---|---|---|
+> | **desacuerdo** (`coreBuild ≠ coreExpected`) | **se rehúsa el armado** | **el remedio existe, dura diez segundos y se puede nombrar en el panel: apretá F5.** Cuesta diez segundos, no una sesión sin protección |
+> | **no se puede leer el DLL** | **NO se rehúsa: SE ARMA** | ahí **puede no haber ningún remedio que la persona pueda ejecutar** — si el antivirus tiene el archivo tomado, *«apretá F5»* no sirve de nada. Rehusar deja a alguien **sin camino hacia la protección** |
+>
+> **Lo que se hace en lugar de rehusar**: se arma **y se declara que el chequeo NO CORRIÓ.**
+> - **evento propio con motivo propio** en el ledger;
+> - **el panel lo dice**;
+> - **el certificado del día marca la sesión** como una en la que la identidad de build **no pudo
+>   verificarse**.
+>
+> > **Declarar que una comprobación no corrió no es lo mismo que decir que pasó — y es exactamente lo
+> > contrario de rehusar, que convierte «no sé» en «no».**
+>
+> **Y el argumento que decide era mi propia tercera condición, dada vuelta:**
+>
+> > **NO SE PUEDE FALLAR CERRADO SOBRE UNA CONDICIÓN CUYA FRECUENCIA NO SE MIDIÓ, cuando el costo de
+> > un falso positivo es que alguien opere sin freno.**
+>
+> Yo la había puesto como *condición para confiar en (A)*. Es la razón por la que (A) no va.
+>
+> *(El operador cita que «la otra ventana ya lo tiene resuelto en su escalón 4». **Referencia cruzada
+> NO VERIFICADA desde este repositorio** — se anota como venía, sin adivinar a qué apunta.)*
 
 ---
 
@@ -139,10 +197,10 @@ naturalmente en el único momento en que importa.
 
 ## 7 · Lo que este freno NO hace — dicho antes de que alguien firme con él
 
-1. **No detecta que el addon sea viejo si el Core no cambió.** Si se despliega sólo un cambio de
-   addon y el Core queda igual, `coreBuild == coreExpected` y el freno **no dice nada**. Cubre la
-   ventana de dos etapas **porque en ella el Core sí cambia**, que es el caso medido — no todas las
-   ventanas concebibles.
+1. ~~**No detecta que el addon sea viejo si el Core no cambió.**~~ **CERRADO por el fallo del
+   2026-09-02**: era el hueco que dejaba a `addonBuild` sin trabajo, y ahora es su trabajo — la
+   comparación `addonBuild` vs `addonOnDisk` cubre exactamente ese caso. **Se tacha en vez de
+   borrarse, porque el hueco es el motivo por el que la segunda comparación existe.**
 2. **El primer despliegue después de que esto exista NO puede detectar su propia ventana**, porque el
    addon viejo —el que corre en esos segundos— **no tiene el chequeo**. Funciona **del segundo
    despliegue en adelante**. Es una limitación real y no se arregla con código.
