@@ -555,10 +555,19 @@ namespace NinjaTrader.NinjaScript.AddOns
                     // hand-close a position that is closing itself.
                     //
                     // And the field must be PRESENT and true. Two other sites emit this event for
-                    // per-step exceptions and carry no `exhausted` at all; absence is not false, it is
-                    // a different event, so it is required rather than inferred.
-                    var exhausted = entry.Payload?.GetBool("exhausted");
-                    if (exhausted == true)
+                    // per-step exceptions and carry NEITHER key; absence is not false, it is a
+                    // different event, so it is required rather than inferred.
+                    //
+                    // TWO KEYS, ON PURPOSE, AND NOT FOREVER-BY-ACCIDENT. The key was renamed
+                    // `exhausted` -> `needsHuman` on 2026-09-02 to match Guardian.LockoutNeedsHuman.
+                    // The 169 entries written before that carry the old key and are NOT rewritten -
+                    // editing an append-only record to make a rename tidy is the one thing this
+                    // product exists not to do - so a reader that dropped `exhausted` would go blind
+                    // on every one of them. New key first: once both are present the new one wins,
+                    // and nothing here has to know which emitter wrote the line.
+                    var needsHuman = entry.Payload?.GetBool("needsHuman")
+                                     ?? entry.Payload?.GetBool("exhausted");
+                    if (needsHuman == true)
                         Announce(Messages.LockoutStillOpen(_guardedAccount,
                                                            (int)(entry.Payload.GetInt("attempts") ?? 0)));
                     break;

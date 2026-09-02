@@ -165,8 +165,10 @@ namespace GuardianCore
         ///
         /// THREE THINGS ARE TRUE AT ONCE AND ALL THREE HAVE TO BE HERE. Something is still open; the
         /// guardian has NOT stopped; and it needs the person. Dropping the second would inherit the
-        /// vocabulary of the flag this is derived from - `exhausted`, MaxFlattenAttempts - and both of
-        /// those names assert a giving-up that the code does not do. That is the same lie removed from
+        /// vocabulary this is derived from - `exhausted` until 2026-09-02, MaxFlattenAttempts still -
+        /// and both of those names assert a giving-up that the code does not do. The ledger key has
+        /// since been renamed to `needsHuman`; the constant has not, so half of that vocabulary is
+        /// still live and this paragraph is still load-bearing. Same lie removed from
         /// LockoutStillOpen an hour before this was written, arriving through a name instead of a
         /// sentence.</summary>
         public static string DetailNeedsYou(string account)
@@ -393,15 +395,16 @@ namespace GuardianCore
                    "stay open" + UntilClause(until) + ". This is what you asked for.";
         }
 
-        /// <summary>ONLY for a TERMINAL LOCKOUT_INCOMPLETE - the one carrying exhausted:true.
+        /// <summary>ONLY for a TERMINAL LOCKOUT_INCOMPLETE - the one carrying needsHuman:true, or
+        /// exhausted:true in the 169 entries written before the 2026-09-02 rename.
         ///
         /// The first real run (2026-08-22) proved why this matters: in a NORMAL successful lockout the
         /// transient LOCKOUT_INCOMPLETE appears about half a second before FLATTEN_VERIFIED, because
         /// the flatten is a real market order and takes time to fill. Firing this text there would
         /// tell every user, in every ordinary lockout, to go and hand-close a position that is closing
-        /// itself. Two other sites emit the same event for per-step exceptions and carry no
-        /// `exhausted` field at all - and the ABSENCE of the field is not `false`, it is a different
-        /// event. The caller must require the field, never infer it.</summary>
+        /// itself. Two other sites emit the same event for per-step exceptions and carry NEITHER key -
+        /// and the ABSENCE of the field is not `false`, it is a different event. The caller must
+        /// require the field, never infer it.</summary>
         public static string LockoutStillOpen(string account, int attempts)
         {
             // "new orders are still being cancelled" was the SAME false clause as LockoutComplete's,

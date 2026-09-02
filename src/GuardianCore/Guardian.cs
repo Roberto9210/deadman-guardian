@@ -149,11 +149,19 @@ namespace GuardianCore
         /// It also retracts itself. FLATTEN_VERIFIED sets LockoutVerified, this goes false, and the
         /// panel returns to the ordinary locked text with no clean-up logic to forget.
         ///
-        /// THE NAME IS PART OF THE FIX. The underlying flag is called `exhausted` and the constant is
-        /// called MaxFlattenAttempts, and BOTH names assert more than their code does: the guardian
-        /// never gives up - MaxFlattenAttempts gates no loop, it only lights that flag (:1044). A
-        /// property called Exhausted or Stuck would carry the lie into every text derived from it,
-        /// which is candidate 7 biting through a name. What is true is that a human is needed.</summary>
+        /// THE NAME IS PART OF THE FIX, and as of 2026-09-02 the LEDGER KEY CARRIES THE SAME NAME.
+        /// The flag was called `exhausted` and the constant is still called MaxFlattenAttempts, and
+        /// both names assert more than their code does: the guardian never gives up - MaxFlattenAttempts
+        /// gates no loop, it only lights that flag. A property called Exhausted or Stuck would carry
+        /// the lie into every text derived from it, which is candidate 7 biting through a name. What
+        /// is true is that a human is needed.
+        ///
+        /// Renaming this property while the ledger still said `exhausted` fixed the reader that opens
+        /// this file and left the one who reads the RECORD - which is the artefact that travels, and
+        /// the one a stranger audits. That half is now closed: the emitter writes `needsHuman`, and
+        /// LT4i_The_ledger_key_and_the_property_carry_the_same_name pins the two names to each other so neither can drift
+        /// alone. MaxFlattenAttempts keeps its name because renaming a constant is a separate,
+        /// coordinated change and pretending otherwise would smuggle it in here.</summary>
         public bool LockoutNeedsHuman =>
             _state != null && _state.Kind == StateKind.Locked && !_state.LockoutVerified &&
             _state.FlattenAttempts >= Constants.MaxFlattenAttempts;
@@ -1055,10 +1063,21 @@ namespace GuardianCore
             else
             {
                 _state.LockoutVerified = false;
+                // RENAMED `exhausted` -> `needsHuman` on 2026-09-02, so the ledger key says what the
+                // Core property says: LockoutNeedsHuman. `exhausted` asserted that a cap existed and
+                // was reached; MaxFlattenAttempts gates no loop - its only use is the comparison on
+                // this line - and the guardian keeps flattening. Measured 2026-08-26: 167 attempts,
+                // the flag lit at 3, and the guardian went on 164 more times. The prose had already
+                // been fixed; the LEDGER still carried the word, and the ledger is the artefact that
+                // survives, travels and gets quoted.
+                //
+                // THE 169 ENTRIES WRITTEN BEFORE TODAY ARE NOT REWRITTEN - an append-only record is
+                // not edited to make a rename tidy - so readers accept BOTH keys (see the addon's
+                // Ev.LockoutIncomplete case). Absence of both is still not `false`.
                 Log(Ev.LockoutIncomplete, JsonValue.Obj()
                     .Set("accounts", ToArray(remaining))
                     .Set("attempts", _state.FlattenAttempts)
-                    .Set("exhausted", _state.FlattenAttempts >= Constants.MaxFlattenAttempts));
+                    .Set("needsHuman", _state.FlattenAttempts >= Constants.MaxFlattenAttempts));
             }
         }
 

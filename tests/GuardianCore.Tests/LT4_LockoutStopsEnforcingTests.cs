@@ -415,5 +415,49 @@ namespace GuardianCore.Tests
             Assert.True(h.Events().Count(e => e == Ev.FlattenRequested) > first,
                         "re-entry before verification is what closes a position the first attempt missed");
         }
+
+        /// <summary>The rename's other half, and the only half a stranger can see.
+        ///
+        /// LockoutNeedsHuman was named that way because `exhausted` asserted a giving-up the code does
+        /// not do. But the PROPERTY is read by whoever opens Guardian.cs, while the LEDGER is read by
+        /// whoever audits us - and until 2026-09-02 the ledger still said `exhausted`. Fixing the name
+        /// a maintainer sees and leaving the one a stranger sees is the same defect at another address.
+        ///
+        /// WHAT THIS MEASURES, said precisely because the tempting version of it is a proxy. Asserting
+        /// the literal "needsHuman" would stay green forever if someone renamed the PROPERTY and left
+        /// the key behind - the two would drift apart with the test passing, which is the exact
+        /// failure this exists to prevent. So the expected value is DERIVED from
+        /// nameof(LockoutNeedsHuman), and the assertion ties the two names to each other rather than
+        /// each to a constant.
+        ///
+        /// Apply the rule before writing the test: is there a change cheaper than the real fix that
+        /// turns the red green? Rename the property, it goes red. Rename the key, it goes red. Rename
+        /// both to the same word and it passes - which IS the fix, not a way around it.
+        ///
+        /// It does NOT pin the word "needsHuman". A later, better name for the same idea passes as
+        /// long as both sides move together, and that is deliberate: the invariant is that the record
+        /// and the code say the SAME thing, not that they say this particular thing.</summary>
+        [Fact]
+        public void LT4i_The_ledger_key_and_the_property_carry_the_same_name()
+        {
+            var h = new Harness();
+            var broker = new OrderLifecycleBroker();
+            h.BrokerOverride = broker;
+            h.Armed("600.00");
+
+            broker.SetPosition(Harness.Account, Harness.Instrument, 1);
+            h.LoseExactly(600.00m);
+            h.Guardian.Tick();                                  // 1
+            h.Guardian.Tick();                                  // 2
+            h.Guardian.Tick();                                  // 3 - genuinely stuck
+            Assert.True(h.Guardian.LockoutNeedsHuman, "the scenario has to reach the terminal event");
+
+            var payload = (JsonObject)h.LastEvent(Ev.LockoutIncomplete)["payload"];
+            // The flag is whichever key is not one of the two the event always carries. Found this
+            // way rather than by name, so that renaming the key cannot hide from this test.
+            var flagKey = payload.Keys.Single(k => k != "accounts" && k != "attempts");
+
+            Assert.EndsWith(flagKey, nameof(Guardian.LockoutNeedsHuman), StringComparison.OrdinalIgnoreCase);
+        }
     }
 }

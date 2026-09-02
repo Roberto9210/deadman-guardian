@@ -303,6 +303,14 @@ canal (*¿por cuántas salidas puede aparecer este dato, y las miré a todas?*).
 > aserción, y falla exactamente cuando las dos superficies se separan** — que es la frase del daño.
 > Se escribe **cuando se aplique el renombre**, no antes.
 >
+> **✅ ESCRITO Y VERDE, 2026-09-02**: `LT4i_The_ledger_key_and_the_property_carry_the_same_name`.
+> Una aserción — y **el valor esperado se DERIVA de `nameof(Guardian.LockoutNeedsHuman)`**, no es el
+> literal `"needsHuman"`. Con el literal, renombrar **la propiedad** dejaría el test verde con las
+> dos superficies separadas: **el proxy de la regla 29, dentro de la herramienta que venía a
+> impedirlo.** **Control corrido**: devolviendo el emisor a `exhausted` el test se pone **rojo**, y
+> el mensaje nombra los dos lados (`String: "LockoutNeedsHuman"` / `Expected end: "exhausted"`).
+> **340 verdes** con el renombre aplicado.
+>
 > La lista queda **para las superficies que NO tienen un cruce puntual** — el panel, la página, la
 > prosa— con esa etiqueta encima.
 
@@ -324,6 +332,18 @@ repite dos veces.
 > **ledger** —que es el artefacto que sobrevive, viaja y se cita— ve `exhausted: true`. **Y la prosa
 > que alguien escriba encima hereda la mentira del dato, no la verdad del comentario.**
 > Casi pasa: la primera redacción de la página pública decía *"167 attempts were exhausted"*.
+
+#### ✅ CERRADO EL 2026-09-02 — el emisor dice `needsHuman`, y las 169 entradas viejas se quedan
+
+`Guardian.RunLockoutSteps` escribe **`needsHuman`**. Lo que hay que saber para no volver a abrirlo:
+
+| | |
+|---|---|
+| **las 169 entradas previas NO se reescriben** | un registro append-only **no se edita para que un renombre quede prolijo**. Es lo único que este producto existe para no hacer |
+| **el lector acepta las DOS claves** | `entry.Payload?.GetBool("needsHuman") ?? entry.Payload?.GetBool("exhausted")` en el `case Ev.LockoutIncomplete` del addon. Nueva primero |
+| **la ausencia de AMBAS sigue sin ser `false`** | dos de los tres emisores no escriben ninguna; ausencia es **otro evento**, no una negación |
+| **`MaxFlattenAttempts` conserva su nombre** | renombrar una constante es un cambio coordinado aparte; meterlo acá sería contrabandearlo |
+| **lo que el renombre NO arregla** | la palabra sigue en `AMENDMENTS.md` y en esta sección **describiendo entradas que realmente la llevan** — ahí es cierta, y por eso no se toca |
 
 **Tres ventanas, la misma semana, el mismo defecto**: el OCG de ALAYA (un freno que no puede fallar
 firmando que protegió), las claves ensombrecidas por literales, y este flag. **La familia es "un
