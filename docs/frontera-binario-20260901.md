@@ -44,6 +44,40 @@ que fecha el corte.
 `docs/prediccion-sellada-20260901-despliegue.md` predice **evento por evento**. Anotar el `seq` y
 comparar contra la predicción **es el mismo minuto de trabajo**.
 
+> ### 🔎 VERIFICACIÓN INTENTADA 2026-09-02 17:49 CDT (22:49Z) — **EL DESPLIEGUE NO OCURRIÓ**
+>
+> Se pidió cerrar esta tabla. **No se puede: no hay binario nuevo y no hay arranque nuevo.** Los
+> huecos siguen vacíos **porque nadie los llenó todavía, no porque nadie haya mirado.**
+>
+> | medición | valor, 2026-09-02 22:49Z |
+> |---|---|
+> | `GuardianCore.dll` desplegado | **`12fff6f6c76d838c`** — el **mismo** de la §1, mtime 2026-09-01T00:09:03Z |
+> | `bin/Release/net48/GuardianCore.dll` del repo | mismos 99.840 bytes, misma fecha ⇒ **no se reconstruyó** |
+> | `NinjaTrader.Custom.dll` | 2026-09-01T00:18:31Z ⇒ **no hubo F5** |
+> | `AddOns/DeadmanGuardianAddOn.cs` instalado | 58.846 B (31-ago 19:12); el del repo tiene 65.238 B ⇒ **difieren**: el sonido no está instalado |
+> | último `seq` del ledger | **8101**, sin cambio; 8.101 líneas |
+> | `state.json` | `DISARMED`, `dayKey 2026-09-01`, sin sello, `runId 1e1b67…` |
+> | NinjaTrader corriendo | **no** — 0 procesos |
+> | logs de NT8 | el más nuevo es `log.20260901.*` ⇒ **NT8 no se abrió el 2026-09-02** |
+> | archivos modificados hoy en el árbol de NT8 **y** en el repo | **cero, en los dos** |
+>
+> **Y la nota que se vence sola sigue viva**, que es evidencia independiente:
+> `bin/Release/net48/STALE-ON-PURPOSE.txt` nombra el hash `12fff6f6c76d838c` y **todavía coincide**
+> con el DLL de al lado. Su propia regla —*«si el de al lado es más nuevo, borrala»*— **no se
+> disparó**. Es el mecanismo funcionando en el único momento en que se lo puede ver funcionar:
+> **cuando no hay nada que reportar, lo dice.**
+>
+> **Hipótesis de qué pasó — NO VERIFICADA, y hay un discriminador**: `install.ps1` **sale con
+> `exit 5` y no copia nada** cuando el build es más viejo que los fuentes, que es exactamente el
+> estado de hoy. Una corrida así **no toca ningún archivo**, así que el disco **no la distingue de
+> «no se corrió»**. Lo que sí la distingue es la **consola**: habría impreso el mensaje de build
+> viejo. Si alguien la corrió y leyó el final sin mirar el código de salida, **el despliegue se dio
+> por hecho sin que nada se copiara** — y la guarda habría hecho su trabajo *en silencio*.
+>
+> **Lo que falta para desplegar, en orden:**
+> `dotnet build src\GuardianCore\GuardianCore.csproj -c Release` → borrar `STALE-ON-PURPOSE.txt`
+> (su propia nota lo pide) → `nt\install.ps1` **leyendo el código de salida** → F5 en NT8 → volver acá.
+
 ---
 
 ## 3 · Y esto es un defecto propio, de la familia del día
