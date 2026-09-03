@@ -146,3 +146,106 @@ Fechas conservadas tras descartar los cambios de contrato:
 - **No cubre objetivo de ganancia ni mínimo de días operados de ninguna firma.**
 - **Las fechas descartadas caen en las uniones, que son trimestrales.** Cualquier estructura
   trimestral en estos números hereda ese sesgo.
+
+---
+
+# AÑADIDO — 2026-09-02: control de período y la tabla invertida
+
+## CONTROL 1 · Los 35 % eran el PERÍODO, no el instrumento — **PASA**
+
+**Criterio declarado antes de correr**: PASA por debajo del 5 %, FALLA en 10 % o más.
+Ventana común tomada de los micros: **2019-05-06 … 2026-09-03**.
+
+| par | mediana grande | mediana micro | **brecha** | (grande en período COMPLETO) |
+|---|---|---|---|---|
+| `ES`/`MES` | 23,50 | 23,75 | **1,06 %** | 17,50 |
+| `NQ`/`MNQ` | 107,12 | 107,50 | **0,35 %** | 74,25 |
+| `GC`/`MGC` | 11,70 | 11,90 | **1,71 %** | 9,20 |
+
+**Al igualar el período la brecha desaparece. Las seis raíces son comparables una vez alineadas.**
+
+### Cuánto manda el régimen sobre el instrumento — dato por sí mismo
+
+| raíz | p50 | p90 | p95 | p99 |
+|---|---|---|---|---|
+| `ES` | **+34,3 %** | +14,0 % | +12,1 % | +3,7 % |
+| `NQ` | **+44,3 %** | +17,5 % | +10,3 % | +6,1 % |
+| `GC` | +27,2 % | +24,5 % | +28,7 % | +19,8 % |
+| `MGC` | +29,3 % | +21,0 % | +29,4 % | +15,3 % |
+
+> **El régimen mueve la mediana de `ES` un 34 % y la de `NQ` un 44 %. Elegir instrumento cambia
+> menos que elegir período.** Y el efecto **decae hacia la cola** en los índices (p99 +3,7 % y
+> +6,1 %) pero **no en los metales**, donde se mantiene alto en todos los percentiles.
+
+## 2 · LA TABLA AL REVÉS — traés tu número, salís con el porcentaje
+
+**Ningún límite de ninguna firma aparece acá.** Ventana recortada, o sea las seis comparables.
+
+### (a) DIARIO — un límite en esta cifra se rompe en X % de los DÍAS (M1, lado largo)
+
+| raíz | ctr | 1 % | 5 % | 10 % | 25 % | 50 % |
+|---|---|---|---|---|---|---|
+| `ES` | 1 | 8.035 | 5.341 | 4.162 | 2.331 | 1.175 |
+| | 2 | 16.070 | 10.682 | 8.325 | 4.662 | 2.350 |
+| | 3 | 24.105 | 16.024 | 12.488 | 6.994 | 3.525 |
+| `NQ` | 1 | 15.000 | 9.751 | 7.521 | 4.294 | 2.142 |
+| | 2 | 30.000 | 19.502 | 15.042 | 8.588 | 4.285 |
+| | 3 | 45.000 | 29.252 | 22.563 | 12.881 | 6.428 |
+| `GC` | 1 | 15.568 | 7.210 | 4.570 | 2.410 | 1.170 |
+| | 2 | 31.136 | 14.420 | 9.140 | 4.820 | 2.340 |
+| | 3 | 46.704 | 21.630 | 13.710 | 7.230 | 3.510 |
+| `MGC` | 1 | 1.525 | 721 | 450 | 241 | 119 |
+| | 2 | 3.050 | 1.442 | 900 | 482 | 238 |
+| | 3 | 4.576 | 2.163 | 1.350 | 723 | 357 |
+| `MES` | 1 | **822** | 541 | 419 | 238 | 119 |
+| | 2 | 1.644 | 1.081 | 838 | 475 | 238 |
+| | 3 | 2.466 | 1.622 | 1.256 | 712 | 356 |
+| `MNQ` | 1 | 1.504 | 984 | 758 | 429 | 215 |
+| | 2 | 3.009 | 1.969 | 1.515 | 858 | 430 |
+| | 3 | 4.513 | 2.953 | 2.273 | 1.287 | 645 |
+
+### (a′) DIARIO — lado corto (`high − open`)
+
+| raíz | ctr | 1 % | 5 % | 10 % | 25 % | 50 % |
+|---|---|---|---|---|---|---|
+| `ES` | 1 | 7.743 | 4.566 | 3.550 | 2.212 | 1.188 |
+| `NQ` | 1 | 12.687 | 8.465 | 6.516 | 4.091 | 2.155 |
+| `GC` | 1 | 12.220 | 6.810 | 4.440 | 2.530 | 1.260 |
+| `MGC` | 1 | 1.220 | 688 | 446 | 252 | 126 |
+| `MES` | 1 | 772 | 453 | 354 | 222 | 120 |
+| `MNQ` | 1 | 1.248 | 842 | 647 | 408 | 218 |
+
+*(2 y 3 contratos escalan lineal — la tabla completa está en la salida.)*
+
+### (b) 20 DÍAS — un límite de drawdown acá se rompe en X % de las VENTANAS (M4)
+
+| raíz | ctr | 1 % | 5 % | 10 % | 25 % |
+|---|---|---|---|---|---|
+| `ES` | 1 | 25.062 | 21.115 | 17.462 | 11.050 |
+| | 2 | 50.124 | 42.230 | 34.925 | 22.100 |
+| | 3 | 75.186 | 63.345 | 52.388 | 33.150 |
+| `NQ` | 1 | 58.080 | 42.943 | 33.025 | 22.479 |
+| | 3 | 174.240 | 128.828 | 99.075 | 67.436 |
+| `GC` | 1 | 50.049 | 30.622 | 22.440 | 11.890 |
+| | 3 | 150.148 | 91.867 | 67.320 | 35.670 |
+| `MGC` | 1 | 4.950 | 2.994 | 2.240 | 1.216 |
+| | 3 | 14.849 | 8.983 | 6.720 | 3.648 |
+| `MES` | 1 | **2.529** | 2.116 | 1.734 | 1.116 |
+| | 2 | 5.058 | 4.232 | 3.468 | 2.232 |
+| | 3 | 7.586 | 6.349 | 5.201 | 3.349 |
+| `MNQ` | 1 | 5.820 | 4.256 | 3.301 | 2.295 |
+| | 2 | 11.639 | 8.512 | 6.602 | 4.590 |
+| | 3 | 17.458 | 12.768 | 9.903 | 6.885 |
+
+## 3 · Días con excursión adversa > $1.000, un contrato — **contado, no interpolado**
+
+| raíz | días | **largo > $1k** | % | corto > $1k | % |
+|---|---|---|---|---|---|
+| `MES` | 1.851 | 10 | **0,54 %** | 5 | 0,27 % |
+| `MGC` | 1.841 | 44 | **2,39 %** | 41 | 2,23 % |
+| `MNQ` | 1.868 | 87 | **4,66 %** | 48 | 2,57 % |
+| `ES` | 1.855 | 1.023 | **55,15 %** | 1.053 | 56,77 % |
+| `GC` | 1.841 | 1.039 | **56,44 %** | 1.094 | 59,42 % |
+| `NQ` | 1.858 | 1.331 | **71,64 %** | 1.409 | 75,83 % |
+
+> **Dos órdenes de magnitud entre los micros y los grandes**, y ese solo número ordena las seis.
