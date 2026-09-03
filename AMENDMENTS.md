@@ -284,3 +284,60 @@ el producto ahora depende por completo tiene una sola observación exitosa.**
 
 Medición completa: `docs/aplanado-freno-unico-20260901.md`. **Ninguna decisión se cambia con esta
 nota**; la enmienda sigue vigente tal como está.
+
+## A12 — **`G8` NO ESTÁ IMPLEMENTADA.** La conformidad pasa a **25 de 26**
+
+**2026-09-02. Enmienda a `SPEC §15`. No modifica ninguna conducta: corrige lo que decimos de ella.**
+
+### La garantía, tal como está escrita, y se queda escrita así
+
+```
+| G8 | Orders after lockout are cancelled and logged | order events while `LOCKED` |
+```
+
+**NO se reescribe para que coincida con el código.** `G8` describe lo que un guardián de pérdida
+diaria **debería** hacer, el hueco es real, y **reescribirla lo borra de la vista.** Se marca
+**NO IMPLEMENTADA** y se cuenta como tal.
+
+### Desde cuándo, y qué la invirtió sin tocar el SPEC
+
+| fecha | qué pasó |
+|---|---|
+| **2026-08-26** | **A11** decide que `OnOrderObserved` no cancela nada, después del test en vivo: el guardián canceló **su propio flatten** 1 ms después de que la bolsa lo aceptara, más doce salidas del trader. **La decisión es correcta y no se toca.** |
+| **2026-08-27** | commit **`a916bba`** — *«LT-1 fixed: the guardian stops cancelling its own flatten orders, and the trader's exits»* — **re-apunta los tests de `G8` a la conducta nueva.** |
+| **desde entonces** | **la fila del SPEC quedó intacta**, `AMENDMENTS.md` no nombraba `G8`, y `README.md` siguió publicando **26 de 26**. |
+
+> **Se arregló el código, se arreglaron los tests, y NADIE tocó la afirmación.** La conformidad
+> siguió contando `G8` como implementada durante **seis días**, y el sitio público la repite.
+
+### La evidencia: los tres tests que hoy afirman lo CONTRARIO de `G8`
+
+```
+G8_an_order_after_the_lockout_is_not_cancelled_on_observation
+G8_enforcement_is_still_continuous_it_is_just_the_flatten_that_carries_it
+G8_orders_are_left_alone_while_armed
+```
+
+El primero asserta **`Assert.Empty(Broker.Calls)`** — ni una llamada al broker — y
+**`Assert.DoesNotContain(Ev.OrderRejectedLocked, Events())`**. Y en producción:
+**`ORDER_REJECTED_LOCKED` no tiene escritor en `src/`**; las 12 entradas del ledger que lo llevan son
+todas anteriores al 26-ago.
+
+### Por qué esto era invisible, y qué se hace al respecto
+
+**`26 of 26` en `README.md` era un literal escrito a mano. Nadie lo computaba, así que no podía bajar
+nunca.** Un número que **sólo puede decir 26** no es una medición: es una afirmación con forma de
+medición.
+
+Desde hoy **el número se computa** desde esta misma tabla del SPEC —donde una garantía se puede marcar
+`NO IMPLEMENTADA`— y **una prueba falla si `README.md` no coincide y no nombra las que faltan**
+(`C_ConformanceCountTests`). **El rojo se apaga actualizando el número publicado, que es el arreglo de
+verdad.**
+
+### Lo que esta enmienda NO dice
+
+- **No dice que A11 esté mal.** A11 se toma sin cambios: cancelar a ciegas atrapaba al trader en una
+  posición que se hundía, y eso es peor.
+- **No promete que `G8` se vaya a implementar.** La nombra como hueco abierto. La forma que tendría es
+  **cancelación selectiva** —cancelar la orden nueva sin tocar el flatten propio ni las salidas del
+  trader— y **hasta que exista, `ORDER_REJECTED_LOCKED` sigue sin escritor, con razón.**
