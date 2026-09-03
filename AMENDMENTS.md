@@ -303,8 +303,8 @@ diaria **debería** hacer, el hueco es real, y **reescribirla lo borra de la vis
 
 | fecha | qué pasó |
 |---|---|
-| **2026-08-26** | **A11** decide que `OnOrderObserved` no cancela nada, después del test en vivo: el guardián canceló **su propio flatten** 1 ms después de que la bolsa lo aceptara, más doce salidas del trader. **La decisión es correcta y no se toca.** |
-| **2026-08-27** | commit **`a916bba`** — *«LT-1 fixed: the guardian stops cancelling its own flatten orders, and the trader's exits»* — **re-apunta los tests de `G8` a la conducta nueva.** |
+| **2026-08-26** | **el test en vivo y la DECISIÓN (A11)**: el guardián canceló **su propio flatten** 1 ms después de que la bolsa lo aceptara, más **cuatro órdenes del operador** (12 rechazos entre las cuatro). **La decisión es correcta y no se toca.** |
+| **2026-08-27** | commit **`a916bba`** — *«LT-1 fixed: the guardian stops cancelling its own flatten orders, and the trader's exits»* — **es acá donde la CONDUCTA cambia**, y por eso es el «desde cuándo» de la garantía. |
 | **desde entonces** | **la fila del SPEC quedó intacta**, `AMENDMENTS.md` no nombraba `G8`, y `README.md` siguió publicando **26 de 26**. |
 
 > **Se arregló el código, se arreglaron los tests, y NADIE tocó la afirmación.** La conformidad
@@ -333,6 +333,34 @@ Desde hoy **el número se computa** desde esta misma tabla del SPEC —donde una
 `NO IMPLEMENTADA`— y **una prueba falla si `README.md` no coincide y no nombra las que faltan**
 (`C_ConformanceCountTests`). **El rojo se apaga actualizando el número publicado, que es el arreglo de
 verdad.**
+
+### Nota de fecha, y de una sobre-afirmación que A11 arrastra — **medido 2026-09-02**
+
+**La fecha de la CONDUCTA es `a916bba`, 2026-08-27.** A11 lleva fecha **2026-08-26** porque ésa es la
+del test en vivo y la de la **decisión**. Las dos son ciertas y son cosas distintas; **el «desde
+cuándo» de una garantía no implementada es la del código.** De ahí salen los **seis días** exactos
+(27-ago → 2-sep) que publica el README, y **los dos números vienen ahora del mismo hecho.**
+
+> #### ⚠ Y A11 dice algo que su propia evidencia no sostiene — **se ANOTA, no se reescribe**
+>
+> A11 dice: *«twelve `ORDER_REJECTED_LOCKED` that were `Sell`, `SellShort` and `BuyToCover`: **the
+> trader's own exits**»*. Medido hoy sobre el ledger:
+>
+> | | |
+> |---|---|
+> | eventos `ORDER_REJECTED_LOCKED` | **12** |
+> | **órdenes distintas** (`orderId` únicos) | **4** — cada una rechazada **tres veces** |
+> | acciones | **2 × `Sell`**, **1 × `SellShort`**, **1 × `BuyToCover`** |
+> | ventana | `23:44:27.408` → `23:44:33.826` = **6,4 s** |
+> | ¿el payload dice si reducían o abrían? | **NO.** Lleva `account`, `action`, `instrument`, `orderId`. **Sin cantidad y sin posición** |
+>
+> **Dos cosas no se sostienen**: *«twelve»* eran **cuatro órdenes**, y llamarlas **«exits»** es una
+> **clasificación, no un conteo** — **`SellShort` ABRE**, y de los `Sell` no se puede saber si reducían
+> o daban vuelta la posición, porque el evento no lleva cantidad.
+>
+> **Es la convención de `SPEC §15` cometida dentro de la enmienda que la originó**: se leyó intención
+> donde el registro sólo tiene efecto parcial. **A11 no cambia** — su decisión es correcta y su motivo
+> también. **Lo que baja es el adjetivo.**
 
 ### Lo que esta enmienda NO dice
 
