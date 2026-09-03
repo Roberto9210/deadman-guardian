@@ -240,9 +240,10 @@ namespace GuardianCore.Tests
 
         /// <summary>The text, and the trap it has to avoid.
         ///
-        /// The derivation is computed off a flag the ledger calls `exhausted`, and MaxFlattenAttempts
-        /// is a constant named "maximum attempts" - but this morning's enumeration proved it gates no
-        /// loop at all (Guardian.cs:1044 is its only use; the guardian retries forever). If the panel
+        /// The derivation is computed off a flag the ledger called `exhausted`, from a constant named
+        /// "maximum attempts" - but the enumeration of 2026-08-29 proved it gates no loop at all: it
+        /// is only ever compared against, and the guardian retries forever. Both were renamed on
+        /// 2026-09-02, to `needsHuman` and Constants.FlattenAttemptsBeforeHuman. If the panel
         /// inherits that vocabulary and says "gave up" or "stopped", it reintroduces exactly the lie
         /// we removed from message 3 an hour earlier - candidate 7 biting through a name into the text
         /// derived from it.

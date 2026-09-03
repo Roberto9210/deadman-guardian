@@ -12,7 +12,7 @@ namespace GuardianCore
         public const int PnlEvaluationIntervalMs = 1_000;
         public const int PnlCheckpointIntervalMs = 300_000;
         public const int ClockDivergenceToleranceMs = 120_000;
-        public const int MaxFlattenAttempts = 3;
+        public const int FlattenAttemptsBeforeHuman = 3;
     }
 
     public sealed class GuardianStatus
@@ -149,22 +149,28 @@ namespace GuardianCore
         /// It also retracts itself. FLATTEN_VERIFIED sets LockoutVerified, this goes false, and the
         /// panel returns to the ordinary locked text with no clean-up logic to forget.
         ///
-        /// THE NAME IS PART OF THE FIX, and as of 2026-09-02 the LEDGER KEY CARRIES THE SAME NAME.
-        /// The flag was called `exhausted` and the constant is still called MaxFlattenAttempts, and
-        /// both names assert more than their code does: the guardian never gives up - MaxFlattenAttempts
-        /// gates no loop, it only lights that flag. A property called Exhausted or Stuck would carry
-        /// the lie into every text derived from it, which is candidate 7 biting through a name. What
-        /// is true is that a human is needed.
+        /// THE NAME IS PART OF THE FIX, and as of 2026-09-02 ALL THREE NAMES AGREE. Two of them used
+        /// to lie in the same direction: the ledger flag was `exhausted` and this constant was
+        /// `MaxFlattenAttempts`, and both asserted a cap that was reached. The guardian never gives
+        /// up - the constant gates no loop, it only decides when to light the flag - so a property
+        /// called Exhausted or Stuck would have carried the lie into every text derived from it,
+        /// which is candidate 7 biting through a name. What is true is that a human is needed.
         ///
-        /// Renaming this property while the ledger still said `exhausted` fixed the reader that opens
-        /// this file and left the one who reads the RECORD - which is the artefact that travels, and
-        /// the one a stranger audits. That half is now closed: the emitter writes `needsHuman`, and
-        /// LT4i_The_ledger_key_and_the_property_carry_the_same_name pins the two names to each other so neither can drift
-        /// alone. MaxFlattenAttempts keeps its name because renaming a constant is a separate,
-        /// coordinated change and pretending otherwise would smuggle it in here.</summary>
+        /// Renaming this property while the ledger still said `exhausted` fixed the reader who opens
+        /// this file and left the one who reads the RECORD - the artefact that travels, and the one
+        /// a stranger audits. Both halves are now closed: the emitter writes `needsHuman`, and
+        /// LT4i_The_ledger_key_and_the_property_carry_the_same_name pins those two to each other so
+        /// neither drifts alone. The constant became FlattenAttemptsBeforeHuman on the same day,
+        /// once measured to be internal in effect: it is public and const, but both of its live uses
+        /// are in this file, nothing outside GuardianCore names it, and a const is inlined - so
+        /// renaming it cannot break an already-compiled adapter the way a method would.
+        ///
+        /// NOTHING PINS THE CONSTANT'S NAME. The test above holds the property and the ledger key
+        /// together; the constant is held by nothing but this paragraph, which is the weaker kind of
+        /// fix and is said so rather than left to look equal.</summary>
         public bool LockoutNeedsHuman =>
             _state != null && _state.Kind == StateKind.Locked && !_state.LockoutVerified &&
-            _state.FlattenAttempts >= Constants.MaxFlattenAttempts;
+            _state.FlattenAttempts >= Constants.FlattenAttemptsBeforeHuman;
 
         public LedgerVerifyResult VerifyLedger() => _ledger?.Verify() ?? LedgerVerifyResult.Good();
 
@@ -950,8 +956,8 @@ namespace GuardianCore
         /// worse than the problem it fixes.
         ///
         /// FlattenAttempts resets because new exposure is a NEW episode. Without it the counter is
-        /// already at MaxFlattenAttempts and the first re-flatten would report exhausted:true, firing
-        /// "CLOSE IT YOURSELF NOW" at a person whose position is closing correctly.
+        /// already at FlattenAttemptsBeforeHuman and the first re-flatten would report needsHuman:true,
+        /// firing "CLOSE IT YOURSELF NOW" at a person whose position is closing correctly.
         ///
         /// No new ledger event: the extension contract with Ventana B is still open, and an unknown
         /// EVENT is a bigger ask than an unknown field. The re-engagement evidences itself - a
@@ -1065,8 +1071,11 @@ namespace GuardianCore
                 _state.LockoutVerified = false;
                 // RENAMED `exhausted` -> `needsHuman` on 2026-09-02, so the ledger key says what the
                 // Core property says: LockoutNeedsHuman. `exhausted` asserted that a cap existed and
-                // was reached; MaxFlattenAttempts gates no loop - its only use is the comparison on
-                // this line - and the guardian keeps flattening. Measured 2026-08-26: 167 attempts,
+                // was reached; the constant gates no loop - it has exactly two uses, this comparison
+                // and the identical one in LockoutNeedsHuman, and neither is a loop condition - and
+                // the guardian keeps flattening. (An earlier draft of this comment said "its only use
+                // is the comparison on this line", which was itself false by one: the same defect
+                // class as the name it was written to explain.) Measured 2026-08-26: 167 attempts,
                 // the flag lit at 3, and the guardian went on 164 more times. The prose had already
                 // been fixed; the LEDGER still carried the word, and the ledger is the artefact that
                 // survives, travels and gets quoted.
@@ -1077,7 +1086,7 @@ namespace GuardianCore
                 Log(Ev.LockoutIncomplete, JsonValue.Obj()
                     .Set("accounts", ToArray(remaining))
                     .Set("attempts", _state.FlattenAttempts)
-                    .Set("needsHuman", _state.FlattenAttempts >= Constants.MaxFlattenAttempts));
+                    .Set("needsHuman", _state.FlattenAttempts >= Constants.FlattenAttemptsBeforeHuman));
             }
         }
 

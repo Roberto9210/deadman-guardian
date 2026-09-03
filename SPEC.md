@@ -526,6 +526,13 @@ Ordered, idempotent, and resumable — it must survive being killed at any point
    busy retry loop inside NT8's thread is a worse failure than a slow one. The attempt count is persisted,
    so it survives a restart. **Exhausting the attempts releases nothing** — it makes the lockout louder,
    not shorter (A7).
+
+   > **Nota de nombres, 2026-09-02 — anotación, no reescritura.** El símbolo se llama hoy
+   > `Constants.FlattenAttemptsBeforeHuman` y el campo del evento es `needsHuman`, no `exhausted`.
+   > **La CONDUCTA que este paso describe no cambió**: ya decía *"keeps retrying"* y *"exhausting the
+   > attempts releases nothing"*, que era y sigue siendo correcto — de hecho esta especificación fue
+   > lo único que nunca afirmó un tope. Lo que se renombró fueron los dos identificadores que sí lo
+   > afirmaban. Se anota para que grepear el nombre viejo no dé cero.
 5. **Keep enforcing.** While `LOCKED`, every new order on a guarded account is cancelled on sight and logged
    `ORDER_REJECTED_LOCKED`. A single flatten is not a lockout; the DOM, a chart, and a running strategy can
    all still submit.

@@ -165,10 +165,12 @@ namespace GuardianCore
         ///
         /// THREE THINGS ARE TRUE AT ONCE AND ALL THREE HAVE TO BE HERE. Something is still open; the
         /// guardian has NOT stopped; and it needs the person. Dropping the second would inherit the
-        /// vocabulary this is derived from - `exhausted` until 2026-09-02, MaxFlattenAttempts still -
-        /// and both of those names assert a giving-up that the code does not do. The ledger key has
-        /// since been renamed to `needsHuman`; the constant has not, so half of that vocabulary is
-        /// still live and this paragraph is still load-bearing. Same lie removed from
+        /// vocabulary this used to be derived from - the flag was `exhausted` and the constant was
+        /// `MaxFlattenAttempts`, and both asserted a giving-up that the code does not do. BOTH were
+        /// renamed on 2026-09-02, to `needsHuman` and FlattenAttemptsBeforeHuman, so the vocabulary
+        /// no longer pulls this text toward the lie. The paragraph stays anyway: it records WHY the
+        /// second clause is here, and a future writer with an accurate name in front of them has no
+        /// other way to learn that dropping it once produced a false sentence. Same lie removed from
         /// LockoutStillOpen an hour before this was written, arriving through a name instead of a
         /// sentence.</summary>
         public static string DetailNeedsYou(string account)
@@ -411,8 +413,8 @@ namespace GuardianCore
             // sitting in the message that fires in the WORSE case - the one where the reader most
             // needs an accurate picture. Fixing message two and leaving this one would have moved the
             // lie rather than removed it. What is true here: the guardian does not give up. The loop
-            // re-enters every tick while Locked and unverified; MaxFlattenAttempts only lights a flag
-            // (Guardian.cs:1044) and gates nothing.
+            // re-enters every tick while Locked and unverified; FlattenAttemptsBeforeHuman only
+            // decides when Guardian.LockoutNeedsHuman lights, and gates nothing.
             return "COULD NOT CLOSE EVERYTHING on " + Safe(account) + " after " +
                    Plural(attempts, "attempt") + ". The daily limit is reached and the guardian keeps " +
                    "trying, but something is still open. CLOSE IT YOURSELF NOW, then check the " +

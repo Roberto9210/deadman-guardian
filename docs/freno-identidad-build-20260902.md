@@ -96,6 +96,48 @@ Nunca `""`, nunca `"unknown"` — es la doctrina que ya costó siete `?? ""` y e
 
 ---
 
+## 2b · El sexto archivo contra la guarda de completitud — **las dos puntas**
+
+`install.ps1` tiene una guarda que **rehúsa todo** (`exit 4`) si aparece un `.cs` en `nt/addon`,
+`nt/soak` o `nt/bots` que no esté en sus listas. Un `BuildStamp.cs` generado la toca por los dos
+lados, y cada lado se resuelve distinto.
+
+### Punta 1 — **el archivo generado NO va al repo**
+
+Se escribe **directo a `bin\Custom\AddOns\`**, nunca a `nt/addon/`. Motivo doble: es un artefacto de
+**despliegue**, no fuente; y si viviera en el repo, cada instalación dejaría el árbol sucio y la
+guarda —que barre el repo— tendría que aprenderse un archivo que cambia en cada corrida.
+
+⇒ **la guarda no lo ve, y no hay `exit 4` que esquivar.** No se toca la guarda para acomodarlo.
+
+### Punta 2 — pero eso abre un hueco EN LA OTRA DIRECCIÓN, y hay que taparlo
+
+La guarda comprueba *«todo fuente del repo está gestionado»*. Con un archivo que **sólo existe en el
+destino**, aparece el caso simétrico que hoy nadie mira: **una entrada `<Compile>` que nombra un
+archivo que no se generó.** Resultado: el F5 falla en la plataforma con un error de archivo
+inexistente — que es el CS0246 del 2026-08-25 otra vez, entrando por la puerta de al lado.
+
+⇒ **la guarda gana una segunda dirección**: después de copiar, afirmar que **cada `<Compile
+Include="AddOns\…">` que este script gestiona nombra un archivo que existe en el destino**. Una
+generación fallida pasa a ser un rechazo con nombre, en la consola, antes del F5.
+
+### Y el riesgo real no es ninguna de las dos: **es que los dos lados no coincidan sobre QUÉ se hashea**
+
+`addonBuild` lo calcula `install.ps1` (PowerShell) y lo recalcula el addon (C#). Si las dos mitades
+no excluyen **exactamente** el mismo conjunto, **el desacuerdo es permanente y el freno rehúsa el
+armado para siempre** — un freno que dispara por uso correcto, que es justo lo que se rechazó al
+descartar el hash de `NinjaTrader.Custom.dll`. **Una convención compartida entre dos lenguajes es
+precisamente la clase de acuerdo que se rompe sin que nadie lo note.**
+
+> **Solución: el sello DECLARA LO QUE CUBRE.** `BuildStamp.cs` lleva el hash **y la lista ordenada de
+> los archivos hasheados**. El addon hashea **exactamente los que el sello nombra**.
+>
+> ⇒ **los dos lados no pueden discrepar sobre el conjunto de entrada — sólo sobre los bytes, que es
+> lo único que queremos detectar.** Y agregar un sexto `.cs` gestionado mañana no rompe nada: el
+> sello lo nombra solo.
+
+---
+
 ## 3 · Dónde vive la decisión: **en el Core, no en el addon**
 
 `GuardianCore` **no hace I/O de archivos en ningún lado** — invariante escrita en

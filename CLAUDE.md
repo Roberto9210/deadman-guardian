@@ -342,17 +342,28 @@ repite dos veces.
 | **las 169 entradas previas NO se reescriben** | un registro append-only **no se edita para que un renombre quede prolijo**. Es lo único que este producto existe para no hacer |
 | **el lector acepta las DOS claves** | `entry.Payload?.GetBool("needsHuman") ?? entry.Payload?.GetBool("exhausted")` en el `case Ev.LockoutIncomplete` del addon. Nueva primero |
 | **la ausencia de AMBAS sigue sin ser `false`** | dos de los tres emisores no escriben ninguna; ausencia es **otro evento**, no una negación |
-| **`MaxFlattenAttempts` conserva su nombre** | renombrar una constante es un cambio coordinado aparte; meterlo acá sería contrabandearlo |
+| **`MaxFlattenAttempts` → `FlattenAttemptsBeforeHuman`** | ~~conserva su nombre~~ — **renombrada también el 2026-09-02**, después de medir que es **interna de hecho**: `public const`, pero sus **dos** usos vivos están los dos en `Guardian.cs`, nadie fuera de Core la nombra, y **una `const` se inlinea**, así que renombrarla no puede romper un adaptador ya compilado como sí lo haría un método. **Los tres nombres ahora concuerdan** |
 | **lo que el renombre NO arregla** | la palabra sigue en `AMENDMENTS.md` y en esta sección **describiendo entradas que realmente la llevan** — ahí es cierta, y por eso no se toca |
+| **⚠ nada fija el nombre de la CONSTANTE** | `LT4i` ata la propiedad y la clave del ledger entre sí. La constante la sostiene **sólo un párrafo de comentario**, que es el tipo de arreglo débil — **y se dice, en vez de dejarlo pareciendo igual de firme** |
 
 **Tres ventanas, la misma semana, el mismo defecto**: el OCG de ALAYA (un freno que no puede fallar
 firmando que protegió), las claves ensombrecidas por literales, y este flag. **La familia es "un
 nombre que promete un mecanismo que no existe"**, y el sitio donde más duele es siempre el mismo: el
 registro que alguien va a leer sin el código al lado.
 
-**Pendiente, no arreglado**: o el flag se llama por lo que es (`needsHumanFromHere`, o el umbral
+~~**Pendiente, no arreglado**: o el flag se llama por lo que es (`needsHumanFromHere`, o el umbral
 explícito), o `MaxFlattenAttempts` gobierna algo. **No se toca hoy** — está en el payload de 169
-entradas ya escritas y cambiar el nombre de un campo del ledger es contrato con el verificador.
+entradas ya escritas y cambiar el nombre de un campo del ledger es contrato con el verificador.~~
+
+> **CERRADO 2026-09-02, y la razón por la que estuvo abierto era una suposición.** Se eligió la
+> primera rama: el flag se llama por lo que es. **Lo que lo bloqueaba —«cambiar el nombre de un campo
+> del ledger es contrato con el verificador»— NO SE HABÍA MEDIDO**, y al medirlo Ventana B encontró
+> que **tres de cuatro ítems que dábamos por bloqueados no lo estaban**. El renombre no rompió el
+> contrato, y las 169 entradas viejas se quedan porque **el lector toma las dos claves**, no porque
+> el contrato lo impidiera.
+>
+> **La lección no es sobre nombres**: un pendiente puede quedarse quieto durante semanas por una
+> restricción que nadie verificó. **«Está bloqueado» es una afirmación, y esta casa las verifica.**
 
 ### La cara sin texto de la clase madre, y es la única que GENERA TRABAJO (1-sep)
 

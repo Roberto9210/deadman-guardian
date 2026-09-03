@@ -83,6 +83,14 @@ restart.
 **Fail-closed**: exhausting the attempts does **not** release anything. It logs `LOCKOUT_INCOMPLETE`,
 stays `LOCKED`, and keeps retrying.
 
+> **Nota 2026-09-02 — el nombre, no la decisión.** La constante se llama hoy
+> `Constants.FlattenAttemptsBeforeHuman`, y el campo del evento `needsHuman` en vez de `exhausted`.
+> **La decisión de A7 no cambió**: sigue siendo 3, sigue reintentando en el tick, sigue persistida, y
+> sigue sin liberar nada. Se renombraron porque `Max…` y `exhausted` **afirmaban un tope que no
+> existe** — medido el 2026-08-26: los intentos llegaron a **167**, el flag prendió en el **3**, y el
+> guardián siguió **164 veces más**. Este párrafo ya lo decía en prosa; los identificadores decían lo
+> contrario, y el ledger viaja más lejos que la prosa.
+
 ## A8 — `LOCKED` outranks `FAIL_CLOSED`
 
 **Spec**: §8's transition table has "any → `FAIL_CLOSED`" for ledger, clock and state unknowns, and also has
