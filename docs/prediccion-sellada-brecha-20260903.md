@@ -194,6 +194,27 @@ no se determina si es porque no había nada resting o porque el barrido no las v
 
 ## 3. PROCEDIMIENTO PARA ROBERTO
 
+> **AGREGADO 2026-09-03, DESPUÉS DE SELLAR — no toca ninguna predicción, sólo el procedimiento.**
+> Se anota como agregado en vez de editarlo en silencio: cambia **cómo se corre la prueba**, no **qué
+> predecimos**. Las predicciones P-A, P-B y P-C quedan tal como se sellaron.
+
+> ## ⚠ LO MÁS IMPORTANTE DEL PROCEDIMIENTO
+>
+> **DESPUÉS DE CRUZAR EL LÍMITE, ROBERTO TIENE QUE IRSE A HACER OTRA COSA DE VERDAD.**
+>
+> Otra ventana, otra tarea, algo que lo absorba: contestar un mail, mirar otro gráfico, atender el
+> teléfono, lo que sea — **algo real, no una pausa de treinta segundos fingiendo que no mira.**
+>
+> **Si se queda mirando el panel, P-C no se puede medir**, y P-C —*¿se entera, y en cuánto?*— **es la
+> predicción más valiosa de esta prueba.** Es la única pregunta del día que ningún test puede
+> contestar y ningún archivo puede registrar. Si la desperdiciamos mirando, no vuelve: la próxima vez
+> ya vamos a saber qué esperar.
+>
+> **Y NO MIRAR EL RELOJ ESPERANDO.** Esperar el momento es medir otra cosa. **Cuando te des cuenta de
+> que algo pasó —sea cuando sea, en diez segundos o en cuarenta minutos— ahí mirás el reloj y anotás
+> la hora.** No importa si es mucho: **si tardaste media hora, ese es el resultado**, y es el
+> resultado que más nos enseña.
+
 **Todo lo de interfaz gráfica lo hace él. Yo no toco NinjaTrader.**
 **Aviso sobre los nombres de menú: el NinjaTrader de Roberto está en español y NO verifiqué las
 traducciones exactas de la interfaz. Doy el nombre en inglés y dónde está; el rótulo en español
@@ -250,15 +271,24 @@ mercado para acumular pérdida **REALIZADA**. Es el único camino que pone `gros
 distinto de `0.00` y por lo tanto **el único que le da algo que comparar al cotejo contra la
 plataforma** — hoy ese chequeo nunca tuvo nada que chequear. Ver el defecto G3-INSUMO.)*
 
-### Paso 4 — la orden posterior al bloqueo (el falsador de G8)
+### Paso 4 — **IRSE A HACER OTRA COSA** ← el paso que hace medible a P-C
 
-**Ni bien el panel diga `LOCKED`**, mandar **una orden nueva a mercado en `Sim101`** — 1 MES alcanza,
-en cualquier dirección, desde el DOM o desde el gráfico.
+**Apenas la posición esté puesta y la pérdida corriendo, irse.** Otra ventana, otra tarea, algo que
+absorba de verdad. **No quedarse mirando el panel. No mirar el reloj esperando.**
+
+Cuando te des cuenta de que algo pasó —**sea cuando sea**— ahí mirás el reloj y anotás la hora. Si
+tardaste media hora, **ese es el resultado**, y es el mejor que esta prueba puede dar.
+
+### Paso 5 — la orden posterior al bloqueo (el falsador de G8)
+
+**Cuando ya te diste cuenta y anotaste la hora**, y con el panel diciendo `LOCKED`, mandar **una orden
+nueva a mercado en `Sim101`** — 1 MES alcanza, en cualquier dirección, desde el DOM o desde el
+gráfico.
 
 **Se espera que entre y se llene.** No es un error: es exactamente lo que estamos midiendo. El
 guardián la va a cerrar en el ciclo siguiente sin decir nada sobre la orden.
 
-### Paso 5 — queda bloqueado hasta las 17:00 CT
+### Paso 6 — queda bloqueado hasta las 17:00 CT
 
 No hay forma de desarmarlo antes, y **en `Sim101` eso no cuesta nada**: es una cuenta simulada, sin
 dinero. Si quiere seguir operando de verdad hoy, usar otra cuenta — el guardián sólo vigila `Sim101`.
