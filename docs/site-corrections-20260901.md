@@ -184,3 +184,34 @@ verify.
   que sabemos mal** (`lockoutsTriggered` no cuenta `CONFIG_TAMPERED` ni `SEAL_MISMATCH`, y
   `limitRespected` cuelga de él), y una página pública que avala un campo **le presta credibilidad a la
   tabla entera**. Nada más sobre el certificado hasta que el contador esté arreglado.
+
+---
+
+## NOTA 2026-09-02 — símbolos muertos citados arriba. **Anotación, no reescritura.**
+
+**Nada de lo de arriba se corrige**: el documento es fechado y decía lo que se sabía el 1-sep. Se anota
+para que quien grepee los nombres no obtenga cero.
+
+| lo que este documento cita | cómo se llama desde el 2026-09-02 |
+|---|---|
+| `MaxFlattenAttempts` — fila 6 de la tabla de evidencia, y la sección final | **`Constants.FlattenAttemptsBeforeHuman`** |
+| `exhausted` — fila 6, fila 7, y la sección *«No usa la palabra `exhausted`»* | **`needsHuman`** en el payload del ledger |
+
+**Lo que NO cambia con el renombre**, y por eso las siete correcciones siguen siendo el texto correcto:
+
+- **La conducta es idéntica.** Se renombraron porque `Max…` y `exhausted` **afirmaban un tope que no
+  existe** — que es exactamente lo que este documento dice. **El renombre confirma el motivo escrito
+  acá, no lo contradice.**
+- **Las 169 entradas viejas del ledger siguen llevando `exhausted: true`**, sin reescribir. Cuando este
+  documento habla de ellas, **la palabra es correcta**.
+- **La página nunca nombró ninguno de los dos**, precisamente por la corrección 7. **Ninguna frase del
+  sitio se vuelve falsa por esto.**
+
+### Y lo medido el 2026-09-02 que SÍ toca al sitio, anotado acá para que no se pierda
+
+- **`137 tests` ya no es 137: hoy son 340 verdes.** La corrección 7 manda **sacarlo, no actualizarlo**, y
+  sigue siendo la acción correcta — **ahora con su propia demostración: +203 en un día.**
+- **`G8` de `SPEC §15` dice *«Orders after lockout are cancelled and logged»* y el código hace lo
+  contrario a propósito desde el 2026-08-26.** Ese renglón **no está en las siete correcciones porque no
+  es una frase del sitio: es la fuente que sostiene el `26 of 26` que el sitio publica.** Ver el reporte
+  del 2026-09-02.
