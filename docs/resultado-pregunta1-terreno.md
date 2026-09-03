@@ -249,3 +249,87 @@ Ventana común tomada de los micros: **2019-05-06 … 2026-09-03**.
 | `NQ` | 1.858 | 1.331 | **71,64 %** | 1.409 | 75,83 % |
 
 > **Dos órdenes de magnitud entre los micros y los grandes**, y ese solo número ordena las seis.
+
+---
+
+# AÑADIDO — M4′: el drawdown contra el equity INTRADIARIO
+
+**M4 acumula `close − open`**, o sea que mira el equity **sólo al cierre de cada día**. Los drawdowns
+de las firmas se miden normalmente contra el equity **intradiario**, que toca su peor punto adentro
+del día. **M4 es un piso; M4′ es el techo.**
+
+### La fórmula, escrita antes de correr
+
+```
+cum_i    = cum_(i-1) + (close_i - open_i)        equity al cierre del día i
+trough_i = cum_(i-1) + (low_i   - open_i)        equity en el peor punto del día i   (LARGO)
+peak     = máximo corrido SOBRE LA SENDA DE CIERRES
+M4'      = máx sobre la ventana de (peak - trough_i)
+```
+Corto: P&L diario `open − close`, y el trough usa el `high`.
+
+**El pico NO usa los máximos intradiarios a propósito.** Tomar el pico en un máximo intradiario y el
+valle en un mínimo posterior daría una cota **todavía mayor**; esa variante **no se calculó**, y
+decirlo es parte de que el número signifique lo que dice.
+
+> ### LIMITACIÓN, declarada y sin ablandar
+> **M4′ es la cota de una TENENCIA CONTINUA DESDE LA APERTURA.** El drawdown *trailing* real de una
+> firma se calcula sobre el equity de la cuenta con su **marca de agua móvil**, que depende de cuándo
+> entraste y saliste. **M4′ ACOTA, NO SIMULA.**
+
+### M4 y M4′ lado a lado, en puntos — ventana recortada, datos idénticos
+
+| raíz · ventana | M4 mediana | M4′ mediana | **razón** | M4 p99 | M4′ p99 | **razón** |
+|---|---|---|---|---|---|---|
+| **LARGO** | | | | | | |
+| `ES` 20 | 132,50 | 171,00 | **1,291** | 501,24 | 660,00 | **1,317** |
+| `ES` 60 | 275,00 | 306,50 | 1,115 | 748,77 | 785,53 | 1,049 |
+| `NQ` 20 | 620,00 | 775,00 | **1,250** | 2.904,00 | 3.053,80 | 1,052 |
+| `NQ` 60 | 1.356,88 | 1.500,25 | 1,106 | 3.427,00 | 3.755,00 | 1,096 |
+| `GC` 20 | 72,50 | 82,90 | 1,143 | 500,49 | 549,28 | 1,097 |
+| `GC` 60 | 118,90 | 129,70 | 1,091 | 453,60 | 535,40 | 1,180 |
+| `MGC` 20 | 72,70 | 82,50 | 1,135 | 494,97 | 540,25 | 1,091 |
+| `MES` 20 | 139,25 | 173,50 | **1,246** | 505,75 | 618,85 | 1,224 |
+| `MES` 60 | 287,75 | 311,75 | 1,083 | 724,25 | 789,00 | 1,089 |
+| `MNQ` 20 | 625,50 | 783,88 | **1,253** | 2.909,75 | 3.081,51 | 1,059 |
+| **CORTO** | | | | | | |
+| `ES` 20 | 191,25 | 208,50 | 1,090 | 725,69 | 759,25 | 1,046 |
+| `NQ` 20 | 855,88 | 965,00 | 1,128 | 3.927,89 | 4.035,64 | 1,027 |
+| `GC` 20 | 78,35 | 89,50 | 1,142 | 461,90 | 501,30 | 1,085 |
+| `MES` 60 | 375,25 | 381,25 | 1,016 | 1.404,50 | 1.415,00 | 1,007 |
+
+> **Medir contra el cierre subestima entre 2 % y 32 %.** El defecto es **mayor en la ventana de 20 y
+> en los índices por el lado largo** (`ES` 1,291 en mediana y 1,317 en p99) y **menor en 60 días y
+> del lado corto** (hasta 1,007).
+
+### M4′ invertido, en dólares — un límite trailing acá se rompe en X % de las ventanas
+
+**Ventana 20, lado largo:**
+
+| raíz | ctr | 1 % | 5 % | 10 % | 25 % |
+|---|---|---|---|---|---|
+| `ES` | 1 | 33.000 | 24.562 | 19.842 | 13.138 |
+| | 3 | 99.000 | 73.688 | 59.528 | 39.412 |
+| `NQ` | 1 | 61.076 | 47.715 | 40.185 | 24.958 |
+| `GC` | 1 | 54.928 | 33.050 | 25.710 | 13.557 |
+| `MGC` | 1 | 5.403 | 3.276 | 2.555 | 1.361 |
+| `MES` | 1 | **3.094** | 2.502 | 2.010 | 1.318 |
+| | 2 | 6.188 | 5.005 | 4.020 | 2.635 |
+| | 3 | 9.283 | 7.508 | 6.030 | 3.952 |
+| `MNQ` | 1 | 6.163 | 4.805 | 4.009 | 2.538 |
+| | 3 | 18.489 | 14.414 | 12.027 | 7.614 |
+
+**Ventana 60, lado largo:**
+
+| raíz | ctr | 1 % | 5 % | 10 % | 25 % |
+|---|---|---|---|---|---|
+| `ES` | 1 | 39.276 | 38.652 | 35.062 | 23.488 |
+| `NQ` | 1 | 75.100 | 71.390 | 70.865 | 36.254 |
+| `GC` | 1 | 53.540 | 53.540 | 53.540 | 18.530 |
+| `MGC` | 1 | 5.397 | 5.397 | 5.397 | 1.842 |
+| `MES` | 1 | 3.945 | 3.712 | 3.512 | 2.384 |
+| `MNQ` | 1 | 7.566 | 7.222 | 7.091 | 3.666 |
+
+> **En la ventana de 60 varias celdas se repiten** (`GC` 53.540 en 1 %, 5 % y 10 %; `MGC` 5.397
+> igual). **No es un error: es n bajo** — 123 a 250 ventanas — **y el mismo máximo ocupando tres
+> percentiles.** Esas celdas no distinguen nada entre sí.
