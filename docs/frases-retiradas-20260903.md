@@ -62,6 +62,29 @@ test. **Donde existe un test real, la prohibición de cadena es el instrumento d
 - `C_The_matcher_fires_on_a_sentence_that_asserts_a_retracted_claim` — control positivo: cada forma
   debe detectarse en una línea que la contenga **en mayúsculas**, y cada entrada debe traer su motivo.
 
+## 5b. EL PATRÓN DEL DÍA — **el defecto no está en el código, está en el VERBO**
+
+**Hoy cayeron cuatro afirmaciones de estado, todas de la misma forma:**
+
+| lo que dábamos por cierto | lo que la medición dijo |
+|---|---|
+| **está bloqueado** | nada se cancela mientras está `LOCKED`; las 168 peticiones informan `count: 0` |
+| **está cerrado** (`G8`) | seguía viva en la fuente **dos veces**: `SPEC.md:536` y `docs/configure.md:93` |
+| **está pusheado** | `origin/main` llevaba **13 días** parado; el push fueron **132 commits**, no 4 |
+| **está desplegado** | el binario que corre es el del **1-sep**, no el del 2-sep: dos commits de fuente quedaron afuera |
+
+**Ninguna de las cuatro es un defecto de código.** Las cuatro son un **verbo en presente** que nadie
+midió: *está*. Y las cuatro se sostuvieron por el mismo motivo — **a alguien le constaba**, y a nadie
+le constaba con un instrumento.
+
+> **CADA «ESTÁ» DE ESTE PROYECTO ES UNA AFIRMACIÓN QUE HAY QUE MEDIR.**
+> (Regla del operador, 2026-09-03.)
+
+Emparenta directo con la regla 19 —*nadie escribe un test sobre una frase*— y le agrega el
+**tiempo verbal** como la señal a buscar. Una frase que describe un mecanismo se puede leer y
+discutir; **una que afirma un estado presente sólo se puede medir, y caduca sin avisar.** El `26 of
+26` era exactamente eso: un estado, escrito una vez, cierto durante seis días menos uno.
+
 ## 6. Lo que NO mide
 
 Sostiene frases **ya cazadas**. No dice nada de la próxima frase falsa, que estará redactada con
