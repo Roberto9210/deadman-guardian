@@ -718,6 +718,16 @@ the deadman style ("N of M", never a rounded-up "all").
 > **safe today for one reason only — nothing acts on an order because of them.** The flag reports the
 > guardian's own state; it never classifies somebody else's order. **The day anyone makes it act, it
 > becomes G8.**
+>
+> **The safety was conditional in a second way, not seen when the paragraph above was written
+> (added 2026-09-03).** The condition is **the absence of a reader.** *"Blocks new entries"* was safe
+> here because nothing acts on it — and **publishing it destroys the condition that made it safe.**
+> **The same sentence is harmless in a code file and false on a front page.** It was copied out of
+> this document onto the public site, where the reader is somebody deciding whether to install and
+> cannot read the `if` next to it; for them it is not internal vocabulary but a promise that their
+> next order will not go through. It stood in two places and was taken down on 2026-09-03
+> (site `51e1d96`). So the near-miss has a second half: not only *the day anyone makes it act* —
+> also **the day anyone quotes it where the code is not there to contradict it.**
 
 | # | Guarantee | Shape of the test |
 |---|---|---|
