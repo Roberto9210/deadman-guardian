@@ -648,7 +648,34 @@ namespace GuardianCore
             // the defect class this repository chases. The event returns - truthfully - when
             // classification lands and the orders that INCREASE exposure are cancelled again. Until
             // then the certificate's ordersRejectedWhileLocked is 0, which is true.
-            return;
+            //
+            // WHAT IS WRITTEN INSTEAD, and why it is not the same thing (2026-09-03). Removing the
+            // cancel also removed the RECORD, and nobody noticed until an experiment leaned on it: a
+            // live breach test on Sim101 set out to observe whether a new order gets through while
+            // LOCKED, and when the moment came the ledger could not tell "we stopped it silently"
+            // from "we did not stop it". We had to read NinjaTrader's own Orders tab for an answer
+            // this file should have held. IT IS ASKED FOR BY AN EXPERIMENT THAT ALREADY FAILED FOR
+            // ITS ABSENCE.
+            //
+            // The name carries the whole claim - OBSERVED, WHILE LOCKED - and no field repeats it. A
+            // literal saying "cancelled: false" is how `exhausted` and `ledgerVerified` became lies:
+            // a fact frozen at write time, sitting next to code that is free to change.
+            //
+            // Zero broker calls, pinned by G8b_It_is_a_record_and_not_a_brake. That test is the one
+            // that matters here: a record that can quietly become a brake is how this repository got
+            // G8 in the first place.
+            //
+            // NOT DEDUPLICATED, on purpose. NT8 raises OrderUpdate several times per order - twelve
+            // events for four orderIds on 2026-08-26 - so this writes a few rows per order, and that
+            // multiplicity is how we learned it. Deduplicating needs a set of seen ids, which is
+            // state a restart loses: the LT-2 family exactly. Known cost, named rather than hidden:
+            // a strategy submitting in a loop while locked would write many rows. If that is ever
+            // measured, the answer is that measurement, not a stronger rule.
+            Log(Ev.OrderObservedWhileLocked, JsonValue.Obj()
+                .Set("account", order.Account ?? "")
+                .Set("orderId", order.OrderId ?? "")
+                .Set("instrument", order.Instrument ?? "")
+                .Set("action", order.Action ?? ""));
         }
 
         public void Tick()
