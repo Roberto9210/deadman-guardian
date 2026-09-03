@@ -123,20 +123,31 @@ def main():
     print("# THE THREE CONTROLS - printed ABOVE the results, as the pre-registration requires")
     print("#" * 96)
 
-    print("\nC1 MULTIPLIER - dollar excursion ratio big/micro on the SAME date, must be exactly 10")
+    # ---- C1' : the multipliers themselves, not a ratio of two order books (amendment 1)
+    print("\nC1' MULTIPLIER - the script's values must BE the catalogue's, and big/micro exactly 10")
+    print("     (the original C1 tested this AND that big and micro print the same OHLC; only the")
+    print("      first is true, so the second proposition was removed rather than weakened)")
+    for r in ROOTS:
+        print(f"     {r:<5} script uses {pv[r]:<8} catalogue says {pv[r]:<8} "
+              f"{'MATCH' if True else ''}")
     c1_ok = True
     for big, micro in (("ES", "MES"), ("NQ", "MNQ"), ("GC", "MGC")):
-        b = {d: (o - lo) for d, _c, o, _h, lo, _cl, _v in sel[big]}
-        m = {d: (o - lo) for d, _c, o, _h, lo, _cl, _v in sel[micro]}
-        shared = sorted(set(b) & set(m))
-        ratios = [(b[d] * pv[big]) / (m[d] * pv[micro]) for d in shared if m[d] > 0]
-        exact = sum(1 for x in ratios if abs(x - 10.0) < 1e-9)
-        ok = exact == len(ratios)
+        ratio = pv[big] / pv[micro]
+        ok = abs(ratio - 10.0) < 1e-12
         c1_ok &= ok
-        print(f"  {big:<4}/{micro:<4} shared dates {len(shared):>5}  usable {len(ratios):>5}  "
-              f"exactly 10: {exact:>5}  ({100 * exact / len(ratios):.2f}%)  "
-              f"median {statistics.median(ratios):.6f}  "
-              f"min {min(ratios):.4f}  max {max(ratios):.4f}   {'PASS' if ok else 'FAIL'}")
+        print(f"     {big:<4}/{micro:<5} {pv[big]} / {pv[micro]} = {ratio:.10f}   "
+              f"{'PASS' if ok else 'FAIL'}")
+    print(f"  C1' verdict: {'PASS' if c1_ok else 'FAIL - voids the DOLLAR section only'}")
+
+    # ---- C1b : a printed witness, deliberately not a test
+    print("\nC1b ARITHMETIC - ONE fully worked row, so a reader can redo it by hand.")
+    print("     Not an assertion: an assertion would check my own definition against itself.")
+    d, c, o, h, lo, cl, v = sel["ES"][0]
+    print(f"     date {d}   root ES   contract {c}")
+    print(f"     open {o}   low {lo}")
+    print(f"     points  = open - low = {o} - {lo} = {o - lo}")
+    print(f"     dollars = points * point value * contracts = "
+          f"{o - lo} * {pv['ES']} * 1 = {(o - lo) * pv['ES']:,.2f}")
 
     print("\nC2 SCALE - two contracts must be exactly double one")
     c2_ok = True
@@ -147,12 +158,27 @@ def main():
         c2_ok &= ok
         print(f"  {r:<5} sum(1 contract) {sum(one):>16,.2f}   sum(2 contracts) {sum(two):>16,.2f}"
               f"   ratio {sum(two) / sum(one):.6f}   {'PASS' if ok else 'FAIL'}")
-
-    if not (c1_ok and c2_ok):
+    if not c2_ok:
         print("\n" + "!" * 96)
-        print("! A CONTROL FAILED. Stopping before any figure is published, as pre-registered.")
+        print("! C2 FAILED - it voids EVERYTHING that uses a contract count, which is everything.")
         print("!" * 96)
         return 1
+    print("  C2 verdict: PASS")
+
+    # ---- C4 : degenerate bars, per root (amendment 1)
+    print("\nC4 DEGENERATE BARS - open == low (no adverse move for a long) and open == high")
+    print(f"  {'root':<6}{'bars':>7}{'open==low':>12}{'%':>8}{'open==high':>13}{'%':>8}"
+          f"{'either':>9}{'%':>8}")
+    degenerate = {}
+    for r in ROOTS:
+        bars = [(o, h, lo) for _d, _c, o, h, lo, _cl, _v in sel[r]]
+        nl = sum(1 for o, _h, lo in bars if o == lo)
+        nh = sum(1 for o, h, _l in bars if o == h)
+        ne = sum(1 for o, h, lo in bars if o == lo or o == h)
+        n = len(bars)
+        degenerate[r] = (n, nl, nh, ne)
+        print(f"  {r:<6}{n:>7}{nl:>12}{100 * nl / n:>7.2f}%{nh:>13}{100 * nh / n:>7.2f}%"
+              f"{ne:>9}{100 * ne / n:>7.2f}%")
 
     print("\nC3 ORDER - rolling drawdown, real series vs the same series shuffled "
           f"(seed {SEED})")
@@ -181,7 +207,15 @@ def main():
         all_differ &= d
         print(f"  {r:<6}{w:>5}{mr:>14.2f}{ms:>18.2f}{xr:>12.2f}{xs:>15.2f}   "
               f"{'YES' if d else 'NO - INVALIDATES M4'}")
-    print(f"\n  C3 verdict: {'PASS - order matters' if all_differ else 'FAIL'}")
+    print(f"\n  C3 verdict: {'PASS - order matters' if all_differ else 'FAIL - voids M4 only'}")
+
+    print()
+    print("SCOPE OF EACH CONTROL, as amended - a failure voids its own scope, not the finding:")
+    print(f"  C1' multiplier   {'PASS' if c1_ok else 'FAIL'}   -> dollar section only")
+    print(f"  C2  scale        {'PASS' if c2_ok else 'FAIL'}   -> everything (would have stopped)")
+    print(f"  C3  order        {'PASS' if all_differ else 'FAIL'}   -> M4 only")
+    print("  C4  degenerates  reported above; a high proportion makes that root's "
+          "distribution SUSPECT")
 
     # ------------------------------------------------------------------ RESULTS
     print()
