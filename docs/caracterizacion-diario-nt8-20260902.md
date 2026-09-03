@@ -77,6 +77,24 @@ Quedaba como *«compatible con embaldosar ≈10 años, NO VERIFICADO»*. **Ahora
 trimestrales y 1–2 en los mensuales. La cobertura es continua **por construcción del solapamiento**,
 no por casualidad: cada contrato empieza antes de que termine el anterior.
 
+> ### ⚠ CORRECCIÓN 2026-09-02 — «SOLAPAMIENTO» SIGNIFICA DOS COSAS DISTINTAS, Y ARRIBA NO SE DICE CUÁL
+>
+> El número de arriba (**«4 días calendario»**) es `último_del_viejo − primero_del_nuevo + 1` **en
+> días de calendario**. La medición del mismo día en `tools/nt8-data/audit_splice.py` cuenta otra
+> cosa: **fechas en las que los dos contratos tienen barra**. Para `ES`, sobre 40 uniones:
+>
+> | fechas compartidas | uniones |
+> |---|---|
+> | 1 | 1 |
+> | **2** | **23** |
+> | 4 | 16 |
+>
+> **Las dos cuentas son correctas y miden magnitudes distintas.** Pero *«4 días calendario»* se lee
+> como *«4 días de datos solapados»*, que es la cantidad que un lector necesita — y **no es la que
+> estaba impresa**. La mediana real de datos compartidos en `ES` es **2**.
+>
+> **La misma palabra, dos magnitudes, y el documento no decía cuál.**
+
 ## 4 · Días hábiles faltantes dentro de la cobertura
 
 Calendario Mon–Fri pelado. **Los feriados de mercado cuentan como faltantes acá y eso es esperado.**
