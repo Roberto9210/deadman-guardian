@@ -36,6 +36,15 @@ namespace GuardianCore
         public const string FlattenVerified = "FLATTEN_VERIFIED";
         public const string LockoutIncomplete = "LOCKOUT_INCOMPLETE";
         public const string OrderRejectedLocked = "ORDER_REJECTED_LOCKED";
+
+        /// <summary>A RECORD, NEVER A BRAKE: the guardian SAW this order while `LOCKED` and did
+        /// nothing to it. Distinct from <see cref="OrderRejectedLocked"/>, which asserts an action and
+        /// has had no writer since 2026-08-27 (A12) - keeping both names is the point, because one
+        /// reports an observation and the other claims an outcome. Added 2026-09-03, asked for by an
+        /// experiment that had already failed for its absence: a live breach test could not tell "we
+        /// stopped it silently" from "we did not stop it".</summary>
+        public const string OrderObservedWhileLocked = "ORDER_OBSERVED_WHILE_LOCKED";
+
         public const string SealExpired = "SEAL_EXPIRED";
         public const string LockoutCleared = "LOCKOUT_CLEARED";
         public const string Disarmed = "DISARMED";
