@@ -115,3 +115,90 @@ cierta; **la segunda es falsa y nunca lo fue** (`2019-05-06`: `ES` abre 2917,75 
 
 > **Cerrado el 2026-09-02. Se reabre con datos nuevos o con una pregunta distinta — no con una
 > relectura de estos mismos números.**
+
+---
+
+# ANOTACIONES AL PIE — 2026-09-02, posteriores al cierre
+
+**Se anotan. Nada de arriba se reescribe.** Ninguna de las dos reabre la pregunta.
+
+## Nota 1 · **QUÉ MIDEN REALMENTE M3 Y M4** — 🔶 HIPÓTESIS CON EVIDENCIA
+
+> **Procedencia: medido por Ventana D, no por esta ventana.**
+
+| lo medido por D | |
+|---|---|
+| el `close` diario de NT8 **no es el último precio** | coincide **al tick** con la barra de las **15:14 CT** en el **64 %** de las fechas, y con la de las **15:59** en sólo el **28 %** |
+| y el `open` es la **reapertura de las 17:00** | (ya establecido acá: la barra se indexa por fecha de negociación) |
+
+⇒ **`M3` y `M4` miden LIQUIDACIÓN A LIQUIDACIÓN.**
+
+**No están mal: miden eso.** Pero **el documento de arriba los describe de otro modo** — «movimiento de
+cierre a cierre» y «drawdown sobre la secuencia diaria de `close − open`» se leen como *último precio a
+último precio*, y no es lo que hay adentro.
+
+> **Etiqueta: HIPÓTESIS CON EVIDENCIA. D NO lo verificó contra un archivo de liquidaciones.** La
+> coincidencia al tick con las 15:14 es fuerte y es indirecta; queda como hipótesis hasta que alguien
+> la contraste contra la fuente de liquidaciones de CME.
+
+## Nota 2 · **BARRAS PRESENTES PERO HUECAS** — lo que la auditoría de cobertura no buscaba
+
+> **Origen del hallazgo: Ventana D**, que encontró cinco barras diarias con volumen 2 o 3 y una barra
+> fantasma de Año Nuevo. **Extensión y cifras: medidas acá**, `tools/nt8-data/audit_truncated_bars.py`.
+
+**La auditoría de cobertura buscaba FECHAS AUSENTES. Una fecha con dos operaciones la pasa sin
+despeinarse**: está presente, empalma, no deja hueco.
+
+**Criterios, declarados antes de correr**: RELATIVO (primario) volumen < 1 % de la mediana de la propia
+raíz · ABSOLUTO (reportado) volumen ≤ 10 contratos.
+
+**7 barras marcadas sobre 15.900**, y **4 caen dentro de la pregunta 1**:
+
+| raíz | fecha | contrato | volumen | rango | ¿en la pregunta 1? |
+|---|---|---|---|---|---|
+| `ES` | **2025-08-29** | `ES_09-25` | **2** | 1,25 | **SÍ** |
+| `MNQ` | **2025-01-01** | `MNQ_03-25` | **3** | 8,50 | **SÍ** — *es la fantasma de Año Nuevo de D* |
+| `ES` | 2023-04-18 | `ES_06-23` | 7.243 | 2,50 | **SÍ** |
+| `MNQ` | 2023-04-06 | `MNQ_06-23` | 8.188 | 22,25 | **SÍ** |
+| `ES` / `NQ` / `MGC` | **2016-11-16** | contratos `12-16` | 6.336 / 760 / 103 | 1,75 / 6,50 / 4,20 | no — fuera de ventana |
+
+> **Las tres del 2016-11-16 son la MISMA FECHA en tres raíces distintas. Eso no es un evento de
+> mercado: es un día de descarga parcial nuestro.** No toca ningún número de la pregunta 1.
+
+### Qué cambia si se las quita — **21 percentiles se mueven, TODOS hacia arriba**
+
+**La expectativa era que no cambiara nada relevante, y el número la confirma: una barra truncada tiene
+rango chico, así que SUBESTIMA. Quitarlas SUBE los percentiles, nunca los baja.**
+
+| raíz | medida | pct | viejo | nuevo | Δ % |
+|---|---|---|---|---|---|
+| `ES` | M2 rango | p50 | **58,00** | **58,25** | **+0,43 %** ← *el mayor movimiento de todos* |
+| `MNQ` | M1 corto | p50 | 108,88 | 109,12 | +0,23 % |
+| `MNQ` | M2 rango | p50 | 265,75 | 266,00 | +0,09 % |
+| `MNQ` | M1 largo | p90 | 378,77 | 379,12 | +0,09 % |
+| `ES` | M1 largo | p99 | 160,70 | 160,85 | +0,09 % |
+| `MNQ` | M1 corto | p95 | 420,79 | 421,06 | +0,07 % |
+| `ES` | M3 | p95 | 99,90 | 99,95 | +0,05 % |
+| `ES` | M1 largo | p95 | 106,83 | 106,85 | +0,02 % |
+| `MNQ` | M1 largo | p95 | 492,14 | 492,31 | +0,04 % |
+| `ES` | M2 rango | p90 | 120,15 | 120,20 | +0,04 % |
+| `ES` | M3 | p99 | 157,90 | 157,95 | +0,03 % |
+| `MNQ` | M3 | p99 | 680,34 | 680,56 | +0,03 % |
+| `ES` | M1 corto | p95 | 91,33 | 91,35 | +0,03 % |
+| `MNQ` | M1 largo | p99 | 752,23 | 752,35 | +0,02 % |
+| `MNQ` | M1 corto | p99 | 624,23 | 624,35 | +0,02 % |
+| `MNQ` | M1 corto | p90 | 323,57 | 323,62 | +0,02 % |
+| `MNQ` | M2 rango | p95 | 658,73 | 658,88 | +0,02 % |
+| `ES` | M2 rango | p99 | 223,84 | 223,86 | +0,01 % |
+| `MNQ` | M3 | p95 | 467,07 | 467,12 | +0,01 % |
+| `MNQ` | M2 rango | p99 | 990,91 | 990,92 | +0,00 % |
+| `ES` | M1 corto | p99 | 154,87 | 154,87 | +0,00 % |
+
+**El movimiento máximo es un cuarto de punto de `ES` en la mediana del rango. Los números de arriba
+NO se reescriben.**
+
+> ### ⚠ **M4 NO SE RE-MIDIÓ, y no es un olvido: es otra pregunta**
+> Quitar un día no corre un percentil — **corre la pertenencia de TODAS las ventanas móviles que lo
+> contenían** (20 ventanas para w20, 60 para w60). Eso no es un desplazamiento de percentil sino un
+> re-ventaneo, y **exige decidir antes si la ventana se cierra o se acorta**. **Queda NO MEDIDO y
+> declarado, en vez de estimado.**
