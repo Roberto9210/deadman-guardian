@@ -80,3 +80,72 @@ hallazgo.** Se imprimen **ARRIBA** del resultado, no abajo.
   apertura.
 - **No incorpora comisiones ni deslizamiento.**
 - **No cubre el objetivo de ganancia ni el mínimo de días operados de ninguna firma.**
+
+---
+
+# ENMIENDA 1 — 2026-09-02
+
+**Se ANOTA al pie. Nada de arriba se reescribe**: el documento es fechado, y borrar lo que decía
+borraría la evidencia de que lo creímos.
+
+> ## LA FRASE QUE NO PUEDE FALTAR
+>
+> **Al momento de escribir esta enmienda NO SE HABÍA VISTO NINGUNA CIFRA DE M1 A M4, y el orden del
+> `git log` lo demuestra**: `bd5012a` (pre-registro, solo) → `577bbec` (script) → esta enmienda, en
+> su propio commit, **antes** de que exista un solo resultado.
+>
+> **Precisión que corresponde hacer en vez de omitir**: el diagnóstico de C1 sí imprimió la excursión
+> en puntos de **quince barras sueltas** (cinco por par), como evidencia del control. **Eso no es una
+> distribución y no puede revelar una**, pero decirlo es parte de que esta frase valga algo.
+
+## Qué decía C1, textual
+
+> *«La razón entre la excursión en dólares de ES y la de MES, en la MISMA fecha, tiene que dar
+> exactamente 10. Igual NQ contra MNQ y GC contra MGC. **Si no da 10, los multiplicadores están mal y
+> el resultado en dólares no vale.**»*
+
+**Falló en los tres pares** — exactamente 10 en sólo 14,85 % / 4,88 % / 6,91 % de las fechas.
+
+## Por qué falló: C1 probaba DOS proposiciones a la vez
+
+La razón en dólares factoriza exacto:
+
+```
+(puntos_grande × pv_grande) / (puntos_micro × pv_micro)
+    =  (pv_grande / pv_micro)  ×  (puntos_grande / puntos_micro)
+```
+
+| proposición | veredicto | evidencia |
+|---|---|---|
+| **los multiplicadores son correctos** | **CIERTA, y verificada** | `50/5 = 10` · `20/2 = 10` · `100/10 = 10`, exactos, leídos de `MasterInstruments.PointValue` en la máquina |
+| **el grande y el micro imprimen el mismo OHLC** | **FALSA, y nunca lo fue** | mediana de la razón en puntos `1,0000` / `0,9983` / `1,0000`, **pero idéntica sólo en 15,0 % / 5,4 % / 5,0 %** de las fechas |
+
+**El ejemplo que lo cierra:**
+
+```
+2019-05-06    ES: open 2917.75  low 2883.50  ->  34.25 pts
+             MES: open 2925.75  low 2883.75  ->  42.00 pts
+                       ↑ OCHO PUNTOS de diferencia en el open, contra el mismo low
+```
+
+**Un control que falla sin que nada esté roto no mide lo que dice medir.**
+
+## PASO 3 — REGLA NUEVA, y es la lección de fondo
+
+> ### NINGUNA RAÍZ SE DERIVA DE OTRA.
+> **`MES` se mide sobre las barras de `MES`.** El grande y el micro son **libros de órdenes
+> separados** y **no comparten OHLC**. Ningún cálculo escala uno para obtener el otro.
+
+## Los controles quedan así — **cada uno declara QUÉ tumba si falla**
+
+| control | qué comprueba | **qué tumba si falla** |
+|---|---|---|
+| **C1′ MULTIPLICADOR** | que los valores que usa el script sean **exactamente** los de `MasterInstruments.PointValue`, y que las razones grande/micro den **exactamente 10**. **Imprime los seis valores** | **sólo la conversión a dólares.** M1–M4 en puntos quedan en pie |
+| **C1b ARITMÉTICA** *(nuevo, y NO es un test)* | imprime **UNA fila trabajada entera** — fecha, raíz, `open`, `low`, puntos, multiplicador, dólares — **para que un lector la rehaga a mano**. Un **testigo impreso**, no una aserción que compruebe mi propia definición | nada: no afirma, muestra |
+| **C2 ESCALA** | 2 contratos dan exactamente el doble que 1 | **TODO lo que use cantidad de contratos, que es todo** |
+| **C3 ORDEN** | drawdown real ≠ drawdown barajado, semilla `20260902` | **sólo M4** |
+| **C4 DEGENERADOS** *(nuevo)* | por raíz, cuántas fechas tienen `open == low` y cuántas `open == high`, con conteo y porcentaje. La razón fallada mostró valores de `0,0000` y de `163`, que significan **excursión cero en uno de los dos** | **la distribución de la raíz afectada**, que debe declararse sospechosa **antes** de publicarse |
+
+**La parada deja de ser global y pasa a ser por control.** Un control que falla invalida **su
+alcance declarado**, no el hallazgo entero — que es lo que este documento ya decía arriba y el
+PASO 3 de la instrucción anterior contradecía.
