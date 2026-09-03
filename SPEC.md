@@ -746,8 +746,8 @@ the deadman style ("N of M", never a rounded-up "all").
 |---|---|---|
 | G1 | Config with any missing/unknown/invalid field never arms | table of broken configs, each asserted rejected with its reason |
 | G2 | `personalLimit >= firmLimit` never arms | boundary cases including equality |
-| G3 | Day P&L includes commissions and matches a hand-computed fixture | fixed execution stream, expected decimal |
-| G4 | Losses are summed across accounts, never netted | two accounts, one +$500, one −$700 |
+| G3 — **NOT EXERCISED IN PRODUCTION** | Day P&L includes commissions and matches a hand-computed fixture | fixed execution stream, expected decimal. **Implemented and unit-tested. NOT EXERCISED IN PRODUCTION** — measured 2026-09-03 over the 8,106-row production ledger (`docs/g3-g4-episodio-20260826.md`): the figure that tripped the limit on 2026-08-26 was **entirely unrealized**, since `grossRealizedPerAccount` is `0.00` in every checkpoint up to the breach, and unrealized comes from the platform verbatim. **Commissions appear in no event of the ledger, ever**, so the commissions clause has never been observed doing anything. See the open defect *"the guardian acts on a number its own record cannot verify"* |
+| G4 — **NOT EXERCISED IN PRODUCTION** | Losses are summed across accounts, never netted | two accounts, one +$500, one −$700. **Implemented and unit-tested. NOT EXERCISED IN PRODUCTION**: all 1,303 production checkpoints carry **exactly one account**, and all 10 `ARMED` events name only `Sim101`. With one account, summing and netting give the same number, so the property this guarantee names has never executed. **And its distinguishing case cannot occur as shipped** — multi-account is refused at arm time (M15/M16), so reachability is decided by a gate upstream, not by this check |
 | G5 | Breach at exactly the limit trips (`>=`, not `>`) | P&L stream landing exactly on it |
 | G6 | Lockout persists state **before** the first broker call | fake store records call order |
 | G7 | Process killed mid-flatten resumes `LOCKED`, not `ARMED` | fake broker throws mid-sequence; new Core instance from the same store |
