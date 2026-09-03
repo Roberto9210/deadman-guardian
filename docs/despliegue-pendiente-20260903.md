@@ -130,6 +130,31 @@ cuyo despliegue no se puede confirmar leyendo el ledger anterior a ella.
 > Desplegar B solo es el peor de los tres caminos: quita la herramienta de verificación y no la
 > reemplaza.
 
+## 2b. F5 DEL 2026-09-03 16:23 CT — **NO DESPLEGÓ NADA. El paquete sigue entero y pendiente.**
+
+Se corrió la lista de abajo y el resultado es que **el F5 se apretó sin `install.ps1`**:
+
+| medición | resultado |
+|---|---|
+| `GuardianCore.dll` | **sin cambiar**: mismo sha256 `6529a92a…`, misma mtime 2026-09-02 18:09:57 |
+| `NinjaTrader.Custom.dll` | **recompilado**: mtime 2026-09-03 16:23, sha256 `134f6f82…` → `0ff41059…` |
+| fuentes del addon en `bin\Custom\AddOns` | **sin cambiar** (`DeadmanGuardianAddOn.cs` sigue del 1-sep 09:50) |
+| `GUARDIAN_STARTED` nuevo (`seq 8121`) | `{"state":"LOCKED"}` — **sin `coreBuild`, sin `coreMvid`** |
+| literales en el Core cargado | `ORDER_OBSERVED_WHILE_LOCKED` **ausente**, `exhausted` **presente**, `MaxFlattenAttempts` **presente** |
+
+**Ninguna de las tres piezas entró.** El DLL del addon cambió de bytes porque **F5 siempre recompila**,
+pero desde **las mismas fuentes** ⇒ mismo comportamiento.
+
+**Lo que esto enseña, y no estaba previsto:** el F5 **es invisible en el registro**. Las únicas filas
+que dejó son `GUARDIAN_STOPPED`/`GUARDIAN_STARTED`, iguales a las de cualquier reinicio. **Un
+recompilado del addon no deja rastro**, y ése es justamente el trabajo de `addonBuild`, que vive en la
+tanda del freno. **La ironía escrita en la pieza C se cumplió el mismo día**: no se puede confirmar el
+despliegue de C leyendo el ledger, porque el ledger anterior a C no habla de builds.
+
+**El disparador del sitio NO se activó**, y eso es la comprobación funcionando: la frase
+*"the guard neither cancels it nor records it"* **sigue siendo cierta**, porque el literal está
+ausente del DLL cargado. **Corregir el sitio hoy habría publicado una frase falsa.**
+
 ## 3. Lista de comprobación del F5, para el día que se decida
 
 1. **Antes**: anotar el sha256 de los dos DLL cargados y el `seq` de cabeza del ledger.
