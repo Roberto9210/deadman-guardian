@@ -70,7 +70,30 @@ dos.**
 
 ---
 
-### PIEZA C — `buildHash` en `GUARDIAN_STARTED` (pendiente, con su forma)
+### PIEZA C — identidad de build en `GUARDIAN_STARTED` — **HECHA 2026-09-03 (`0ca438a`), sin desplegar**
+
+> **CORRECCIÓN AL PROPIO DOCUMENTO, mismo día.** Abajo esta pieza se llamaba `buildHash`. **El campo
+> se llama `coreBuild`**, y el nombre estaba fijado desde el 2026-09-02 en
+> `docs/freno-identidad-build-20260902.md` §2. Un segundo nombre para la misma cosa es el defecto que
+> perseguimos toda la jornada; documento vivo, así que se corrige en vez de anotarse.
+>
+> **Y son DOS campos, no uno**, por una medición que pidió el operador antes de aplicar:
+> `ReadCoreAssemblyBytes()` lee **el archivo en disco**, e `install.ps1` copia el DLL nuevo mientras
+> el proceso sigue ejecutando el viejo en memoria ⇒ durante esa ventana un hash de archivo
+> **declararía el binario nuevo mientras corre el viejo**, mintiendo en el único momento que importa.
+>
+> | campo | qué dice | de dónde sale |
+> |---|---|---|
+> | **`coreMvid`** | **qué se está EJECUTANDO** — `ModuleVersionId` del ensamblado cargado, de metadatos ya en memoria | lo calcula **Core**: quien contesta *"qué build soy"* debe ser el build que se describe |
+> | **`coreBuild`** | **qué hay EN DISCO** — sha256[:16] del archivo, igual que el certificado | lo pasa el **host**: leer un archivo es I/O y Core no hace ninguna |
+>
+> **Su DESACUERDO es la ventana de dos etapas, visible en el registro por primera vez.**
+> Hashear los **bytes cargados** no es alcanzable: la imagen en memoria no es byte-idéntica al
+> archivo. **Ausente antes que inventado**: el valor que no se puede obtener no escribe su clave.
+
+**Lo que sigue es el texto original de la pieza, conservado:**
+
+
 
 **Qué falta hoy**: el ledger **no puede decir qué binario escribió ninguna de sus 8.119 filas**.
 `GUARDIAN_STARTED` lleva sólo `{"state":…}`; un `grep` de `buildHash|addonBuild|coreBuild` sobre el
@@ -113,8 +136,11 @@ cuyo despliegue no se puede confirmar leyendo el ledger anterior a ella.
 2. **Después del F5**: confirmar que los sha256 **cambiaron**, y que los tres literales están donde
    deben — `ORDER_OBSERVED_WHILE_LOCKED` **presente**, `needsHuman` **presente**, `exhausted`
    **ausente** como literal del emisor.
-3. **Primer arranque**: `GUARDIAN_STARTED` debe traer `buildHash` (si C entró), y ese valor debe
-   coincidir con el sha256 medido en el punto 2.
+3. **Primer arranque**: `GUARDIAN_STARTED` debe traer **`coreMvid`** y **`coreBuild`**, y este
+   último debe coincidir con el sha256[:16] medido en el punto 2.
+4b. **LOS DOS CAMPOS TIENEN QUE CONTAR LA MISMA HISTORIA.** Si `coreBuild` cambió y `coreMvid` no,
+   el F5 quedó a medias: hay un DLL nuevo en disco y uno viejo ejecutando. Ésa es la ventana de dos
+   etapas, y desde esta pieza **se lee en el registro** en vez de medirse a mano.
 4. **El sitio**: aplicar la corrección de `frases-retiradas-20260903.md` §5c **el mismo día**.
 5. **Reemplazar P-A** en cualquier predicción sellada futura: el falsador pasa a ser `needsHuman`
    presente, o directamente `buildHash` si C entró.
