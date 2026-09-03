@@ -690,6 +690,35 @@ through these four, with fakes; no NinjaTrader, no disk unless the test wants di
 Each is a named guarantee; the conformance statement in the README will say how many are implemented, in
 the deadman style ("N of M", never a rounded-up "all").
 
+> ### CONVENTION, added 2026-09-02 after G8 — **EFFECT, NEVER INTENT**
+>
+> **A guarantee written in terms of the trader's INTENT is unimplementable by construction, and no
+> amount of care at implementation time can rescue it. Only guarantees written in terms of the EFFECT
+> ON THE POSITION are implementable.**
+>
+> The guardian **can never know what the trader meant.** It observes an order and a position; it does
+> not observe a purpose. A bot knows its own intent — `nt/bots/DeadmanBotA.cs` classifies its orders
+> with `opening = action == Buy || action == SellShort` and is right, **because it wrote them.** The
+> same line applied to a stranger's order is wrong: a trader who is short and exits through the DOM
+> sends `Buy`, and that rule calls their exit an entry and cancels it. **That is not a hypothetical;
+> it is the 2026-08-26 incident, arrived at from the other side.**
+>
+> | ❌ intent — unimplementable | ✅ effect — implementable |
+> |---|---|
+> | *"new orders are cancelled"* | *"orders that INCREASE net exposure are cancelled"* |
+> | *"entries are blocked"* | *"an order whose direction matches the sign of the position is refused"* |
+> | *"the trader cannot open a position"* | *"net exposure does not increase while locked"* |
+>
+> **`G8` was not a drafting slip. It was written in the wrong language**, and the wrong language has no
+> implementation at any price. Rewriting it is therefore a **change of scope**, not a correction of
+> wording — which is why it is marked NOT IMPLEMENTED and left standing (A12).
+>
+> **The near-miss worth naming, so nobody walks into it:** `GuardianStatus.EntriesAllowed` and the
+> phrase *"blocks new entries"* are intent vocabulary and appear throughout this document. They are
+> **safe today for one reason only — nothing acts on an order because of them.** The flag reports the
+> guardian's own state; it never classifies somebody else's order. **The day anyone makes it act, it
+> becomes G8.**
+
 | # | Guarantee | Shape of the test |
 |---|---|---|
 | G1 | Config with any missing/unknown/invalid field never arms | table of broken configs, each asserted rejected with its reason |
