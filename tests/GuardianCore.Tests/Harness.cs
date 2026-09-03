@@ -26,6 +26,9 @@ namespace GuardianCore.Tests
         public FakeAccountFeed Feed = new FakeAccountFeed(Account);
         public Guardian Guardian;
         public string RunId = "run-1";
+        /// <summary>Identity of the GuardianCore build ON DISK, as a host would supply it. Null by
+        /// default so every test that does not care exercises the absent-key path.</summary>
+        public string BuildHash;
 
         public static string Config(string personalLimit = "600.00", string firmLimit = "1000.00",
                                    string accounts = "[\"Sim101\"]")
@@ -65,6 +68,7 @@ namespace GuardianCore.Tests
                 StatePath = StatePath,
                 LedgerPath = LedgerPath,
                 RunId = RunId,
+                BuildHash = BuildHash,
                 LedgerObserver = e => { var o = Observer; if (o != null) o(e); }
             });
             Guardian.Start();

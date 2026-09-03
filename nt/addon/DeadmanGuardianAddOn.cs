@@ -111,6 +111,11 @@ namespace NinjaTrader.NinjaScript.AddOns
                 LedgerPath = LedgerPath,
                 // One run id per process: monotonic continuity exists only inside it (SPEC §6.4, §17.2).
                 RunId = Guid.NewGuid().ToString("N"),
+                // WHAT IS ON DISK - deliberately the same 16-hex fingerprint over the same bytes the
+                // certificate publishes, so the two agree by construction. It reads the FILE, so
+                // mid-deploy it can name a binary this process is not running; that is exactly why
+                // Core writes coreMvid beside it, from metadata already in memory.
+                BuildHash = IssuerIdentity.BuildHashOf(ReadCoreAssemblyBytes()),
                 LedgerObserver = OnLedgerEntry
             });
 

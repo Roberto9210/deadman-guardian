@@ -54,6 +54,19 @@ namespace GuardianCore
         /// (SPEC 6.4, 17.2).</summary>
         public string RunId { get; set; }
 
+        /// <summary>Identity of the GuardianCore build ON DISK - sha256[:16] of the file, the same
+        /// value the certificate publishes. Supplied by the host because reading a file is I/O and
+        /// Core performs none (IssuerIdentity.cs:64).
+        ///
+        /// IT SAYS WHAT IS ON DISK AT STARTUP, NOT WHAT IS EXECUTING, and that difference is the
+        /// whole reason `coreMvid` sits beside it in the same event: install.ps1 copies the new
+        /// GuardianCore.dll while the process still runs the old one in memory, so during that
+        /// window a file hash names the NEW binary while the OLD one executes - lying in the exact
+        /// moment the field exists for.
+        ///
+        /// Null or empty means the host could not read it, and then THE KEY IS NOT WRITTEN.</summary>
+        public string BuildHash { get; set; }
+
         /// <summary>Optional observer for ledger appends (SPEC section 14). Best-effort and never
         /// load-bearing: an exception from it cannot break an append or stop a lockout, and its
         /// failures are counted and published rather than swallowed.</summary>
@@ -74,6 +87,7 @@ namespace GuardianCore
         private readonly string _statePath;
         private readonly string _ledgerPath;
         private readonly string _runId;
+        private readonly string _buildHash;
         private readonly Func<string, TimeZoneInfo> _zoneLookup;
 
         private Ledger _ledger;
@@ -108,6 +122,7 @@ namespace GuardianCore
             _statePath = options.StatePath ?? throw new ArgumentNullException(nameof(options.StatePath));
             _ledgerPath = options.LedgerPath ?? throw new ArgumentNullException(nameof(options.LedgerPath));
             _runId = options.RunId ?? Guid.NewGuid().ToString("N");
+            _buildHash = options.BuildHash;
             _zoneLookup = options.ZoneLookup;
             _ledgerObserver = options.LedgerObserver;
         }
@@ -172,6 +187,39 @@ namespace GuardianCore
             _state != null && _state.Kind == StateKind.Locked && !_state.LockoutVerified &&
             _state.FlattenAttempts >= Constants.FlattenAttemptsBeforeHuman;
 
+        /// <summary>Build identity on GUARDIAN_STARTED. Two fields, and THEIR DISAGREEMENT IS THE
+        /// POINT - it is the two-stage deploy window, made visible in the record for the first time.
+        ///
+        ///   coreMvid   the ModuleVersionId of the assembly THIS CODE IS RUNNING IN, read from
+        ///              metadata already in memory. WHAT IS EXECUTING. Computed here rather than
+        ///              handed in, because a field that answers "which build am I" should be answered
+        ///              by the build it describes; an adapter supplying it is the caller-trusting
+        ///              inversion M1 exists to prevent. It is NOT a hash and is not comparable with
+        ///              coreBuild - hashing the loaded bytes is unreachable, since the in-memory
+        ///              image is not byte-identical to the file.
+        ///   coreBuild  sha256[:16] of the file on disk, from the host. WHAT IS ON DISK.
+        ///
+        /// ABSENT BEFORE INVENTED: a value that cannot be obtained omits its key. Never "", never
+        /// "unknown" - the doctrine that already cost seven `?? ""` and a rejected DECORATIVE_FILLER.
+        /// coreMvid can go missing too: a runtime that reports no module identity is a real state,
+        /// and saying nothing about it is the honest answer.</summary>
+        private JsonObject WithBuildIdentity(JsonObject payload)
+        {
+            if (!string.IsNullOrEmpty(_buildHash)) payload.Set("coreBuild", _buildHash);
+
+            string mvid = null;
+            try
+            {
+                var id = typeof(Guardian).Assembly.ManifestModule.ModuleVersionId;
+                if (id != Guid.Empty) mvid = id.ToString("N");
+            }
+            catch (NotSupportedException) { }        // some hosts expose no module identity
+            catch (InvalidOperationException) { }
+
+            if (mvid != null) payload.Set("coreMvid", mvid);
+            return payload;
+        }
+
         public LedgerVerifyResult VerifyLedger() => _ledger?.Verify() ?? LedgerVerifyResult.Good();
 
         /// <summary>True only inside the run that armed: monotonic counters restart with the process
@@ -196,7 +244,8 @@ namespace GuardianCore
                     LastMonotonicMs = _clock.MonotonicMs,
                     RunId = _runId
                 };
-                Log(Ev.GuardianStarted, JsonValue.Obj().Set("state", "DISARMED").Set("fresh", true));
+                Log(Ev.GuardianStarted, WithBuildIdentity(
+                    JsonValue.Obj().Set("state", "DISARMED").Set("fresh", true)));
                 Persist();
                 return;
             }
@@ -225,7 +274,8 @@ namespace GuardianCore
                 return;
             }
 
-            Log(Ev.GuardianStarted, JsonValue.Obj().Set("state", _state.Kind.ToString().ToUpperInvariant()));
+            Log(Ev.GuardianStarted, WithBuildIdentity(
+                JsonValue.Obj().Set("state", _state.Kind.ToString().ToUpperInvariant())));
             Log(Ev.StateRestored, JsonValue.Obj()
                 .Set("state", _state.Kind.ToString().ToUpperInvariant())
                 .Set("dayKey", _state.DayKey ?? "")
