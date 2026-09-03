@@ -85,6 +85,36 @@ Emparenta directo con la regla 19 —*nadie escribe un test sobre una frase*— 
 discutir; **una que afirma un estado presente sólo se puede medir, y caduca sin avisar.** El `26 of
 26` era exactamente eso: un estado, escrito una vez, cierto durante seis días menos uno.
 
+## 5c. PENDIENTE CON DISPARADOR — la primera vez que cazamos la desincronización ANTES
+
+**Todo lo demás de este documento se escribió DESPUÉS de que una frase quedara falsa.** Esto es lo
+contrario: una frase **hoy verdadera** que sabemos exactamente cuándo va a dejar de serlo.
+
+**La frase, en el sitio** (`how-it-works.html`, sección del lockout):
+
+> *"a new order — from the DOM, a chart, a running strategy — reaches your broker and can fill: **the
+> guard neither cancels it nor records it**."*
+
+**Hoy es CIERTA sobre el binario que corre** (`GuardianCore.dll` `6529a92a…`, código del 1-sep):
+`OnOrderObserved` no cancela y no escribe nada.
+
+> ### **DISPARADOR: el día que `ORDER_OBSERVED_WHILE_LOCKED` esté DESPLEGADO —no commiteado: desplegado, o sea después del F5 que lo lleve— esa frase pasa a ser FALSA.**
+>
+> Falsa **en la dirección contraria** a la que veníamos corrigiendo: dirá que no registramos, cuando
+> sí registramos. **La corrección será decir que la orden llega igual y que ahora queda una fila que
+> la nombra, sin cancelarla.**
+
+**Estado**: el evento está **commiteado y verde** (`c9b196f` rojo, `48c6155` verde), y **no está
+desplegado**. Mientras el binario cargado siga siendo `6529a92a…`, **no se toca el sitio**.
+
+**Cómo se comprueba el disparador sin acordarse:** la misma medición que identificó el binario —
+buscar el literal en el DLL desplegado. `ORDER_OBSERVED_WHILE_LOCKED` **ausente** ⇒ la frase del
+sitio sigue bien. **Presente** ⇒ hay que cambiarla. Es la misma técnica que probó P-A.
+
+**Por qué esto vale más que la corrección que evita:** el paquete completo del despliegue está en
+`docs/despliegue-pendiente-20260903.md`, y esta entrada es su primer renglón. **Una desincronización
+anotada antes de existir no necesita que nadie la descubra.**
+
 ## 6. Lo que NO mide
 
 Sostiene frases **ya cazadas**. No dice nada de la próxima frase falsa, que estará redactada con
