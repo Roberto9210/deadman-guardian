@@ -90,7 +90,7 @@ it large to "stop the noise" defeats the check.
 |---|---|
 | **NOT PROTECTED** (grey) | disarmed, or no config yet. Nothing is being watched. The reason is printed underneath |
 | **ARMED** (green) | watching. You can trade |
-| **LOCKED** (red) | your limit was reached. Everything was closed, new orders are cancelled on sight, and there is a countdown to when the seal expires |
+| **LOCKED** (red) | your limit was reached. The working orders were swept once and a flatten was requested; the guard keeps attempting it and re-reads the account rather than assuming. **New orders still reach your broker and can fill — nothing is cancelled while locked.** There is a countdown to when the seal expires. If the panel says it needs you, check the flatten yourself |
 | **NOT PROTECTED** (orange) | it does not know something it needs to know — the account went away, the P&L stopped adding up, the clock moved. Entries are blocked until it knows again. The reason is printed |
 
 That last one is the one people misread. Orange is not a crash. It is the guardian refusing to say "fine"

@@ -101,3 +101,14 @@ en presente un mecanismo retirado hace siete días:
 **Ninguno de los dos es una copia del sitio**: son la fuente. El sitio se corrigió el 2026-09-01 y
 **estos dos siguieron afirmándolo dos días más** — la misma dirección de fuga que §1, medida por
 segunda vez en el mismo día y sobre otra frase.
+
+> **Una familia no está cerrada porque un documento fechado lo diga, si la afirmación vive en varios
+> lugares. Se cierra cuando algo mecánico comprueba que todos coinciden. `G8` se dio por cerrada dos
+> veces y las dos veces seguía viva en la fuente.** (Regla del operador, 2026-09-03.)
+
+**Resueltos el mismo día, cada uno con su tratamiento:** `SPEC.md:536` **anotado, no reescrito** —
+paso 5 marcado `NOT IMPLEMENTED since 2026-08-27` con nota fechada al patrón de `SPEC.md:530`, y la
+cláusula afirmativa **no restituida ni entre comillas**, porque repetirla volvería a poner la oración
+retirada en un documento vivo. `docs/configure.md:93` **corregido directo**: es documento vivo de
+cara al usuario, y además decía *"Everything was closed"*, que es la promesa que el sitio ya había
+retirado — el registro es **un flatten verificado en toda la vida del producto**.

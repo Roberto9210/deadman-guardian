@@ -533,9 +533,22 @@ Ordered, idempotent, and resumable — it must survive being killed at any point
    > attempts releases nothing"*, que era y sigue siendo correcto — de hecho esta especificación fue
    > lo único que nunca afirmó un tope. Lo que se renombró fueron los dos identificadores que sí lo
    > afirmaban. Se anota para que grepear el nombre viejo no dé cero.
-5. **Keep enforcing.** While `LOCKED`, every new order on a guarded account is cancelled on sight and logged
-   `ORDER_REJECTED_LOCKED`. A single flatten is not a lockout; the DOM, a chart, and a running strategy can
-   all still submit.
+5. **Keep enforcing.** — **NOT IMPLEMENTED since 2026-08-27 (`a916bba`).** A single flatten is not a
+   lockout; the DOM, a chart, and a running strategy can all still submit. What this step specified for
+   those orders is `G8`, and `G8` is not implemented: they reach the broker and can fill. What the
+   guardian does instead is keep attempting the flatten and verify it (step 4), for the rest of the day.
+
+   > **Nota, 2026-09-03 — anotación, no reescritura.** Este paso afirmaba en presente la conducta que
+   > `a916bba` retiró el **2026-08-27**, después de que cancelar a ciegas cancelara el flatten propio del
+   > guardián y cuatro órdenes del trader (**A11**). Es la **misma afirmación que `G8`**, escrita otra vez
+   > en prosa, y **siguió en pie siete días después** de que la enmienda diera la familia por cerrada:
+   > la marcó un test (`C_RetractedPhraseTests`), no una lectura.
+   >
+   > **La cláusula afirmativa NO se restituye aquí ni entre comillas**, y eso es deliberado: repetirla
+   > volvería a poner la oración retirada en un documento vivo, que es exactamente lo que el test
+   > prohíbe. Su texto exacto está en el diff de este commit y la garantía intacta está en `§15 G8`,
+   > que **no** se reescribe (**A12**) porque el hueco es real. **El paso no se borra**: se marca, para
+   > que quien lea la secuencia vea que falta un escalón y cuál es.
 
 **Measured in Step 3**, on `Sim101` with one resting limit order: **14.4 ms** from observing a live order to
 the cancel being submitted, and **315.9 ms** for the whole submit-to-cancelled cycle, of which 301 ms are
