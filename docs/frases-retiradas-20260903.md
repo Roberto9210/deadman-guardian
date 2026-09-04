@@ -104,8 +104,22 @@ contrario: una frase **hoy verdadera** que sabemos exactamente cuándo va a deja
 > sí registramos. **La corrección será decir que la orden llega igual y que ahora queda una fila que
 > la nombra, sin cancelarla.**
 
-**Estado**: el evento está **commiteado y verde** (`c9b196f` rojo, `48c6155` verde), y **no está
-desplegado**. Mientras el binario cargado siga siendo `6529a92a…`, **no se toca el sitio**.
+> ## ⚡ DISPARADA — **2026-09-03 21:58:23 CT**, despliegue `12f10c4`, `coreBuild 854d14c1a2f28b6b`
+>
+> El binario cargado dejó de ser `6529a92a…` y pasó a ser **`854d14c1a2f28b6b`**, con
+> `ORDER_OBSERVED_WHILE_LOCKED` presente. **La frase del sitio quedó falsa en ese instante** y se
+> corrigió el mismo día, en el repo del sitio.
+>
+> **Es la primera entrada de esta lista que se caza ANTES de que la encuentre alguien de afuera.**
+> Todas las demás se escribieron después de que una frase quedara falsa; ésta se escribió **mientras
+> todavía era cierta**, con la condición que la volvería falsa y con la manera de comprobarla. El
+> 2026-09-03 a las 16:23 hubo un F5 que **no** desplegó nada, la condición **no** se cumplió y **el
+> sitio no se tocó** — la comprobación evitó publicar una frase falsa por adelantarse. A las 21:58 la
+> condición se cumplió de verdad y la corrección salió. **Las dos veces decidió la medición, no la
+> expectativa.**
+
+**Estado**: el evento está **commiteado, verde y DESPLEGADO** (`c9b196f` rojo, `48c6155` verde,
+desplegado el 2026-09-03 21:58 CT).
 
 **Cómo se comprueba el disparador sin acordarse:** la misma medición que identificó el binario —
 buscar el literal en el DLL desplegado. `ORDER_OBSERVED_WHILE_LOCKED` **ausente** ⇒ la frase del
