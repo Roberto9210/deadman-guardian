@@ -155,6 +155,52 @@ despliegue de C leyendo el ledger, porque el ledger anterior a C no habla de bui
 *"the guard neither cancels it nor records it"* **sigue siendo cierta**, porque el literal está
 ausente del DLL cargado. **Corregir el sitio hoy habría publicado una frase falsa.**
 
+## 2c. DESPLIEGUE COMPLETO — **2026-09-03 21:58:23 CT. Las tres piezas están corriendo.**
+
+Con acuerdo explícito de Roberto para correr `install.ps1` **una vez**.
+
+| | |
+|---|---|
+| `dotnet build … -c Release` | 21:56:13, **0 warnings, 0 errors** |
+| **`coreBuild` predicho antes de desplegar** | **`854d14c1a2f28b6b`** |
+| `install.ps1` fin | **21:56:59 CT** — 6 archivos, `COPY VERIFIED`, `BUILD CURRENT`, sin `exit 2/4/5/6` |
+| F5 de Roberto | `NinjaTrader.Custom.dll` recompilado **21:58:22**, `0ff41059…` → `adfec808…` |
+| **verificación estática** | `ORDER_OBSERVED_WHILE_LOCKED` **presente** (utf16, ×2) en `Documents\NinjaTrader 8\bin\Custom\GuardianCore.dll` |
+| **verificación dinámica** | **`seq 8135`**, `GUARDIAN_STARTED {"coreBuild":"854d14c1a2f28b6b","coreMvid":"0287bcec7203476e840485a40b72308e","state":"DISARMED"}` — **coincide con el predicho** |
+
+### LA VENTANA DE DOS ETAPAS SE MIDIÓ DESDE ADENTRO, y los dos campos la dibujaron solos
+
+**No estaba planificado y es el hallazgo de la corrida.** Las dos filas consecutivas:
+
+```
+seq 8132  21:57:53.859 CT  GUARDIAN_STARTED  {"coreMvid":"0287bcec…","state":"DISARMED"}
+seq 8135  21:58:23.222 CT  GUARDIAN_STARTED  {"coreBuild":"854d14c1a2f28b6b","coreMvid":"0287bcec…","state":"DISARMED"}
+```
+
+**En `8132` falta `coreBuild` y está `coreMvid`.** El motivo es exacto: `coreMvid` lo calcula **Core**, y
+el Core nuevo ya estaba cargado al arrancar NinjaTrader; `coreBuild` lo pasa **el addon**, y el addon
+que corría entonces era **el viejo compilado a las 16:23**, que no conoce esa opción.
+
+> **`coreMvid` solo ⇒ Core nuevo con addon viejo: la combinación que no corresponde a ningún commit.**
+> **Los dos ⇒ el par coherente.**
+>
+> Los diseñé para discrepar en el VALOR y discreparon en la PRESENCIA — la misma señal por una ruta
+> que no predije. **Primera medición en vivo de la ventana, hecha por el registro y no por una persona.**
+
+**Y corrige el número que veníamos citando.** Los 77 s del 2026-09-02 se midieron de *fin de install*
+a *par coherente*; por esa vara **esta vez fueron 84 s** (21:56:59 → 21:58:23). Pero la **exposición
+real** empieza cuando NinjaTrader abre, no cuando termina el script: antes de las 21:57:53 no había
+ningún par que pudiera estar mal. **La ventana medida desde el registro es de 29,4 segundos**
+(`8132` → `8135`). **El 77 la sobreestimaba, y hasta hoy no había forma de saberlo.**
+
+### Lo que NO cambia con este despliegue
+
+- **`G8` sigue NO IMPLEMENTADA.** `ORDER_OBSERVED_WHILE_LOCKED` **registra, no cancela**, y G8 dice
+  *"orders after lockout are **cancelled** and logged"*. **Se cumple la mitad del `and`, y media
+  garantía no es una garantía.** La conformidad **sigue en 25 de 26**.
+- **El segundo número sigue en 3 de 26.** Ninguna garantía se ejercitó en producción por desplegar
+  código: haría falta un lockout bajo este build, y no lo hubo.
+
 ## 3. Lista de comprobación del F5, para el día que se decida
 
 1. **Antes**: anotar el sha256 de los dos DLL cargados y el `seq` de cabeza del ledger.
